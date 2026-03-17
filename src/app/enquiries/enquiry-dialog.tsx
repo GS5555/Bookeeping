@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -431,19 +432,19 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                               </div>}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                   <Select value={currentFilters.brandId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], brandId: value }; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={!isEditing}>
-                                    <SelectTrigger><SelectValue placeholder="Brand" /></SelectTrigger>
+                                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Brand" /></SelectTrigger>
                                     <SelectContent><SelectItem value="all">All Brands</SelectItem>{brands?.sort((a,b)=>a.name.localeCompare(b.name)).map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
                                   </Select>
                                   <Select value={currentFilters.categoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], categoryId: value, subCategoryId: 'all' }; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={!isEditing}>
-                                      <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+                                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
                                       <SelectContent><SelectItem value="all">All Categories</SelectItem>{categories?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                                   </Select>
                                   <Select value={currentFilters.subCategoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index].subCategoryId = value; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={filteredSubCategories.length === 0 || !isEditing}>
-                                      <SelectTrigger><SelectValue placeholder="Sub-Category" /></SelectTrigger>
+                                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Sub-Category" /></SelectTrigger>
                                       <SelectContent><SelectItem value="all">All Sub-Categories</SelectItem>{filteredSubCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}</SelectContent>
                                   </Select>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start">
+                            <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start pt-2">
                                 <FormField control={control} name={`items.${index}.productId`} render={({ field: formField }) => (
                                       <FormItem><FormLabel className="sr-only">Product</FormLabel>
                                         <Select onValueChange={(value) => {
@@ -482,7 +483,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
               
               {totals.totalAmount > 0 && (
                   <div className="space-y-2 rounded-lg border p-4 bg-muted/30">
-                      <h4 className="font-medium">Enquiry Value</h4>
+                      <h4 className="font-medium text-xs uppercase tracking-widest text-muted-foreground">Enquiry Value</h4>
                       <div className="flex justify-between text-sm text-muted-foreground"><span>Subtotal</span><span>₹{totals.subTotal.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div>
                       {watchedSaleType === 'GST' && (
                           <div className="flex justify-between text-sm text-muted-foreground"><span>GST</span><span>₹{totals.gstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div>

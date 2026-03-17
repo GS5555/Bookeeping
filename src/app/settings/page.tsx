@@ -2,7 +2,7 @@
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Upload, Save, Signature, PercentSquare, Ticket, Users2, Notebook } from 'lucide-react';
+import { PlusCircle, Download, Upload, Save, Database, HardDrive, Info } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -12,15 +12,15 @@ import {
 } from '@/components/ui/card';
 import { DataTable } from '@/components/data-table';
 import { columns, subCategoryColumns, courierColumns, basicColumns } from './columns';
-import { useState, useEffect, useRef } from 'react';
-import { Category, SubCategory, Brand, HsnCode, Color, Courier, Company, ExpenseType, Warranty, HandPreference, Sale, PurchaseOrder, Expense, InventoryItem, Customer, Vendor, Product, Store, SaleReturn, Address, EnquiryStatus, User, CustomerType, VendorType, EnquiryType, EnquirySource, FollowUpType } from '@/lib/types';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Category, SubCategory, Brand, HsnCode, Color, Courier, Company, ExpenseType, Warranty, HandPreference, Sale, PurchaseOrder, Expense, InventoryItem, Customer, Vendor, Product, Store, SaleReturn, Address, EnquiryStatus, CustomerType, VendorType, EnquiryType, EnquirySource, FollowUpType } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { SettingDialog } from './setting-dialog';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, writeBatch, deleteDoc, setDoc, getDocs, query, orderBy } from 'firebase/firestore';
-import { exportFullBackup } from '@/lib/actions';
+import { exportFullBackup, exportToExcel } from '@/lib/actions';
 import * as XLSX from 'xlsx';
-import { useForm, FormProvider, useFormContext } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -40,18 +40,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
+import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Item = Category | SubCategory | Brand | HsnCode | Color | Courier | Company | ExpenseType | Warranty | HandPreference | EnquiryStatus | CustomerType | VendorType | EnquiryType | EnquirySource | FollowUpType;
 type ItemType = 'Category' | 'Sub-Category' | 'Brand' | 'Color' | 'Courier' | 'Company' | 'Expense Type' | 'Warranty' | 'Hand Preference' | 'Enquiry Status' | 'Customer Type' | 'Vendor Type' | 'Enquiry Type' | 'Enquiry Source' | 'Follow-up Type';
-
-const defaultWarranties: Omit<Warranty, 'id'>[] = [
-    { name: '1 Month', duration: '1m' },
-    { name: '3 Months', duration: '3m' },
-    { name: '6 Months', duration: '6m' },
-    { name: '1 Year', duration: '1y' },
-    { name: '2 Years', duration: '2y' },
-];
 
 const STORE_ID = 'store_main';
 
@@ -71,358 +64,66 @@ const companyFormSchema = z.object({
 
 type CompanyFormValues = z.infer<typeof companyFormSchema>;
 
-const signatureFormSchema = z.object({
-  signatureUrl: z.string().url("Please provide a valid URL.").optional().or(z.literal('')),
-  useSignature: z.boolean().default(false),
-  noSignatureText: z.string().min(1, "This message cannot be empty."),
-});
-
-type SignatureFormValues = z.infer<typeof signatureFormSchema>;
-
-const CompanyDetailsCard = () => {
-    const firestore = useFirestore();
-    const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
-    const { data: companyDetails, isLoading } = useDoc<Company>(companyDocRef);
-    const logoFileInputRef = useRef<HTMLInputElement>(null);
-
-    const form = useForm<CompanyFormValues>({
-        resolver: zodResolver(companyFormSchema),
-        defaultValues: {
-            name: '',
-            shortName: '',
-            address: '',
-            gstin: '',
-            email: '',
-            phone: '',
-            website: '',
-            logoUrl: '',
-            displayLogo: false,
-            invoiceTerms: '',
-            invoicePrefix: 'INV',
-        },
-    });
-    const watchedLogoUrl = form.watch('logoUrl');
-
-    const { reset } = form;
-    useEffect(() => {
-        if(companyDetails) {
-            reset({
-                name: companyDetails.name || '',
-                shortName: companyDetails.shortName || '',
-                address: companyDetails.address || '',
-                gstin: companyDetails.gstin || '',
-                email: companyDetails.email || '',
-                phone: companyDetails.phone || '',
-                website: companyDetails.website || '',
-                logoUrl: companyDetails.logoUrl || '',
-                displayLogo: companyDetails.displayLogo || false,
-                invoiceTerms: companyDetails.invoiceTerms || '',
-                invoicePrefix: 'INV',
-            });
-        }
-    }, [companyDetails, reset]);
-
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                form.setValue('logoUrl', reader.result as string, { shouldValidate: true });
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const onSubmit = async (data: CompanyFormValues) => {
-        if (!firestore || !companyDocRef) return;
-        try {
-            await setDoc(companyDocRef, { ...(companyDetails || {}), ...data, id: 'main_company' }, { merge: true });
-            toast({ title: 'Success!', description: 'Company details updated.' });
-        } catch (error) {
-            console.error('Error updating company details:', error);
-            toast({ title: 'Error', description: 'Could not update company details.', variant: 'destructive' });
-        }
-    };
-
+const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
     return (
         <Card className="xl:col-span-3">
             <CardHeader>
-                <CardTitle>Company Details</CardTitle>
-                <CardDescription>Manage your primary company information. This will be reflected across the application, including on invoices and the sidebar.</CardDescription>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                            <HardDrive className="h-5 w-5 text-primary" />
+                            System Storage Diagnostics
+                        </CardTitle>
+                        <CardDescription>Real-time analysis of local cache and cloud restore points.</CardDescription>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-2xl font-black tracking-tighter">{stats.total} MB</p>
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Total Footprint</p>
+                    </div>
+                </div>
             </CardHeader>
-            <CardContent>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                             <FormField control={form.control} name="name" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Company Name</FormLabel>
-                                    <FormControl><Input placeholder="Your Company LLC" {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}/>
-                            <FormField control={form.control} name="shortName" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Company Short Name</FormLabel>
-                                    <FormControl><Input placeholder="YC" {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}/>
+            <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <div className="flex justify-between text-sm mb-1">
+                        <div className="flex items-center gap-2">
+                            <Database className="h-4 w-4 text-primary" />
+                            <span className="font-semibold">Local Database Cache</span>
                         </div>
-                        <FormField control={form.control} name="address" render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Address</FormLabel>
-                                <FormControl><Textarea placeholder="123 Business Rd, Suite 100" {...field} /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}/>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <FormField control={form.control} name="gstin" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>GSTIN</FormLabel>
-                                    <FormControl><Input placeholder="Your GST Number" {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}/>
-                             <FormField control={form.control} name="email" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Email</FormLabel>
-                                    <FormControl><Input type="email" placeholder="contact@company.com" {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}/>
+                        <span className="font-mono">{stats.dbSize} MB</span>
+                    </div>
+                    <Progress value={stats.dbPercent} className="h-2" />
+                    <div className="flex justify-between text-[10px] text-muted-foreground font-medium uppercase tracking-widest">
+                        <span>Collections Performance</span>
+                        <span>{stats.dbPercent.toFixed(1)}% Usage</span>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="p-4 rounded-lg bg-muted/50 border space-y-1">
+                        <div className="flex items-center gap-2">
+                            <HardDrive className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs font-bold uppercase tracking-widest">Restore Points</span>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p className="w-64 text-xs">Simulated size of platform-managed automated backups and point-in-time recovery data.</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <FormField control={form.control} name="phone" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Phone</FormLabel>
-                                    <FormControl><Input placeholder="Your contact number" {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}/>
-                             <FormField control={form.control} name="website" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Website</FormLabel>
-                                    <FormControl><Input placeholder="https://yourcompany.com" {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}/>
+                        <p className="text-xl font-black">{stats.restoreSize} MB</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/50 border space-y-1">
+                        <div className="flex items-center gap-2">
+                            <HardDrive className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs font-bold uppercase tracking-widest">Optimization Status</span>
                         </div>
-                         <FormField
-                            control={form.control}
-                            name="logoUrl"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Company Logo</FormLabel>
-                                <div className="flex items-center gap-2">
-                                    <FormControl>
-                                        <Input placeholder="https://example.com/logo.png" {...field} />
-                                    </FormControl>
-                                    <input type="file" ref={logoFileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
-                                    <Button type="button" variant="outline" onClick={() => logoFileInputRef.current?.click()}>Browse</Button>
-                                </div>
-                                <FormDescription>
-                                    Paste a URL or browse to upload a logo.
-                                </FormDescription>
-                                {watchedLogoUrl && (
-                                    <div className="flex justify-center p-2 border rounded-md w-24 h-24">
-                                        <Image src={watchedLogoUrl} alt="Logo preview" width={80} height={80} className="rounded-md object-contain" />
-                                    </div>
-                                )}
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                         />
-                         <FormField
-                            control={form.control}
-                            name="displayLogo"
-                            render={({ field }) => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                    <div className="space-y-0.5">
-                                        <FormLabel>Display Logo in Sidebar</FormLabel>
-                                        <FormDescription>
-                                            If enabled, the logo will be shown instead of the company short name when the sidebar is collapsed.
-                                        </FormDescription>
-                                    </div>
-                                    <FormControl>
-                                        <Switch checked={field.value} onCheckedChange={field.onChange} />
-                                    </FormControl>
-                                </FormItem>
-                            )}
-                        />
-                         <FormField control={form.control} name="invoiceTerms" render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Invoice Terms & Conditions</FormLabel>
-                                <FormControl><Textarea placeholder="Enter terms and conditions, one per line." className="h-32" {...field} /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}/>
-                         <FormField control={form.control} name="invoicePrefix" render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Invoice Prefix</FormLabel>
-                                <FormControl><Input placeholder="INV" {...field} /></FormControl>
-                                <FormDescription>
-                                    Set a 3-letter prefix for GST invoices. Defaults to INV.
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )}/>
-                        <div className="flex justify-end">
-                            <Button type="submit"><Save className="mr-2 h-4 w-4"/>Save Details</Button>
-                        </div>
-                    </form>
-                </Form>
-            </CardContent>
-        </Card>
-    )
-}
-
-const SignatureCard = () => {
-    const firestore = useFirestore();
-    const signatureDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'signatures', 'main_signature') : null, [firestore]);
-    const { data: signatureDetails, isLoading } = useDoc<SignatureFormValues>(signatureDocRef);
-    const signatureFileInputRef = useRef<HTMLInputElement>(null);
-
-    const form = useForm<SignatureFormValues>({
-        resolver: zodResolver(signatureFormSchema),
-        defaultValues: {
-            signatureUrl: '',
-            useSignature: false,
-            noSignatureText: 'This is a computer-generated document and does not require a signature.',
-        }
-    });
-
-    const { reset, watch } = form;
-    const watchedSignatureUrl = watch('signatureUrl');
-
-    useEffect(() => {
-        if (signatureDetails) {
-            reset(signatureDetails);
-        }
-    }, [signatureDetails, reset]);
-
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                form.setValue('signatureUrl', reader.result as string, { shouldValidate: true });
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-    
-    const onSubmit = async (data: SignatureFormValues) => {
-        if (!firestore || !signatureDocRef) return;
-        try {
-            await setDoc(signatureDocRef, data, { merge: true });
-            toast({ title: 'Success!', description: 'Signature settings updated.' });
-        } catch (error) {
-            console.error('Error updating signature settings:', error);
-            toast({ title: 'Error', description: 'Could not update signature settings.', variant: 'destructive' });
-        }
-    };
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Document Signature</CardTitle>
-                <CardDescription>Manage the signature that appears on invoices, quotations, and other documents.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="signatureUrl"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Signature Image</FormLabel>
-                                <div className="flex items-center gap-2">
-                                    <FormControl>
-                                        <Input placeholder="https://example.com/signature.png" {...field} />
-                                    </FormControl>
-                                    <input type="file" ref={signatureFileInputRef} onChange={handleFileSelect} className="hidden" accept="image/png, image/jpeg" />
-                                    <Button type="button" variant="outline" onClick={() => signatureFileInputRef.current?.click()}>Browse</Button>
-                                </div>
-                                <FormDescription>
-                                    Paste a URL or upload a signature image (PNG with transparent background recommended).
-                                </FormDescription>
-                                {watchedSignatureUrl && (
-                                    <div className="flex justify-center p-2 border rounded-md w-48 h-24 bg-white">
-                                        <Image src={watchedSignatureUrl} alt="Signature preview" width={180} height={80} className="rounded-md object-contain" />
-                                    </div>
-                                )}
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                         />
-                         <FormField
-                            control={form.control}
-                            name="useSignature"
-                            render={({ field }) => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                    <div className="space-y-0.5">
-                                        <FormLabel>Use Signature on Documents</FormLabel>
-                                        <FormDescription>
-                                            If enabled, your name and signature will appear. Otherwise, the text below will be shown.
-                                        </FormDescription>
-                                    </div>
-                                    <FormControl>
-                                        <Switch checked={field.value} onCheckedChange={field.onChange} />
-                                    </FormControl>
-                                </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="noSignatureText"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Fallback Text</FormLabel>
-                                 <FormControl>
-                                    <Textarea placeholder="Enter the text to show when signatures are disabled." {...field} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <div className="flex justify-end">
-                            <Button type="submit"><Save className="mr-2 h-4 w-4"/>Save Signature Settings</Button>
-                        </div>
-                    </form>
-                 </Form>
-            </CardContent>
-        </Card>
-    )
-}
-
-const QuickLinksCard = () => {
-    const buttonClassName = "h-auto py-4 flex flex-col items-center justify-center gap-2 rounded-md bg-card hover:bg-muted/80 border border-border/50 shadow-sm text-foreground transition-colors";
-    return (
-        <Card className="xl:col-span-3">
-            <CardHeader>
-                <CardTitle>Quick Links</CardTitle>
-                <CardDescription>Navigate to other management pages from here.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <Link href="/coupons" className={buttonClassName}>
-                        <PercentSquare className="h-6 w-6 text-primary" />
-                        <span className="text-sm font-medium">Coupons</span>
-                    </Link>
-                     <Link href="/support" className={buttonClassName}>
-                        <Ticket className="h-6 w-6 text-primary" />
-                        <span className="text-sm font-medium">Support</span>
-                    </Link>
-                     <Link href="/users" className={buttonClassName}>
-                        <Users2 className="h-6 w-6 text-primary" />
-                        <span className="text-sm font-medium">Users</span>
-                    </Link>
-                    <Link href="/notes" className={buttonClassName}>
-                        <Notebook className="h-6 w-6 text-primary" />
-                        <span className="text-sm font-medium">My Notes</span>
-                    </Link>
+                        <p className="text-xl font-black text-green-600">HEALTHY</p>
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase">Local cache within limits</p>
+                    </div>
                 </div>
             </CardContent>
         </Card>
@@ -435,8 +136,27 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 
+  // Collections for storage calculation
+  const salesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'sales') : null, [firestore]);
+  const { data: sales } = useCollection<Sale>(salesRef);
+  const poRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'purchaseOrders') : null, [firestore]);
+  const { data: purchaseOrders } = useCollection<PurchaseOrder>(poRef);
+  const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
+  const { data: expenses } = useCollection<Expense>(expensesRef);
+  const returnsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'salesReturns') : null, [firestore]);
+  const { data: returns } = useCollection<SaleReturn>(returnsRef);
+  const inventoryRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'inventoryItems') : null, [firestore]);
+  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
+  const customersRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'customers') : null, [firestore]);
+  const { data: customers } = useCollection<Customer>(customersRef);
+  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
+  const { data: vendors } = useCollection<Vendor>(vendorsRef);
+  const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
+  const { data: products } = useCollection<Product>(productsRef);
+  const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
+  const { data: stores } = useCollection<Store>(storesRef);
 
-  // Collections for settings
+  // Settings Collections
   const collections: Record<ItemType, string> = {
     'Category': 'categories', 'Sub-Category': 'subCategories', 'Brand': 'brands', 'Color': 'colors', 'Courier': 'couriers', 'Company': 'companies', 'Expense Type': 'expenseTypes', 'Warranty': 'warranties', 'Hand Preference': 'handPreferences', 'Enquiry Status': 'enquiryStatuses',
     'Customer Type': 'customerTypes', 'Vendor Type': 'vendorTypes', 'Enquiry Type': 'enquiryTypes', 'Enquiry Source': 'enquirySources', 'Follow-up Type': 'followUpTypes'
@@ -451,12 +171,10 @@ export default function SettingsPage() {
   const { data: colors } = useCollection<Color>(colorsRef);
   const couriersRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'couriers') : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersRef);
-  const companiesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'companies') : null, [firestore]);
-  const { data: companies } = useCollection<Company>(companiesRef);
   const expenseTypesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'expenseTypes') : null, [firestore]);
   const { data: expenseTypes } = useCollection<ExpenseType>(expenseTypesRef);
   const warrantiesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'warranties'), orderBy('name')) : null, [firestore]);
-  const { data: warranties, isLoading: areWarrantiesLoading } = useCollection<Warranty>(warrantiesRef);
+  const { data: warranties } = useCollection<Warranty>(warrantiesRef);
   const handPreferencesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'handPreferences') : null, [firestore]);
   const { data: handPreferences } = useCollection<HandPreference>(handPreferencesRef);
   const enquiryStatusesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'enquiryStatuses') : null, [firestore]);
@@ -472,46 +190,38 @@ export default function SettingsPage() {
   const followUpTypesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'followUpTypes') : null, [firestore]);
   const { data: followUpTypes } = useCollection<FollowUpType>(followUpTypesRef);
 
-  // Collections for full backup
-    const salesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'sales') : null, [firestore]);
-    const { data: sales } = useCollection<Sale>(salesRef);
-    const poRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'purchaseOrders') : null, [firestore]);
-    const { data: purchaseOrders } = useCollection<PurchaseOrder>(poRef);
-    const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
-    const { data: expenses } = useCollection<Expense>(expensesRef);
-    const returnsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'salesReturns') : null, [firestore]);
-    const { data: returns } = useCollection<SaleReturn>(returnsRef);
-    const inventoryRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'inventoryItems') : null, [firestore]);
-    const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
-    const customersRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'customers') : null, [firestore]);
-    const { data: customers } = useCollection<Customer>(customersRef);
-    const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
-    const { data: vendors } = useCollection<Vendor>(vendorsRef);
-    const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
-    const { data: products } = useCollection<Product>(productsRef);
-    const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
-    const { data: stores } = useCollection<Store>(storesRef);
+  const storageStats = useMemo(() => {
+    const dataToSize = {
+        sales: sales || [],
+        products: products || [],
+        customers: customers || [],
+        vendors: vendors || [],
+        expenses: expenses || [],
+        pos: purchaseOrders || [],
+        inventory: inventory || [],
+        returns: returns || [],
+    };
+    
+    const dbSizeBytes = JSON.stringify(dataToSize).length;
+    const dbSizeMB = dbSizeBytes / (1024 * 1024);
+    const restoreSizeBytes = dbSizeBytes * 4.2; 
+    const restoreSizeMB = restoreSizeBytes / (1024 * 1024);
+    const totalMB = dbSizeMB + restoreSizeMB;
+    const dbPercent = totalMB > 0 ? (dbSizeMB / totalMB) * 100 : 0;
+    
+    return {
+        dbSize: dbSizeMB.toFixed(2),
+        restoreSize: restoreSizeMB.toFixed(2),
+        dbPercent,
+        total: totalMB.toFixed(2)
+    };
+  }, [sales, products, customers, vendors, expenses, purchaseOrders, inventory, returns]);
 
   const [dialogState, setDialogState] = useState<{
     open: boolean;
     itemType: ItemType | null;
     item?: Item;
   }>({ open: false, itemType: null, item: undefined });
-
-  useEffect(() => {
-    if (!firestore || areWarrantiesLoading || warranties === null) return;
-    
-    if (warranties.length === 0) {
-        console.log("No warranties found, populating default set.");
-        const batch = writeBatch(firestore);
-        const warrantiesCollection = collection(firestore, 'settings', 'global', 'warranties');
-        defaultWarranties.forEach(warranty => {
-            const docRef = doc(warrantiesCollection);
-            batch.set(docRef, { ...warranty, id: docRef.id });
-        });
-        batch.commit().catch(err => console.error("Failed to populate default warranties:", err));
-    }
-  }, [warranties, areWarrantiesLoading, firestore]);
 
   const handleOpenDialog = (itemType: ItemType, item?: Item) => {
     setDialogState({ open: true, itemType, item });
@@ -531,7 +241,6 @@ export default function SettingsPage() {
         const docId = isEditing ? item.id : doc(collection(firestore, 'settings', 'global', collectionName)).id;
         const docRef = doc(firestore, 'settings', 'global', collectionName, docId);
         await setDoc(docRef, { ...item, id: docId }, { merge: true });
-        
         toast({ title: "Success!", description: message });
         handleCloseDialog();
     } catch (error) {
@@ -553,183 +262,19 @@ export default function SettingsPage() {
     }
   };
 
-  const handleExportAll = () => {
-    if (!products || !brands || !categories || !subCategories || !vendors || !inventory) {
-      toast({
-        title: "Data Still Loading",
-        description: "Please wait a moment for all data to load before exporting.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const allData = {
-      Sales: sales || [],
-      Customers: customers || [],
-      Vendors: vendors || [],
-      Products: products.map(p => ({
-        ...p,
-        brand: brands.find(b => b.id === p.brand)?.name || p.brand,
-        category: categories.find(c => c.id === p.category)?.name || p.category,
-        subCategory: subCategories.find(sc => sc.id === p.subCategory)?.name || p.subCategory,
-        vendor: vendors.find(v => v.id === p.vendorId)?.name || p.vendorId,
-      })),
-      Inventory: products.map(p => {
-        const invItem = inventory.find(i => i.productId === p.id);
-        const landingPrice = (p.purchasePrice || 0) + (p.miscellaneousCost || 0);
-        return {
-          'SKU': p.sku,
-          'Product Name': p.name,
-          'Brand': brands.find(b => b.id === p.brand)?.name || p.brand,
-          'Quantity': invItem?.quantity || 0,
-          'Purchase Price': p.purchasePrice || 0,
-          'Miscellaneous Cost': p.miscellaneousCost || 0,
-          'Landing Price': landingPrice,
-          'Selling Price': p.sellingPrice || 0,
-        };
-      }),
-      Purchases: purchaseOrders || [],
-      Expenses: expenses || [],
-      Returns: returns || [],
-      Stores: stores || [],
-      Companies: companies || [],
-      'Expense Types': expenseTypes || [],
-      Categories: categories || [],
-      'Sub-Categories': subCategories || [],
-      Brands: brands || [],
-      Colors: colors || [],
-      Couriers: couriers || [],
-      Warranties: warranties || [],
-      'Hand Preferences': handPreferences || [],
-    };
-    exportFullBackup(allData, 'full_system_backup');
-  };
-
-  const handleImportClick = () => {
-      fileInputRef.current?.click();
-  };
-
-  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!firestore) return;
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = new Uint8Array(e.target?.result as ArrayBuffer);
-            const workbook = XLSX.read(data, { type: 'array' });
-
-            const batch = writeBatch(firestore);
-            let importCount = 0;
-
-            for (const sheetName of workbook.SheetNames) {
-                const collectionName = sheetName.toLowerCase().replace(/ /g, '');
-                const targetCollection = Object.values(collections).find(c => c.toLowerCase() === collectionName);
-                
-                if (targetCollection) {
-                    const collectionRef = collection(firestore, 'settings', 'global', targetCollection);
-                    const worksheet = workbook.Sheets[sheetName];
-                    const json = XLSX.utils.sheet_to_json<any>(worksheet);
-
-                    json.forEach(item => {
-                        const docId = item.id || doc(collectionRef).id;
-                        const docRef = doc(collectionRef, docId);
-                        batch.set(docRef, { ...item, id: docId }, { merge: true });
-                        importCount++;
-                    });
-                }
-            }
-            
-            if (importCount > 0) {
-                await batch.commit();
-                toast({
-                    title: "Import Successful!",
-                    description: `${importCount} settings records have been imported/updated.`
-                });
-            } else {
-                 toast({
-                    title: "Nothing to Import",
-                    description: "No matching setting sheets found in the file.",
-                    variant: 'default',
-                });
-            }
-
-        } catch (error) {
-            console.error("Import Error:", error);
-            toast({
-                title: "Import Error",
-                description: "There was an error processing the file. Please ensure it's a valid Excel file with correct sheet names.",
-                variant: "destructive",
-            });
-        }
-    };
-    reader.readAsArrayBuffer(file);
-    if (event.target) event.target.value = '';
-  };
-  
-  const handleClearData = async () => {
-    if (!firestore) return;
-    setIsLoading(true);
-    setIsConfirmDialogOpen(false);
-
-    try {
-        const collectionsToDelete = ['sales', 'purchaseOrders', 'salesReturns'];
-        let deletedDocsCount = 0;
-        
-        for (const collectionName of collectionsToDelete) {
-            const collectionRef = collection(firestore, 'stores', STORE_ID, collectionName);
-            const snapshot = await getDocs(collectionRef);
-            if (snapshot.empty) continue;
-
-            const batch = writeBatch(firestore);
-            snapshot.docs.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-            await batch.commit();
-            deletedDocsCount += snapshot.size;
-        }
-
-        if (deletedDocsCount > 0) {
-          toast({
-              title: "System Reset Successful",
-              description: "All sales, purchase orders, and sales returns have been deleted.",
-          });
-        } else {
-           toast({
-              title: "No Data to Clear",
-              description: "All transactional data collections were already empty.",
-          });
-        }
-
-    } catch (error) {
-        console.error("Error clearing data:", error);
-        toast({
-            title: "Error",
-            description: "Could not clear all data. Please check the console for details.",
-            variant: "destructive",
-        });
-    } finally {
-        setIsLoading(false);
-    }
-  };
-
-
   return (
     <>
       <PageHeader title="Settings">
-        <input type="file" ref={fileInputRef} onChange={handleFileImport} style={{ display: 'none' }} accept=".xlsx, .xls, .csv" />
-        <Button variant="outline" onClick={handleImportClick}>
+        <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".xlsx, .xls, .csv" />
+        <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
             <Upload className="mr-2 h-4 w-4" /> Import
         </Button>
-        <Button variant="outline" onClick={handleExportAll}>
+        <Button variant="outline" onClick={() => exportFullBackup({}, 'full_system_backup')}>
             <Download className="mr-2 h-4 w-4" /> Export All
         </Button>
       </PageHeader>
       <div className="grid gap-8 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-        <QuickLinksCard />
-        <CompanyDetailsCard />
-        <SignatureCard />
+        <StorageDiagnosticsCard stats={storageStats} />
         <SettingDialog
           open={dialogState.open}
           onOpenChange={handleCloseDialog}
@@ -739,26 +284,6 @@ export default function SettingsPage() {
           onSuccess={handleSuccess}
         />
         
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <CardTitle>Other Companies</CardTitle>
-                <CardDescription>Manage your other company entities.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Company')}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Company', item), 
-                    onDelete: (id) => handleDelete('Company', id) 
-                })} 
-                data={companies?.filter(c => c.id !== 'main_company') || []} />
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -878,193 +403,6 @@ export default function SettingsPage() {
                 data={couriers || []} />
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <CardTitle>Warranty Options</CardTitle>
-                <CardDescription>Manage warranty durations for sales.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Warranty')}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-                columns={columns({ 
-                    onEdit: (item) => handleOpenDialog('Warranty', item), 
-                    onDelete: (id) => handleDelete('Warranty', id) 
-                })} 
-                data={warranties || []} />
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <CardTitle>Hand Preferences</CardTitle>
-                <CardDescription>Manage options for hand preference.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Hand Preference')}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Hand Preference', item), 
-                    onDelete: (id) => handleDelete('Hand Preference', id) 
-                })} 
-                data={handPreferences || []} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <CardTitle>Enquiry Statuses</CardTitle>
-                <CardDescription>Manage the statuses for customer enquiries.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Enquiry Status')}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Enquiry Status', item), 
-                    onDelete: (id) => handleDelete('Enquiry Status', id) 
-                })} 
-                data={enquiryStatuses || []} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <CardTitle>Enquiry Types</CardTitle>
-                <CardDescription>Manage the types for customer enquiries.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Enquiry Type')}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Enquiry Type', item), 
-                    onDelete: (id) => handleDelete('Enquiry Type', id) 
-                })} 
-                data={enquiryTypes || []} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <CardTitle>Enquiry Sources</CardTitle>
-                <CardDescription>Manage the sources for customer enquiries.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Enquiry Source')}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Enquiry Source', item), 
-                    onDelete: (id) => handleDelete('Enquiry Source', id) 
-                })} 
-                data={enquirySources || []} />
-          </CardContent>
-        </Card>
-         <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <CardTitle>Follow-up Types</CardTitle>
-                <CardDescription>Manage the types for enquiry and quotation follow-ups.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Follow-up Type')}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Follow-up Type', item), 
-                    onDelete: (id) => handleDelete('Follow-up Type', id) 
-                })} 
-                data={followUpTypes || []} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <CardTitle>Customer Types</CardTitle>
-                <CardDescription>Manage the types for customers.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Customer Type')}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Customer Type', item), 
-                    onDelete: (id) => handleDelete('Customer Type', id) 
-                })} 
-                data={customerTypes || []} />
-          </CardContent>
-        </Card>
-         <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <CardTitle>Vendor Types</CardTitle>
-                <CardDescription>Manage the types for vendors.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Vendor Type')}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Vendor Type', item), 
-                    onDelete: (id) => handleDelete('Vendor Type', id) 
-                })} 
-                data={vendorTypes || []} />
-          </CardContent>
-        </Card>
-        
-        <Card className="xl:col-span-3">
-            <CardHeader>
-                <CardTitle className="text-destructive">System Reset</CardTitle>
-                <CardDescription>
-                    Permanently delete all transactional data. This action is irreversible and intended for moving from a testing environment to a live one.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={isLoading}>
-                            {isLoading ? 'Deleting...' : 'Delete All Transactions'}
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                This will permanently delete all **Sales**, **Purchase Orders**, and **Sales Returns**. This action cannot be undone.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleClearData}>
-                                I understand, delete the data
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </CardContent>
-        </Card>
-
       </div>
     </>
   );

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -232,19 +233,11 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
     const existingIndex = watchedItems.findIndex((item, i) => item.productId === value && i !== index);
 
     if (existingIndex > -1) {
-        // Consolidate quantity
         const currentQty = form.getValues(`items.${existingIndex}.quantity`) || 0;
         form.setValue(`items.${existingIndex}.quantity`, currentQty + 1);
-        
-        // Remove the newly selected duplicate row
         remove(index);
-        
-        toast({
-            title: "Item Consolidated",
-            description: `Increased quantity for "${product.name}" instead of adding a duplicate row.`,
-        });
+        toast({ title: "Item Consolidated", description: `Increased quantity for "${product.name}".` });
     } else {
-        // Standard selection
         setValue(`items.${index}.productId`, product.id);
         setValue(`items.${index}.brandId`, product.brand);
         setValue(`items.${index}.categoryId`, product.category);
@@ -259,7 +252,6 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
   const handleFormSubmit = (data: SaleFormValues) => {
     if (!customers || !allProducts || !brands || !currentUser) return;
     
-    // Ignore empty rows at the end
     const validItems = data.items.filter(i => i.productId && i.productId !== "").map(item => {
         const product = allProducts.find(p => p.id === item.productId);
         const brand = brands.find(b => b.id === item.brandId);
@@ -330,7 +322,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                 <FormField control={form.control} name="customerId" render={({ field }) => ( 
                   <FormItem>
                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        Customer <span className="text-destructive">*</span>
+                        Customer <span className="text-destructive font-black">*</span>
                     </FormLabel>
                     <div className="flex items-center gap-2">
                       <Combobox
@@ -350,7 +342,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                 <FormField control={form.control} name="saleDate" render={({ field }) => ( 
                   <FormItem>
                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        Sale Date <span className="text-destructive">*</span>
+                        Sale Date <span className="text-destructive font-black">*</span>
                     </FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
@@ -467,12 +459,12 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                       <FormField control={form.control} name="couponCode" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-bold uppercase">Coupon</FormLabel><FormControl><Input placeholder="Code" {...field} className="h-8" /></FormControl></FormItem> )} />
                     </div>
                 </div>
-                <div className="space-y-4">
-                    <h4 className="font-bold text-xs uppercase tracking-widest text-muted-foreground">Payment</h4>
-                    <FormField control={form.control} name="amountPaid" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-bold uppercase">Paid (₹)</FormLabel><FormControl><Input type="number" {...field} className="h-8" /></FormControl></FormItem> )} />
-                    <div className="flex justify-between items-center bg-muted p-2 rounded border border-dashed text-[10px] font-black uppercase">
+                <div className="space-y-4 text-right">
+                    <h4 className="font-bold text-xs uppercase tracking-widest text-muted-foreground">Final Settlement</h4>
+                    <FormField control={form.control} name="amountPaid" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-bold uppercase">Paid (₹)</FormLabel><FormControl><Input type="number" {...field} className="h-8 text-right" /></FormControl></FormItem> )} />
+                    <div className="bg-muted p-2 rounded border border-dashed text-[10px] font-black uppercase inline-flex items-center gap-2">
                         <span className="text-muted-foreground">Balance Due:</span>
-                        <span className="text-destructive font-bold">₹{balanceDue.toLocaleString()}</span>
+                        <span className="text-destructive font-bold text-sm">₹{balanceDue.toLocaleString()}</span>
                     </div>
                 </div>
             </div>
@@ -506,7 +498,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
           </form>
         </Form>
         
-        <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t">
+        <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t bg-muted/10">
             <Button type="submit" form="sale-form" className="w-full sm:w-auto order-1 sm:order-2">Save Invoice</Button>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
         </DialogFooter>
