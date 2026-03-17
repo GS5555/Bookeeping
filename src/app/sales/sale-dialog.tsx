@@ -293,12 +293,9 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-6xl">
-        <DialogHeader className="flex flex-row items-end justify-between pr-6 border-b pb-4">
-            <div>
-                <DialogTitle>{dialogTitleText}</DialogTitle>
-                <DialogDescription>Create a compliant TAX INVOICE or Retail Receipt.</DialogDescription>
-            </div>
-            <Button type="submit" form="sale-form">Save Invoice</Button>
+        <DialogHeader className="border-b pb-4">
+            <DialogTitle>{dialogTitleText}</DialogTitle>
+            <DialogDescription>Create a compliant TAX INVOICE or Retail Receipt.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form id="sale-form" onSubmit={form.handleSubmit(handleFormSubmit, onInvalid)} className="space-y-6 max-h-[70vh] overflow-y-auto px-2">
@@ -475,8 +472,8 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                     <div className="grid grid-cols-1 gap-4">
                       <FormField control={form.control} name="amountPaid" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-bold uppercase">Paid (₹)</FormLabel><FormControl><Input type="number" {...field} className="h-8" /></FormControl></FormItem> )} />
                     </div>
-                    <div className="flex justify-between items-center bg-white p-2 rounded border border-dashed text-[10px] font-black uppercase">
-                        <span>Balance Due:</span>
+                    <div className="flex justify-between items-center bg-muted/50 p-2 rounded border border-dashed text-[10px] font-black uppercase">
+                        <span className="text-foreground">Balance Due:</span>
                         <span className="text-destructive">₹{balanceDue.toLocaleString()}</span>
                     </div>
                 </div>
