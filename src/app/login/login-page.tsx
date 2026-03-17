@@ -23,7 +23,7 @@ import { z } from "zod"
 import { StumpBooksLogo } from "@/components/icons";
 import { useAuth, useFirestore } from "@/firebase";
 import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
@@ -84,22 +84,18 @@ export function LoginPage() {
                         variant: "destructive",
                     });
                 } else {
-                    // Update last login time for existing, approved user
                     await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
                     toast({
                         title: "Login Successful",
-                        description: `Welcome back, ${userData?.displayName || 'User'}! You are logged in as a ${userData.role}.`,
+                        description: `Welcome back, ${userData?.displayName || 'User'}!`,
                     });
-                    // On successful login, redirect to dashboard
                     router.push('/');
                 }
             } else {
-                 // This case means the user exists in Firebase Auth but not in Firestore.
-                 // This can happen if the Firestore document creation failed during signup.
                  await signOut(auth);
                  toast({
                     title: "Profile Incomplete",
-                    description: "Your user profile was not found. Please sign up again or contact support.",
+                    description: "Your user profile was not found. Please contact support.",
                     variant: "destructive",
                 });
             }
@@ -108,7 +104,7 @@ export function LoginPage() {
             console.error("Login Error:", error);
             let description = "An unexpected error occurred. Please try again.";
             if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                description = "Invalid email or password. Please check your credentials and try again.";
+                description = "Invalid email or password. Please check your credentials.";
             }
             toast({
                 title: "Login Failed",
@@ -121,8 +117,8 @@ export function LoginPage() {
     }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-muted/40">
-        <Card className="mx-auto max-w-sm w-full">
+    <div className="flex items-center justify-center min-h-screen bg-muted/40 w-full">
+        <Card className="mx-auto max-w-sm w-full shadow-lg">
         <CardHeader className="text-center">
             <StumpBooksLogo className="mx-auto h-8 w-8 mb-2" />
             <CardTitle className="text-2xl">Login</CardTitle>

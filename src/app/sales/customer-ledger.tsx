@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Download, FileDown, UserSearch } from 'lucide-react';
 import { format } from 'date-fns';
 import { FormattedNumberCell } from '@/components/formatted-number-cell';
-import { Combobox } from '@/components/ui/combobox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { exportToExcel, downloadGenericReportPdf } from '@/lib/actions';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Link from 'next/link';
@@ -86,15 +86,14 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
                         <CardDescription>Consolidated statement of outstanding invoices and returns.</CardDescription>
                     </div>
                     <div className="flex items-center gap-2 w-full md:max-w-sm">
-                        <Combobox
-                            options={customers.map(c => ({ value: c.id, label: c.name }))}
-                            value={selectedCustomerId}
-                            onChange={setSelectedCustomerId}
-                            placeholder="Select customer..."
-                            searchPlaceholder="Search customers..."
-                            notFoundText="No customer found."
-                            className="h-10"
-                        />
+                        <Select onValueChange={setSelectedCustomerId} value={selectedCustomerId}>
+                            <SelectTrigger className="h-10">
+                                <SelectValue placeholder="Select customer..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
                         {selectedCustomerId && (
                             <div className="flex gap-1">
                                 <Button variant="outline" size="icon" onClick={handleExportExcel} title="Export to Excel">
@@ -117,7 +116,7 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
                 ) : (
                     <div className="space-y-8">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <Card className="bg-muted/50 border-destructive/20 shadow-none">
+                            <Card className="bg-muted border-destructive/20 shadow-none">
                                 <CardContent className="pt-6 text-center">
                                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Pending Invoices</p>
                                     <p className="text-2xl font-black text-destructive">
@@ -125,7 +124,7 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
                                     </p>
                                 </CardContent>
                             </Card>
-                            <Card className="bg-muted/50 border-blue-200 shadow-none">
+                            <Card className="bg-muted border-blue-200 shadow-none">
                                 <CardContent className="pt-6 text-center">
                                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Total Returns</p>
                                     <p className="text-2xl font-black text-blue-600">
@@ -140,8 +139,7 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
                                         <FormattedNumberCell value={customerData?.netBalance || 0} />
                                     </p>
                                 </CardContent>
-                            </Card>
-                        </div>
+                            </div>
 
                         <div className="space-y-4">
                             <h3 className="font-black text-xs uppercase tracking-[0.2em] text-muted-foreground">Transaction Registry</h3>

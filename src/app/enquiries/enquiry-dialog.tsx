@@ -32,13 +32,12 @@ import { Separator } from "@/components/ui/separator";
 import { DataTable } from "@/components/data-table";
 import { followUpColumns } from "./columns";
 import { Label } from "@/components/ui/label";
-import { PlusCircle, Trash2, Edit, Save } from "lucide-react";
+import { PlusCircle, Trash2, Edit } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { toast } from "@/hooks/use-toast";
 import { QuotationDialog } from "@/app/quotations/quotation-dialog";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { Combobox } from "@/components/ui/combobox";
 
 const STORE_ID = 'store_main';
 
@@ -90,7 +89,7 @@ const ReadOnlyField = ({ label, value }: { label: string, value: React.ReactNode
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
         <div className="text-sm p-2 border rounded-md bg-muted min-h-[40px] flex items-center">{value || <span className="text-muted-foreground/70">N/A</span>}</div>
     </div>
-)
+);
 
 export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: EnquiryDialogProps) {
   const firestore = useFirestore();
@@ -149,9 +148,9 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   const { control, handleSubmit, watch, reset, setValue, getValues } = form;
   const watchedCustomerId = watch("customerId");
   const watchedStatus = watch("status");
-  const watchedItems = watch("items");
+  const watchedItems = watch("items") || [];
   const watchedSaleType = watch("saleType");
-  const watchedFollowUps = watch("followUps");
+  const watchedFollowUps = watch("followUps") || [];
   
   const { fields, append, remove } = useFieldArray({
     control,
@@ -185,7 +184,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
     let sub = 0;
     let gst = 0;
 
-    watchedItems?.forEach(item => {
+    watchedItems.forEach(item => {
       sub += item.totalPrice;
       if (watchedSaleType === 'GST') {
         gst += item.totalPrice * (item.gstRate / 100);
@@ -338,7 +337,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
         onOpenChange={setIsQuotationDialogOpen}
         onSuccess={handleNewQuotationSuccess}
         quotation={enquiryAsQuotation}
-        onConvertToSale={() => {}} // This is not needed here
+        onConvertToSale={() => {}}
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-3xl" onInteractOutside={(e) => e.preventDefault()}>
@@ -365,14 +364,16 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                     <FormItem>
                       <FormLabel>Customer</FormLabel>
                       <div className="flex items-center gap-2">
-                        <Combobox
-                          options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
-                          value={field.value}
-                          onChange={(value) => field.onChange(value)}
-                          placeholder="Select a customer..."
-                          searchPlaceholder="Search customers..."
-                          notFoundText="No customer found."
-                        />
+                        <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a customer" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {sortedCustomers?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
                         <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)}>
                             <PlusCircle className="h-4 w-4" />
                         </Button>
@@ -404,7 +405,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                   <FormItem>
                     <FormLabel>Enquiry Details</FormLabel>
                     {isEditing ? (
-                        <FormControl><Textarea placeholder="e.g., Customer asked about bulk pricing for SG balls..." {...field} /></FormControl>
+                        <FormControl><Textarea placeholder="e.g., Customer asked about bulk pricing..." {...field} /></FormControl>
                     ) : (
                         <div className="text-sm p-3 border rounded-md bg-muted min-h-24 whitespace-pre-wrap">{field.value || 'No details provided.'}</div>
                     )}
@@ -475,10 +476,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                             <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start">
                                 <FormField control={control} name={`items.${index}.productId`} render={({ field: formField }) => (
                                       <FormItem><FormLabel className="sr-only">Product</FormLabel>
-                                        <Combobox
-                                          options={filteredProducts.map(p => ({ value: p.id, label: p.name }))}
-                                          value={formField.value}
-                                          onChange={(value) => {
+                                        <Select onValueChange={(value) => {
                                               formField.onChange(value);
                                               const product = products?.find(p => p.id === value);
                                               if (product) {
@@ -491,12 +489,10 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                                                   const qty = getValues(`items.${index}.quantity`) || 1;
                                                   setValue(`items.${index}.totalPrice`, (product.finalPrice && product.finalPrice > 0 ? product.finalPrice : product.sellingPrice) * qty);
                                               }
-                                          }}
-                                          placeholder="Select Product"
-                                          searchPlaceholder="Search products..."
-                                          notFoundText="No product found."
-                                          disabled={!isEditing}
-                                        />
+                                          }} value={formField.value} disabled={!isEditing}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl>
+                                            <SelectContent>{filteredProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                                        </Select>
                                       <FormMessage /></FormItem>
                                   )}/>
                                   <FormField control={control} name={`items.${index}.quantity`} render={({ field }) => (
@@ -572,22 +568,22 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
               
               <div className="space-y-4 pt-4">
                   <Separator />
-                  <h3 className="text-lg font-medium">Follow-ups ({watchedFollowUps?.length || 0})</h3>
+                  <h3 className="text-lg font-medium">Follow-ups ({watchedFollowUps.length})</h3>
                   <div className="rounded-md border max-h-48 overflow-y-auto">
-                      <DataTable columns={followUpColumns({ users: usersData || [] })} data={watchedFollowUps || []} />
+                      <DataTable columns={followUpColumns({ users: usersData || [] })} data={watchedFollowUps} />
                   </div>
                   <div className="space-y-4 p-4 border rounded-lg">
                       <Label htmlFor="new-follow-up">Add Follow-up</Label>
-                      <Textarea id="new-follow-up" value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="e.g., Called customer, sent quotation..." />
+                      <Textarea id="new-follow-up" value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="e.g., Called customer..." />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <Select value={newFollowUpType} onValueChange={setNewFollowUpType}>
-                              <SelectTrigger><SelectValue placeholder="Select Follow-up Type..." /></SelectTrigger>
+                              <SelectTrigger><SelectValue placeholder="Select Follow-up Type" /></SelectTrigger>
                               <SelectContent>
                                 {followUpTypes?.map(type => <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>)}
                               </SelectContent>
                           </Select>
                           <Select value={nextAction} onValueChange={setNextAction}>
-                              <SelectTrigger><SelectValue placeholder="Select Next Action..." /></SelectTrigger>
+                              <SelectTrigger><SelectValue placeholder="Select Next Action" /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="Call Back">Call Back</SelectItem>
                                 <SelectItem value="Send Email">Send Email</SelectItem>
@@ -602,19 +598,16 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
               
             </form>
           </Form>
-           <DialogFooter className="sm:justify-between pt-4">
-                <div>
-                  {isEditing && (
+           <DialogFooter className="sm:justify-end pt-4 gap-2">
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                {isEditing ? (
                     <Button type="submit" form="enquiry-form">Save Changes</Button>
-                  )}
-                </div>
-                 <div>
-                    <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    {!isEditing && enquiry?.id && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-                      <Button type="button" onClick={handleSubmit(onSubmit)}>Save Follow-up</Button>
-                    )}
-                 </div>
-              </DialogFooter>
+                ) : (
+                    enquiry?.id && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
+                        <Button type="button" onClick={handleSubmit(onSubmit)}>Save Follow-up</Button>
+                    )
+                )}
+            </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
