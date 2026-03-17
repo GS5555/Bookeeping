@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -151,14 +150,14 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                 <FormField control={form.control} name="productId" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Product</FormLabel>
-                     <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {sortedProducts?.map(product => <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <Combobox
+                      options={sortedProducts?.map(p => ({ value: p.id, label: p.name })) || []}
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Select a product..."
+                      searchPlaceholder="Search products..."
+                      notFoundText="No product found."
+                    />
                     <FormMessage />
                   </FormItem>
                 )}/>

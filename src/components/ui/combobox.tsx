@@ -32,10 +32,16 @@ interface ComboboxProps {
     searchPlaceholder: string;
     notFoundText: string;
     className?: string;
+    disabled?: boolean;
 }
 
-export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notFoundText, className }: ComboboxProps) {
+export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notFoundText, className, disabled }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
+
+  // Find the label for the current value
+  const selectedLabel = React.useMemo(() => {
+    return options.find((option) => option.value === value)?.label || ""
+  }, [options, value])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -44,15 +50,16 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between", className)}
+          className={cn("w-full justify-between h-10 px-3", className)}
+          disabled={disabled}
         >
-          {value
-            ? options.find((option) => option.value === value)?.label
-            : placeholder}
+          <span className="truncate">
+            {value ? selectedLabel : placeholder}
+          </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
@@ -62,12 +69,8 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
                 <CommandItem
                   key={option.value}
                   value={option.label}
-                  onSelect={(currentLabel) => {
-                    const selectedValue = options.find(
-                      (opt) => opt.label.toLowerCase() === currentLabel.toLowerCase()
-                    )?.value ?? ""
-                    
-                    onChange(selectedValue === value ? "" : selectedValue)
+                  onSelect={() => {
+                    onChange(option.value === value ? "" : option.value)
                     setOpen(false)
                   }}
                 >

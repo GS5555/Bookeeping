@@ -421,19 +421,28 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
                            </div>
                            <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start">
                                <FormField control={control} name={`items.${index}.productId`} render={({ field: formField }) => (
-                                    <FormItem><FormLabel className="sr-only">Product</FormLabel><Select onValueChange={(value) => {
-                                        formField.onChange(value);
-                                        const product = products?.find(p => p.id === value);
-                                        if (product) {
-                                            setValue(`items.${index}.productName`, product.name);
-                                            setValue(`items.${index}.unitPrice`, product.sellingPrice);
-                                            setValue(`items.${index}.hsnCode`, product.hsnCode);
-                                            setValue(`items.${index}.gstRate`, product.gstRate);
-                                            setValue(`items.${index}.imageUrl`, product.imageUrl);
-                                            const qty = getValues(`items.${index}.quantity`) || 1;
-                                            setValue(`items.${index}.totalPrice`, product.sellingPrice * qty);
-                                        }
-                                    }} value={formField.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl><SelectContent>{filteredProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                    <FormItem><FormLabel className="sr-only">Product</FormLabel>
+                                      <Combobox
+                                        options={filteredProducts.map(p => ({ value: p.id, label: p.name }))}
+                                        value={formField.value}
+                                        onChange={(value) => {
+                                            formField.onChange(value);
+                                            const product = products?.find(p => p.id === value);
+                                            if (product) {
+                                                setValue(`items.${index}.productName`, product.name);
+                                                setValue(`items.${index}.unitPrice`, product.sellingPrice);
+                                                setValue(`items.${index}.hsnCode`, product.hsnCode);
+                                                setValue(`items.${index}.gstRate`, product.gstRate);
+                                                setValue(`items.${index}.imageUrl`, product.imageUrl);
+                                                const qty = getValues(`items.${index}.quantity`) || 1;
+                                                setValue(`items.${index}.totalPrice`, product.sellingPrice * qty);
+                                            }
+                                        }}
+                                        placeholder="Select Product"
+                                        searchPlaceholder="Search products..."
+                                        notFoundText="No product found."
+                                      />
+                                    <FormMessage /></FormItem>
                                 )}/>
                                 <FormField control={control} name={`items.${index}.quantity`} render={({ field }) => (
                                     <FormItem><FormLabel className="sr-only">Quantity</FormLabel><FormControl><Input type="number" placeholder="Qty" {...field} onChange={(e) => {field.onChange(e); const p = products?.find(p => p.id === getValues(`items.${index}.productId`)); if(p) setValue(`items.${index}.totalPrice`, p.sellingPrice * Number(e.target.value))}} /></FormControl><FormMessage /></FormItem>

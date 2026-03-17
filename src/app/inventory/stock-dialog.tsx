@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -200,22 +199,15 @@ export function StockDialog({ open, onOpenChange, onSuccess, inventoryItem }: St
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Product</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
+                  <Combobox
+                    options={filteredProducts.map(p => ({ value: p.id, label: p.name }))}
                     value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Select a product"
+                    searchPlaceholder="Search products..."
+                    notFoundText="No product found."
                     disabled={!!inventoryItem}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a product" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {filteredProducts?.map(product => (
-                        <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                   <FormMessage />
                 </FormItem>
               )}

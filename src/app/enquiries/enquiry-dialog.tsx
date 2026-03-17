@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -476,20 +474,30 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start">
                                 <FormField control={control} name={`items.${index}.productId`} render={({ field: formField }) => (
-                                      <FormItem><FormLabel className="sr-only">Product</FormLabel><Select onValueChange={(value) => {
-                                          formField.onChange(value);
-                                          const product = products?.find(p => p.id === value);
-                                          if (product) {
-                                              setValue(`items.${index}.productName`, product.name);
-                                              setValue(`items.${index}.brandId`, product.brand);
-                                              setValue(`items.${index}.categoryId`, product.category);
-                                              setValue(`items.${index}.subCategoryId`, product.subCategory);
-                                              setValue(`items.${index}.unitPrice`, product.finalPrice && product.finalPrice > 0 ? product.finalPrice : product.sellingPrice);
-                                              setValue(`items.${index}.gstRate`, product.gstRate);
-                                              const qty = getValues(`items.${index}.quantity`) || 1;
-                                              setValue(`items.${index}.totalPrice`, (product.finalPrice && product.finalPrice > 0 ? product.finalPrice : product.sellingPrice) * qty);
-                                          }
-                                      }} value={formField.value} disabled={!isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl><SelectContent>{filteredProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                      <FormItem><FormLabel className="sr-only">Product</FormLabel>
+                                        <Combobox
+                                          options={filteredProducts.map(p => ({ value: p.id, label: p.name }))}
+                                          value={formField.value}
+                                          onChange={(value) => {
+                                              formField.onChange(value);
+                                              const product = products?.find(p => p.id === value);
+                                              if (product) {
+                                                  setValue(`items.${index}.productName`, product.name);
+                                                  setValue(`items.${index}.brandId`, product.brand);
+                                                  setValue(`items.${index}.categoryId`, product.category);
+                                                  setValue(`items.${index}.subCategoryId`, product.subCategory);
+                                                  setValue(`items.${index}.unitPrice`, product.finalPrice && product.finalPrice > 0 ? product.finalPrice : product.sellingPrice);
+                                                  setValue(`items.${index}.gstRate`, product.gstRate);
+                                                  const qty = getValues(`items.${index}.quantity`) || 1;
+                                                  setValue(`items.${index}.totalPrice`, (product.finalPrice && product.finalPrice > 0 ? product.finalPrice : product.sellingPrice) * qty);
+                                              }
+                                          }}
+                                          placeholder="Select Product"
+                                          searchPlaceholder="Search products..."
+                                          notFoundText="No product found."
+                                          disabled={!isEditing}
+                                        />
+                                      <FormMessage /></FormItem>
                                   )}/>
                                   <FormField control={control} name={`items.${index}.quantity`} render={({ field }) => (
                                       <FormItem><FormLabel className="sr-only">Quantity</FormLabel><FormControl><Input type="number" placeholder="Qty" {...field} disabled={!isEditing} onChange={(e) => {field.onChange(e); const p = products?.find(p => p.id === getValues(`items.${index}.productId`)); if(p) setValue(`items.${index}.totalPrice`, (p.finalPrice && p.finalPrice > 0 ? p.finalPrice : p.sellingPrice) * Number(e.target.value))}} /></FormControl><FormMessage /></FormItem>
