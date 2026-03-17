@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,10 +15,12 @@ import { Printer, CheckCircle, QrCode } from 'lucide-react';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Company } from '@/lib/types';
+import { useIsMounted } from '@/hooks/use-is-mounted';
 
 export default function AddCustomerPage() {
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [qrCodeValue, setQrCodeValue] = useState('');
+    const isMounted = useIsMounted();
 
     const firestore = useFirestore();
     const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
@@ -80,7 +82,7 @@ export default function AddCustomerPage() {
                         <div id="qr-code-section" className="flex-shrink-0 flex flex-col items-center gap-4 p-6 border rounded-lg bg-background print:border-none print:p-0 print:bg-transparent print:pt-8">
                             <CardTitle className="hidden print:block print:text-2xl print-show-on-qr">{companyDetails?.name || 'Customer Registration'}</CardTitle>
                             <h3 className="font-semibold text-center print:hidden">Scan to Register</h3>
-                            {qrCodeValue ? (
+                            {isMounted && qrCodeValue ? (
                                 <QRCode value={qrCodeValue} size={160} />
                             ) : (
                                 <div className="h-[160px] w-[160px] bg-muted rounded-md animate-pulse"></div>
