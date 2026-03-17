@@ -116,7 +116,7 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
                 ) : (
                     <div className="space-y-8">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <Card className="bg-muted border-destructive/20 shadow-none">
+                            <Card className="bg-muted/50 border-destructive/20 shadow-none">
                                 <CardContent className="pt-6 text-center">
                                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Pending Invoices</p>
                                     <p className="text-2xl font-black text-destructive">
@@ -124,7 +124,7 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
                                     </p>
                                 </CardContent>
                             </Card>
-                            <Card className="bg-muted border-blue-200 shadow-none">
+                            <Card className="bg-muted/50 border-blue-200 shadow-none">
                                 <CardContent className="pt-6 text-center">
                                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Total Returns</p>
                                     <p className="text-2xl font-black text-blue-600">
@@ -132,14 +132,15 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
                                     </p>
                                 </CardContent>
                             </Card>
-                            <Card className="bg-primary/5 border-primary/20 shadow-none">
+                            <Card className="bg-primary/10 border-primary/20 shadow-none">
                                 <CardContent className="pt-6 text-center">
                                     <p className="text-[10px] font-black uppercase text-primary tracking-widest">Net Balance Due</p>
                                     <p className="text-2xl font-black text-primary">
                                         <FormattedNumberCell value={customerData?.netBalance || 0} />
                                     </p>
                                 </CardContent>
-                            </div>
+                            </Card>
+                        </div>
 
                         <div className="space-y-4">
                             <h3 className="font-black text-xs uppercase tracking-[0.2em] text-muted-foreground">Transaction Registry</h3>
@@ -177,8 +178,8 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
                                                 </TableCell>
                                                 <TableCell className="text-xs">Return Credit</TableCell>
                                                 <TableCell className="whitespace-nowrap text-xs">{format(new Date(r.returnDate), 'dd MMM yyyy')}</TableCell>
-                                                <TableCell className="text-right text-blue-600 font-medium text-xs">-<FormattedNumberCell value={r.totalRefundAmount} /></TableCell>
-                                                <TableCell className="text-right text-blue-600 font-bold italic text-xs">Credit</TableCell>
+                                                <TableCell className="text-right text-xs text-blue-600 font-medium">-<FormattedNumberCell value={r.totalRefundAmount} /></TableCell>
+                                                <TableCell className="text-right font-bold italic text-blue-600 text-xs">Credit</TableCell>
                                             </TableRow>
                                         ))}
                                         {(customerData && customerData.sales.length === 0 && customerData.returns.length === 0) && (

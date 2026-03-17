@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Enquiry, EnquiryFollowUp, Customer, Sale, Quotation, Product, Brand, Category, SubCategory, EnquiryStatus, EnquiryType, EnquirySource, FollowUpType, User } from "@/lib/types";
+import { Enquiry, EnquiryFollowUp, Customer, Quotation, Product, Brand, Category, SubCategory, EnquiryStatus, EnquiryType, EnquirySource, FollowUpType, User } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -104,12 +104,6 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   const usersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
   const { data: usersData } = useCollection<User>(usersRef);
 
-  const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc')) : null, [firestore]);
-  const { data: sales } = useCollection<Sale>(salesRef);
-  
-  const quotationsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'quotations'), orderBy('date', 'desc')) : null, [firestore]);
-  const { data: quotations } = useCollection<Quotation>(quotationsRef);
-
   const enquiryStatusesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'enquiryStatuses'), orderBy('name')) : null, [firestore]);
   const { data: enquiryStatuses } = useCollection<EnquiryStatus>(enquiryStatusesRef);
   
@@ -124,10 +118,13 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
 
   const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
+  
   const brandsRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'brands') : null, [firestore]);
   const { data: brands } = useCollection<Brand>(brandsRef);
+  
   const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
   const { data: categories } = useCollection<Category>(categoriesRef);
+  
   const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
   const { data: subCategories } = useCollection<SubCategory>(subCategoriesRef);
 
@@ -161,13 +158,6 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
     setItemFilters(prev => prev.filter((_, i) => i !== index));
   };
 
-  const conversionOptions = useMemo(() => {
-    if (!sales || !quotations || !watchedCustomerId) return [];
-    const customerSales = sales.filter(s => s.customerId === watchedCustomerId).map(s => ({ value: `sale_${s.id}`, label: `Sale #${s.invoiceSequence}`}));
-    const customerQuotations = quotations.filter(q => q.customerId === watchedCustomerId).map(q => ({ value: `quotation_${q.id}`, label: `Quotation #${q.quotationNumber}`}));
-    return [...customerSales, ...customerQuotations].sort((a, b) => a.label.localeCompare(b.label));
-  }, [sales, quotations, watchedCustomerId]);
-  
   const totals = useMemo(() => {
     let sub = 0;
     let gst = 0;
@@ -520,35 +510,10 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                   </FormItem>
                 )}
               />
-              {watchedStatus === 'Converted' && (
-                  <FormField
-                      control={control}
-                      name="convertedToId"
-                      render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>Converted To</FormLabel>
-                                <div className="flex items-center gap-2">
-                                  <Select onValueChange={field.onChange} value={field.value} disabled={!isEditing || conversionOptions.length === 0}>
-                                      <FormControl><SelectTrigger><SelectValue placeholder="Link to Sale or Quotation" /></SelectTrigger></FormControl>
-                                      <SelectContent>
-                                          {conversionOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                                      </SelectContent>
-                                  </Select>
-                                   {isEditing && <Button type="button" variant="outline" size="icon" onClick={() => setIsQuotationDialogOpen(true)} disabled={!watchedCustomerId}>
-                                        <PlusCircle className="h-4 w-4" />
-                                        <span className="sr-only">Create New Quotation</span>
-                                  </Button>}
-                                </div>
-                              {conversionOptions.length === 0 && <FormDescription>No sales or quotations found for this customer.</FormDescription>}
-                              <FormMessage />
-                          </FormItem>
-                      )}
-                  />
-              )}
               
               <div className="space-y-4 pt-4">
                   <Separator />
-                  <h3 className="text-lg font-medium">Follow-ups ({watchedItems.length})</h3>
+                  <h3 className="text-lg font-medium">Follow-ups ({getValues("followUps")?.length || 0})</h3>
                   <div className="rounded-md border max-h-48 overflow-y-auto">
                       <DataTable columns={followUpColumns({ users: usersData || [] })} data={getValues("followUps") || []} />
                   </div>

@@ -33,10 +33,10 @@ function ToastItem({ id, title, description, action, ...props }: ToasterToast) {
 
   return (
     <Toast key={id} {...props}>
-      <div className="grid gap-1">
+      <div className="grid gap-1 flex-1">
         {title && <ToastTitle>{title}</ToastTitle>}
         {description && (
-          <ToastDescription>{description}</ToastDescription>
+          <ToastDescription className="break-words max-w-[280px]">{description}</ToastDescription>
         )}
       </div>
       {action}
@@ -46,7 +46,8 @@ function ToastItem({ id, title, description, action, ...props }: ToasterToast) {
           size="icon" 
           className="h-8 w-8 shrink-0 text-destructive-foreground hover:bg-destructive-foreground/10" 
           onClick={handleCopy}
-          title="Copy error message"
+          type="button"
+          title="Copy error details"
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
         </Button>
