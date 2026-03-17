@@ -117,7 +117,7 @@ export function LoginPage() {
     }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-muted/40 w-full">
+    <div className="flex items-center justify-center min-h-screen bg-muted/40 w-full px-4">
         <Card className="mx-auto max-w-sm w-full shadow-lg">
         <CardHeader className="text-center">
             <StumpBooksLogo className="mx-auto h-8 w-8 mb-2" />

@@ -105,12 +105,6 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
   const couponsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'coupons') : null, [firestore]);
   const { data: coupons } = useCollection<Coupon>(couponsRef);
 
-  const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
-  const { data: categories } = useCollection<Category>(categoriesRef);
-
-  const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
-  const { data: subCategories } = useCollection<SubCategory>(subCategoriesRef);
-
   const warrantiesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'warranties'), orderBy('name')) : null, [firestore]);
   const { data: warranties } = useCollection<Warranty>(warrantiesRef);
 
@@ -140,7 +134,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
-  const { setValue, watch, reset, getValues } = form;
+  const { setValue, watch, reset } = form;
 
   const watchedItems = watch("items") || [];
   const watchedCouponCode = watch("couponCode");
@@ -270,13 +264,14 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-6xl">
-        <DialogHeader className="border-b pb-4">
+      <DialogContent className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle>{sale?.id ? "Edit Sale" : "New Sale"}</DialogTitle>
             <DialogDescription>Create a compliant TAX INVOICE or Retail Receipt.</DialogDescription>
         </DialogHeader>
+        
         <Form {...form}>
-          <form id="sale-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto px-2">
+          <form id="sale-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="flex-1 overflow-y-auto p-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pt-4">
                 <FormField control={form.control} name="customerId" render={({ field }) => ( 
                   <FormItem>
@@ -442,9 +437,10 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
             </div>
           </form>
         </Form>
-        <DialogFooter className="border-t pt-4">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" form="sale-form">Complete Sale</Button>
+        
+        <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t">
+            <Button type="submit" form="sale-form" className="w-full sm:w-auto order-1 sm:order-2">Save Invoice</Button>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
         </DialogFooter>
         <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
       </DialogContent>

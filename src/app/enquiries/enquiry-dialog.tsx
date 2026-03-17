@@ -122,12 +122,6 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   const followUpTypesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'followUpTypes'), orderBy('name')) : null, [firestore]);
   const { data: followUpTypes } = useCollection<FollowUpType>(followUpTypesRef);
 
-  const [newFollowUpNote, setNewFollowUpNote] = useState("");
-  const [newFollowUpType, setNewFollowUpType] = useState("");
-  const [nextAction, setNextAction] = useState("");
-  
-  const [itemFilters, setItemFilters] = useState<{ brandId: string; categoryId: string; subCategoryId: string; }[]>([]);
-
   const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
   const brandsRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'brands') : null, [firestore]);
@@ -137,9 +131,10 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
   const { data: subCategories } = useCollection<SubCategory>(subCategoriesRef);
 
-  const sortedBrands = useMemo(() => brands?.sort((a, b) => a.name.localeCompare(b.name)), [brands]);
-  const sortedCategories = useMemo(() => categories?.sort((a, b) => a.name.localeCompare(b.name)), [categories]);
-  const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
+  const [newFollowUpNote, setNewFollowUpNote] = useState("");
+  const [newFollowUpType, setNewFollowUpType] = useState("");
+  const [nextAction, setNextAction] = useState("");
+  const [itemFilters, setItemFilters] = useState<{ brandId: string; categoryId: string; subCategoryId: string; }[]>([]);
 
   const form = useForm<EnquiryFormValues>({
     resolver: zodResolver(formSchema),
@@ -150,7 +145,6 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   const watchedStatus = watch("status");
   const watchedItems = watch("items") || [];
   const watchedSaleType = watch("saleType");
-  const watchedFollowUps = watch("followUps") || [];
   
   const { fields, append, remove } = useFieldArray({
     control,
@@ -167,12 +161,6 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
     setItemFilters(prev => prev.filter((_, i) => i !== index));
   };
 
-  const creatorName = useMemo(() => {
-    if (!enquiry?.createdBy || !usersData) return enquiry?.createdByName || 'Unknown User';
-    const creator = usersData.find(u => u.id === enquiry.createdBy);
-    return creator?.displayName || enquiry?.createdByName || 'Unknown User';
-  }, [enquiry, usersData]);
-
   const conversionOptions = useMemo(() => {
     if (!sales || !quotations || !watchedCustomerId) return [];
     const customerSales = sales.filter(s => s.customerId === watchedCustomerId).map(s => ({ value: `sale_${s.id}`, label: `Sale #${s.invoiceSequence}`}));
@@ -180,20 +168,17 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
     return [...customerSales, ...customerQuotations].sort((a, b) => a.label.localeCompare(b.label));
   }, [sales, quotations, watchedCustomerId]);
   
-  const { subTotal, gstAmount, totalAmount } = useMemo(() => {
+  const totals = useMemo(() => {
     let sub = 0;
     let gst = 0;
-
     watchedItems.forEach(item => {
       sub += item.totalPrice;
       if (watchedSaleType === 'GST') {
         gst += item.totalPrice * (item.gstRate / 100);
       }
     });
-
     return { subTotal: sub, gstAmount: gst, totalAmount: sub + gst };
   }, [watchedItems, watchedSaleType]);
-
 
   useEffect(() => {
     if (open) {
@@ -246,10 +231,8 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
     setNextAction("");
   };
 
-
   const onSubmit = (data: EnquiryFormValues) => {
     const customerName = customers?.find(c => c.id === data.customerId)?.name || 'Unknown';
-
     const submittedEnquiry: Omit<Enquiry, 'id' | 'enquiryNumber'> = {
       storeId: STORE_ID,
       date: enquiry?.date || new Date().toISOString(),
@@ -257,7 +240,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
       ...data,
       followUps: data.followUps || [],
       items: data.items || [],
-      totalAmount: totalAmount,
+      totalAmount: totals.totalAmount,
       createdBy: enquiry?.createdBy || currentUser?.id,
       createdByName: enquiry?.createdByName || currentUser?.displayName,
     };
@@ -271,9 +254,8 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
         await setDoc(docRef, customer, { merge: true });
         setIsCustomerDialogOpen(false);
         setValue('customerId', customer.id, { shouldValidate: true });
-        toast({ title: "Success!", description: `Customer ${customer.name} created and selected.` });
+        toast({ title: "Success!", description: `Customer ${customer.name} created.` });
     } catch(err) {
-        console.error("Error creating customer:", err);
         toast({ title: "Error", description: "Could not create new customer.", variant: "destructive" });
     }
   };
@@ -288,7 +270,6 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
         setValue('convertedToId', `quotation_${quotation.id}`, { shouldValidate: true });
         toast({ title: 'Success!', description: `Quotation #${quotation.quotationNumber} created and linked.` });
     } catch (error) {
-        console.error("Error saving quotation:", error);
         toast({ title: 'Error', description: 'Could not save quotation.', variant: "destructive" });
     }
   };
@@ -297,7 +278,6 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
     const formValues = getValues();
     const customer = customers?.find(c => c.id === formValues.customerId);
     if (!customer) return undefined;
-    
     return {
         id: `qt_${Date.now()}`,
         customerId: formValues.customerId,
@@ -322,7 +302,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
 
   const dialogTitle = enquiry?.id ? `Edit Enquiry #${enquiry.enquiryNumber}` : "Add New Enquiry";
   const dialogDescription = enquiry?.id 
-    ? `Enquiry from ${enquiry.customerName} • Created by ${creatorName}` 
+    ? `Enquiry from ${enquiry.customerName} • Created by ${enquiry.createdByName}` 
     : "Log a new customer enquiry.";
 
   return (
@@ -340,8 +320,8 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
         onConvertToSale={() => {}}
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-3xl" onInteractOutside={(e) => e.preventDefault()}>
-          <DialogHeader>
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader className="p-6 pb-4 border-b">
             <div className="flex justify-between items-center pr-6">
                 <div>
                     <DialogTitle>{dialogTitle}</DialogTitle>
@@ -355,7 +335,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
             </div>
           </DialogHeader>
           <Form {...form}>
-            <form id="enquiry-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto px-2">
+            <form id="enquiry-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-6 space-y-4">
               {isEditing ? (
                 <FormField
                   control={control}
@@ -371,7 +351,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                                 </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                                {sortedCustomers?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                {customers?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)}>
@@ -388,14 +368,14 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {isEditing ? (
                     <FormField control={control} name="enquiryTypeId" render={({ field }) => (
-                      <FormItem><FormLabel>Type of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an enquiry type" /></SelectTrigger></FormControl><SelectContent>{enquiryTypes?.map(type => (<SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Type of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an enquiry type" /></SelectTrigger></FormControl><SelectContent>{enquiryTypes?.sort((a,b)=>a.name.localeCompare(b.name)).map(type => (<SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
                     )}/>
                   ) : (
                     <ReadOnlyField label="Type of Enquiry" value={enquiryTypes?.find(t => t.id === getValues('enquiryTypeId'))?.name} />
                   )}
                   {isEditing ? (
                     <FormField control={control} name="sourceId" render={({ field }) => (
-                        <FormItem><FormLabel>Source of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a source" /></SelectTrigger></FormControl><SelectContent>{enquirySources?.map(source => ( <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem> ))}</SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Source of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a source" /></SelectTrigger></FormControl><SelectContent>{enquirySources?.sort((a,b)=>a.name.localeCompare(b.name)).map(source => ( <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem> ))}</SelectContent></Select><FormMessage /></FormItem>
                     )}/>
                   ) : (
                     <ReadOnlyField label="Source of Enquiry" value={enquirySources?.find(s => s.id === getValues('sourceId'))?.name} />
@@ -462,11 +442,11 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                   <Select value={currentFilters.brandId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], brandId: value }; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={!isEditing}>
                                     <SelectTrigger><SelectValue placeholder="Brand" /></SelectTrigger>
-                                    <SelectContent><SelectItem value="all">All Brands</SelectItem>{sortedBrands?.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+                                    <SelectContent><SelectItem value="all">All Brands</SelectItem>{brands?.sort((a,b)=>a.name.localeCompare(b.name)).map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
                                   </Select>
                                   <Select value={currentFilters.categoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], categoryId: value, subCategoryId: 'all' }; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={!isEditing}>
                                       <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
-                                      <SelectContent><SelectItem value="all">All Categories</SelectItem>{sortedCategories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                                      <SelectContent><SelectItem value="all">All Categories</SelectItem>{categories?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                                   </Select>
                                   <Select value={currentFilters.subCategoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index].subCategoryId = value; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={filteredSubCategories.length === 0 || !isEditing}>
                                       <SelectTrigger><SelectValue placeholder="Sub-Category" /></SelectTrigger>
@@ -484,10 +464,10 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                                                   setValue(`items.${index}.brandId`, product.brand);
                                                   setValue(`items.${index}.categoryId`, product.category);
                                                   setValue(`items.${index}.subCategoryId`, product.subCategory);
-                                                  setValue(`items.${index}.unitPrice`, product.finalPrice && product.finalPrice > 0 ? product.finalPrice : product.sellingPrice);
+                                                  setValue(`items.${index}.unitPrice`, product.finalPrice || product.sellingPrice);
                                                   setValue(`items.${index}.gstRate`, product.gstRate);
                                                   const qty = getValues(`items.${index}.quantity`) || 1;
-                                                  setValue(`items.${index}.totalPrice`, (product.finalPrice && product.finalPrice > 0 ? product.finalPrice : product.sellingPrice) * qty);
+                                                  setValue(`items.${index}.totalPrice`, (product.finalPrice || product.sellingPrice) * qty);
                                               }
                                           }} value={formField.value} disabled={!isEditing}>
                                             <FormControl><SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl>
@@ -496,7 +476,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                                       <FormMessage /></FormItem>
                                   )}/>
                                   <FormField control={control} name={`items.${index}.quantity`} render={({ field }) => (
-                                      <FormItem><FormLabel className="sr-only">Quantity</FormLabel><FormControl><Input type="number" placeholder="Qty" {...field} disabled={!isEditing} onChange={(e) => {field.onChange(e); const p = products?.find(p => p.id === getValues(`items.${index}.productId`)); if(p) setValue(`items.${index}.totalPrice`, (p.finalPrice && p.finalPrice > 0 ? p.finalPrice : p.sellingPrice) * Number(e.target.value))}} /></FormControl><FormMessage /></FormItem>
+                                      <FormItem><FormLabel className="sr-only">Quantity</FormLabel><FormControl><Input type="number" placeholder="Qty" {...field} disabled={!isEditing} onChange={(e) => {field.onChange(e); const p = products?.find(p => p.id === getValues(`items.${index}.productId`)); if(p) setValue(`items.${index}.totalPrice`, (p.finalPrice || p.sellingPrice) * Number(e.target.value))}} /></FormControl><FormMessage /></FormItem>
                                   )}/>
                                   <FormField control={control} name={`items.${index}.unitPrice`} render={({ field }) => (
                                       <FormItem><FormLabel className="sr-only">Unit Price</FormLabel><FormControl><Input type="number" placeholder="Unit Price" {...field} disabled={!isEditing} onChange={(e) => {field.onChange(e); const qty = getValues(`items.${index}.quantity`); setValue(`items.${index}.totalPrice`, Number(e.target.value) * qty)}} /></FormControl><FormMessage /></FormItem>
@@ -510,14 +490,14 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                   </Button>}
               </div>
               
-              {totalAmount > 0 && (
-                  <div className="space-y-2 rounded-lg border p-4">
+              {totals.totalAmount > 0 && (
+                  <div className="space-y-2 rounded-lg border p-4 bg-muted/30">
                       <h4 className="font-medium">Enquiry Value</h4>
-                      <div className="flex justify-between"><span>Subtotal</span><span>₹{subTotal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+                      <div className="flex justify-between text-sm text-muted-foreground"><span>Subtotal</span><span>₹{totals.subTotal.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div>
                       {watchedSaleType === 'GST' && (
-                          <div className="flex justify-between"><span>GST</span><span>₹{gstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+                          <div className="flex justify-between text-sm text-muted-foreground"><span>GST</span><span>₹{totals.gstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div>
                       )}
-                      <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span>Total</span><span>₹{totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+                      <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span>Total</span><span>₹{totals.totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div>
                   </div>
               )}
               
@@ -531,7 +511,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                     <Select onValueChange={field.onChange} value={field.value} disabled={!isEditing}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl>
                       <SelectContent>
-                          {enquiryStatuses?.map(status => (
+                          {enquiryStatuses?.sort((a,b)=>a.name.localeCompare(b.name)).map(status => (
                               <SelectItem key={status.id} value={status.name}>{status.name}</SelectItem>
                           ))}
                       </SelectContent>
@@ -568,18 +548,18 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
               
               <div className="space-y-4 pt-4">
                   <Separator />
-                  <h3 className="text-lg font-medium">Follow-ups ({watchedFollowUps.length})</h3>
+                  <h3 className="text-lg font-medium">Follow-ups ({watchedItems.length})</h3>
                   <div className="rounded-md border max-h-48 overflow-y-auto">
-                      <DataTable columns={followUpColumns({ users: usersData || [] })} data={watchedFollowUps} />
+                      <DataTable columns={followUpColumns({ users: usersData || [] })} data={getValues("followUps") || []} />
                   </div>
-                  <div className="space-y-4 p-4 border rounded-lg">
+                  <div className="space-y-4 p-4 border rounded-lg bg-muted/10">
                       <Label htmlFor="new-follow-up">Add Follow-up</Label>
                       <Textarea id="new-follow-up" value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="e.g., Called customer..." />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <Select value={newFollowUpType} onValueChange={setNewFollowUpType}>
                               <SelectTrigger><SelectValue placeholder="Select Follow-up Type" /></SelectTrigger>
                               <SelectContent>
-                                {followUpTypes?.map(type => <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>)}
+                                {followUpTypes?.sort((a,b)=>a.name.localeCompare(b.name)).map(type => <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>)}
                               </SelectContent>
                           </Select>
                           <Select value={nextAction} onValueChange={setNextAction}>
@@ -595,18 +575,18 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                       <Button type="button" size="sm" onClick={handleAddFollowUp}>Add Note</Button>
                   </div>
               </div>
-              
             </form>
           </Form>
-           <DialogFooter className="sm:justify-end pt-4 gap-2">
-                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t">
                 {isEditing ? (
-                    <Button type="submit" form="enquiry-form">Save Changes</Button>
+                    <Button type="submit" form="enquiry-form" className="w-full sm:w-auto order-1 sm:order-2">Save Changes</Button>
                 ) : (
                     enquiry?.id && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-                        <Button type="button" onClick={handleSubmit(onSubmit)}>Save Follow-up</Button>
+                        <Button type="button" onClick={handleSubmit(onSubmit)} className="w-full sm:w-auto order-1 sm:order-2">Save Follow-up</Button>
                     )
                 )}
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
             </DialogFooter>
         </DialogContent>
       </Dialog>
