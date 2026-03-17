@@ -1,0 +1,98 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- HELPER FUNCTIONS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // This is the primary way to check for admin privileges.
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    function isEditorOrAdmin() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      let userRole = userDoc.data.role;
+      return isAdmin() || (isSignedIn() && (userRole == 'editor' || userRole == 'admin'));
+    }
+
+    function isDataEntry() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      let userRole = userDoc.data.role;
+      return isSignedIn() && userRole == 'data-entry';
+    }
+    
+    // --- USER PROFILE RULES ---
+    match /users/{userId} {
+      allow create: if isAdmin() || isOwner(userId);
+      // Allow get and list for all signed in users so staff names can be resolved across dashboards
+      allow read, list: if isSignedIn();
+      allow update: if isAdmin() || (isOwner(userId) && 
+                       request.resource.data.role == resource.data.role &&
+                       request.resource.data.isApproved == resource.data.isApproved);
+      allow delete: if isAdmin();
+      
+      match /notes/{noteId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      match /events/{eventId} {
+          allow read, write: if isOwner(userId);
+      }
+    }
+    
+    // Explicit rule for collection list
+    match /users {
+        allow list: if isSignedIn();
+    }
+    
+    match /_init/admin {
+        allow get: if isSignedIn();
+        allow write: if isSignedIn();
+    }
+
+    // --- DATA ACCESS RULES ---
+
+    match /settings/global/{settingCollection}/{settingId} {
+        allow read: if isSignedIn();
+        allow write: if isEditorOrAdmin(); 
+    }
+    
+    match /stores/{storeId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isEditorOrAdmin();
+    }
+    
+    // For all subcollections within a store...
+    match /stores/{storeId}/{path=**} {
+        allow read: if isSignedIn();
+    }
+
+    match /stores/{storeId}/customers/{docId} {
+      allow create: if (isDataEntry() || isEditorOrAdmin()) || 
+                      (request.auth == null && request.resource.data.isApproved == false);
+      allow write: if isEditorOrAdmin();
+    }
+    
+    match /stores/{storeId}/activityLogs/{logId} {
+      allow read, list: if isAdmin();
+      allow create: if isSignedIn();
+    }
+
+    match /stores/{storeId}/{collectionId}/{docId} {
+      allow create: if (request.auth == null || isSignedIn()) &&
+                     collectionId == 'customers' &&
+                     request.resource.data.isApproved == false;
+      
+      allow write: if isEditorOrAdmin();
+    }
+  }
+}

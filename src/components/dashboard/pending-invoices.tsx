@@ -1,0 +1,112 @@
+
+'use client';
+
+import { useMemo, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { isPast, formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '../ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '../ui/skeleton';
+import { useIsMounted } from '@/hooks/use-is-mounted';
+import { Sale, Customer } from '@/lib/types';
+import Link from 'next/link';
+
+interface PendingInvoicesProps {
+    sales: Sale[];
+    customers: Customer[];
+}
+
+export function PendingInvoices({ sales, customers }: PendingInvoicesProps) {
+  const [selectedCustomer, setSelectedCustomer] = useState('all');
+  const isMounted = useIsMounted();
+
+  const pendingSales = useMemo(() => {
+    return sales
+      .filter(s => {
+        const isPending = s.invoiceStatus === 'Unpaid' || s.invoiceStatus === 'Partially Paid';
+        const customerMatch = selectedCustomer === 'all' || s.customerId === selectedCustomer;
+        return isPending && customerMatch;
+      })
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  }, [sales, selectedCustomer]);
+
+  // STABLE list of customers who HAVE pending invoices
+  const customersWithPending = useMemo(() => {
+    const pendingIds = new Set(sales.filter(s => s.invoiceStatus !== 'Paid').map(s => s.customerId));
+    return customers.filter(c => pendingIds.has(c.id));
+  }, [sales, customers]);
+
+  const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+    'Paid': 'default',
+    'Unpaid': 'destructive',
+    'Partially Paid': 'secondary',
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className='flex-1'>
+                <CardTitle>Pending Invoices</CardTitle>
+                <CardDescription>
+                {pendingSales.length} invoices require attention.
+                </CardDescription>
+            </div>
+            <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                <SelectTrigger className="w-full sm:w-[180px] text-xs h-8">
+                    <SelectValue placeholder="Filter by debtor" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Debtors</SelectItem>
+                    {customersWithPending.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[280px]">
+            <div className="space-y-6">
+                {pendingSales.length > 0 ? pendingSales.map(sale => {
+                    return (
+                        <div key={sale.id} className="flex items-center">
+                            <div className="flex-1 space-y-1">
+                                <p className="font-medium text-sm leading-none">{sale.customerName}</p>
+                                <Link
+                                    href={`/invoice/${sale.id}`}
+                                    target="_blank"
+                                    className="text-xs text-muted-foreground hover:underline hover:text-primary"
+                                >
+                                    #{sale.invoiceSequence}
+                                </Link>
+                                {isMounted ? (() => {
+                                    const isOverdue = isPast(new Date(sale.dueDate));
+                                    return (
+                                        <p className={cn("text-[10px] font-medium", isOverdue ? 'text-destructive' : 'text-muted-foreground')}>
+                                            {`Due ${formatDistanceToNow(new Date(sale.dueDate), { addSuffix: true })}`}
+                                        </p>
+                                    )
+                                })() : (
+                                    <Skeleton className="h-4 w-24" />
+                                )}
+                            </div>
+                            <div className="ml-auto text-right">
+                                <p className="font-medium text-sm">₹{sale.totalAmount.toLocaleString()}</p>
+                                <Badge variant={statusVariant[sale.invoiceStatus]} className="text-[10px] h-5 px-1.5">{sale.invoiceStatus}</Badge>
+                            </div>
+                        </div>
+                    )
+                }) : (
+                    <div className="text-center text-muted-foreground pt-10">
+                        <p>No pending invoices. Great job!</p>
+                    </div>
+                )}
+            </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+}

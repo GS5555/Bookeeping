@@ -1,0 +1,614 @@
+
+
+"use client";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, useFieldArray } from "react-hook-form";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Enquiry, EnquiryFollowUp, Customer, Sale, Quotation, Product, Brand, Category, SubCategory, EnquiryStatus, EnquiryType, EnquirySource, FollowUpType, User } from "@/lib/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useMemo, useEffect, useState } from "react";
+import { Textarea } from "@/components/ui/textarea";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, query, orderBy, doc, setDoc } from "firebase/firestore";
+import { Separator } from "@/components/ui/separator";
+import { DataTable } from "@/components/data-table";
+import { followUpColumns } from "./columns";
+import { Label } from "@/components/ui/label";
+import { PlusCircle, Trash2, Edit, Save } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { CustomerDialog } from "@/app/customers/customer-dialog";
+import { toast } from "@/hooks/use-toast";
+import { QuotationDialog } from "@/app/quotations/quotation-dialog";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { Combobox } from "@/components/ui/combobox";
+
+const STORE_ID = 'store_main';
+
+const enquiryItemSchema = z.object({
+  productId: z.string().min(1, "Product is required."),
+  productName: z.string(),
+  brandId: z.string(),
+  categoryId: z.string(),
+  subCategoryId: z.string().optional(),
+  quantity: z.coerce.number().min(1, "Quantity must be at least 1."),
+  unitPrice: z.coerce.number().min(0, "Unit price cannot be negative."),
+  gstRate: z.number(),
+  totalPrice: z.number(),
+});
+
+const followUpSchema = z.object({
+  id: z.string(),
+  date: z.string(),
+  notes: z.string().min(1, "Follow-up notes cannot be empty."),
+  type: z.string().min(1, "Follow-up type is required."),
+  nextAction: z.string().optional(),
+  userId: z.string(),
+  userName: z.string(),
+});
+
+const formSchema = z.object({
+  customerId: z.string().min(1, "Customer is required."),
+  enquiry: z.string().min(10, "Please provide a detailed enquiry."),
+  status: z.string().min(1, "Status is required."),
+  enquiryTypeId: z.string().optional(),
+  sourceId: z.string().optional(),
+  convertedToId: z.string().optional(),
+  followUps: z.array(followUpSchema).optional(),
+  items: z.array(enquiryItemSchema).optional(),
+  saleType: z.enum(["GST", "Cash"]).optional(),
+});
+
+type EnquiryFormValues = z.infer<typeof formSchema>;
+
+interface EnquiryDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  enquiry?: Enquiry;
+  onSuccess: (enquiry: Omit<Enquiry, 'id' | 'enquiryNumber'>) => void;
+}
+
+const ReadOnlyField = ({ label, value }: { label: string, value: React.ReactNode }) => (
+    <div className="space-y-1">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <div className="text-sm p-2 border rounded-md bg-muted min-h-[40px] flex items-center">{value || <span className="text-muted-foreground/70">N/A</span>}</div>
+    </div>
+)
+
+export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: EnquiryDialogProps) {
+  const firestore = useFirestore();
+  const { currentUser } = useCurrentUser();
+  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [isQuotationDialogOpen, setIsQuotationDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(!enquiry);
+  
+  const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
+  const { data: customers } = useCollection<Customer>(customersRef);
+  
+  const usersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const { data: usersData } = useCollection<User>(usersRef);
+
+  const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc')) : null, [firestore]);
+  const { data: sales } = useCollection<Sale>(salesRef);
+  
+  const quotationsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'quotations'), orderBy('date', 'desc')) : null, [firestore]);
+  const { data: quotations } = useCollection<Quotation>(quotationsRef);
+
+  const enquiryStatusesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'enquiryStatuses'), orderBy('name')) : null, [firestore]);
+  const { data: enquiryStatuses } = useCollection<EnquiryStatus>(enquiryStatusesRef);
+  
+  const enquiryTypesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'enquiryTypes'), orderBy('name')) : null, [firestore]);
+  const { data: enquiryTypes } = useCollection<EnquiryType>(enquiryTypesRef);
+
+  const enquirySourcesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'enquirySources'), orderBy('name')) : null, [firestore]);
+  const { data: enquirySources } = useCollection<EnquirySource>(enquirySourcesRef);
+  
+  const followUpTypesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'followUpTypes'), orderBy('name')) : null, [firestore]);
+  const { data: followUpTypes } = useCollection<FollowUpType>(followUpTypesRef);
+
+  const [newFollowUpNote, setNewFollowUpNote] = useState("");
+  const [newFollowUpType, setNewFollowUpType] = useState("");
+  const [nextAction, setNextAction] = useState("");
+  
+  const [itemFilters, setItemFilters] = useState<{ brandId: string; categoryId: string; subCategoryId: string; }[]>([]);
+
+  const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
+  const { data: products } = useCollection<Product>(productsRef);
+  const brandsRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'brands') : null, [firestore]);
+  const { data: brands } = useCollection<Brand>(brandsRef);
+  const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
+  const { data: categories } = useCollection<Category>(categoriesRef);
+  const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
+  const { data: subCategories } = useCollection<SubCategory>(subCategoriesRef);
+
+  const sortedBrands = useMemo(() => brands?.sort((a, b) => a.name.localeCompare(b.name)), [brands]);
+  const sortedCategories = useMemo(() => categories?.sort((a, b) => a.name.localeCompare(b.name)), [categories]);
+  const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
+
+  const form = useForm<EnquiryFormValues>({
+    resolver: zodResolver(formSchema),
+  });
+
+  const { control, handleSubmit, watch, reset, setValue, getValues } = form;
+  const watchedCustomerId = watch("customerId");
+  const watchedStatus = watch("status");
+  const watchedItems = watch("items");
+  const watchedSaleType = watch("saleType");
+  const watchedFollowUps = watch("followUps");
+  
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "items",
+  });
+  
+  const handleAppendItem = () => {
+    append({ productId: "", productName: "", brandId: "", categoryId: "", quantity: 1, unitPrice: 0, gstRate: 0, totalPrice: 0 });
+    setItemFilters(prev => [...prev, { brandId: 'all', categoryId: 'all', subCategoryId: 'all' }]);
+  };
+  
+  const handleRemoveItem = (index: number) => {
+    remove(index);
+    setItemFilters(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const creatorName = useMemo(() => {
+    if (!enquiry?.createdBy || !usersData) return enquiry?.createdByName || 'Unknown User';
+    const creator = usersData.find(u => u.id === enquiry.createdBy);
+    return creator?.displayName || enquiry?.createdByName || 'Unknown User';
+  }, [enquiry, usersData]);
+
+  const conversionOptions = useMemo(() => {
+    if (!sales || !quotations || !watchedCustomerId) return [];
+    const customerSales = sales.filter(s => s.customerId === watchedCustomerId).map(s => ({ value: `sale_${s.id}`, label: `Sale #${s.invoiceSequence}`}));
+    const customerQuotations = quotations.filter(q => q.customerId === watchedCustomerId).map(q => ({ value: `quotation_${q.id}`, label: `Quotation #${q.quotationNumber}`}));
+    return [...customerSales, ...customerQuotations].sort((a, b) => a.label.localeCompare(b.label));
+  }, [sales, quotations, watchedCustomerId]);
+  
+  const { subTotal, gstAmount, totalAmount } = useMemo(() => {
+    let sub = 0;
+    let gst = 0;
+
+    watchedItems?.forEach(item => {
+      sub += item.totalPrice;
+      if (watchedSaleType === 'GST') {
+        gst += item.totalPrice * (item.gstRate / 100);
+      }
+    });
+
+    return { subTotal: sub, gstAmount: gst, totalAmount: sub + gst };
+  }, [watchedItems, watchedSaleType]);
+
+
+  useEffect(() => {
+    if (open) {
+        if(enquiry) {
+            setIsEditing(false);
+            reset({
+                ...enquiry,
+                followUps: enquiry.followUps || [],
+                items: enquiry.items || [],
+                saleType: enquiry.saleType || 'GST',
+            });
+            setItemFilters(enquiry.items?.map(item => ({ brandId: item.brandId || 'all', categoryId: item.categoryId || 'all', subCategoryId: item.subCategoryId || 'all' })) || []);
+        } else {
+            setIsEditing(true);
+            reset({
+                customerId: "",
+                enquiry: "",
+                status: "New",
+                convertedToId: "",
+                followUps: [],
+                items: [],
+                saleType: 'GST',
+            });
+            setItemFilters([]);
+        }
+        setNewFollowUpNote("");
+        setNewFollowUpType("");
+        setNextAction("");
+    }
+  }, [open, enquiry, reset]);
+
+  const handleAddFollowUp = () => {
+    if (newFollowUpNote.trim() === "" || newFollowUpType.trim() === "" || !currentUser) {
+        toast({ title: 'Missing Information', description: 'Please provide a note and select a follow-up type.', variant: 'destructive'});
+        return;
+    }
+    const currentFollowUps = getValues("followUps") || [];
+    const followUp: EnquiryFollowUp = {
+        id: `fu_${Date.now()}`,
+        date: new Date().toISOString(),
+        notes: newFollowUpNote,
+        type: newFollowUpType,
+        nextAction: nextAction,
+        userId: currentUser.id,
+        userName: currentUser.displayName || 'Unknown User'
+    };
+    setValue("followUps", [...currentFollowUps, followUp]);
+    setNewFollowUpNote("");
+    setNewFollowUpType("");
+    setNextAction("");
+  };
+
+
+  const onSubmit = (data: EnquiryFormValues) => {
+    const customerName = customers?.find(c => c.id === data.customerId)?.name || 'Unknown';
+
+    const submittedEnquiry: Omit<Enquiry, 'id' | 'enquiryNumber'> = {
+      storeId: STORE_ID,
+      date: enquiry?.date || new Date().toISOString(),
+      customerName,
+      ...data,
+      followUps: data.followUps || [],
+      items: data.items || [],
+      totalAmount: totalAmount,
+      createdBy: enquiry?.createdBy || currentUser?.id,
+      createdByName: enquiry?.createdByName || currentUser?.displayName,
+    };
+    onSuccess(submittedEnquiry);
+  };
+  
+  const handleNewCustomerSuccess = async (customer: Customer) => {
+    if (!firestore) return;
+    try {
+        const docRef = doc(firestore, 'stores', STORE_ID, 'customers', customer.id);
+        await setDoc(docRef, customer, { merge: true });
+        setIsCustomerDialogOpen(false);
+        setValue('customerId', customer.id, { shouldValidate: true });
+        toast({ title: "Success!", description: `Customer ${customer.name} created and selected.` });
+    } catch(err) {
+        console.error("Error creating customer:", err);
+        toast({ title: "Error", description: "Could not create new customer.", variant: "destructive" });
+    }
+  };
+
+  const handleNewQuotationSuccess = async (quotation: Quotation) => {
+    if (!firestore || !currentUser) return;
+    try {
+        const quotationDocRef = doc(firestore, 'stores', STORE_ID, 'quotations', quotation.id);
+        const finalQuotation: Quotation = { ...quotation, createdBy: currentUser.id };
+        await setDoc(quotationDocRef, finalQuotation, { merge: true });
+        setIsQuotationDialogOpen(false);
+        setValue('convertedToId', `quotation_${quotation.id}`, { shouldValidate: true });
+        toast({ title: 'Success!', description: `Quotation #${quotation.quotationNumber} created and linked.` });
+    } catch (error) {
+        console.error("Error saving quotation:", error);
+        toast({ title: 'Error', description: 'Could not save quotation.', variant: "destructive" });
+    }
+  };
+
+  const enquiryAsQuotation = useMemo(() => {
+    const formValues = getValues();
+    const customer = customers?.find(c => c.id === formValues.customerId);
+    if (!customer) return undefined;
+    
+    return {
+        id: `qt_${Date.now()}`,
+        customerId: formValues.customerId,
+        customerName: customer.name,
+        billingAddress: customer.addresses.find(a => a.isPrimary)!,
+        items: formValues.items?.map(item => {
+            const product = products?.find(p => p.id === item.productId);
+            return {
+                productId: item.productId,
+                productName: product?.name || item.productName,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalPrice: item.quantity * item.unitPrice,
+                hsnCode: product?.hsnCode || '',
+                gstRate: product?.gstRate || 0,
+                imageUrl: product?.imageUrl || ''
+            };
+        }) || [],
+        status: 'Draft'
+    } as Partial<Quotation>;
+  }, [getValues, customers, products]);
+
+  const dialogTitle = enquiry?.id ? `Edit Enquiry #${enquiry.enquiryNumber}` : "Add New Enquiry";
+  const dialogDescription = enquiry?.id 
+    ? `Enquiry from ${enquiry.customerName} • Created by ${creatorName}` 
+    : "Log a new customer enquiry.";
+
+  return (
+    <>
+      <CustomerDialog 
+        open={isCustomerDialogOpen} 
+        onOpenChange={setIsCustomerDialogOpen} 
+        onSuccess={handleNewCustomerSuccess} 
+      />
+      <QuotationDialog
+        open={isQuotationDialogOpen}
+        onOpenChange={setIsQuotationDialogOpen}
+        onSuccess={handleNewQuotationSuccess}
+        quotation={enquiryAsQuotation}
+        onConvertToSale={() => {}} // This is not needed here
+      />
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-3xl" onInteractOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <div className="flex justify-between items-center pr-6">
+                <div>
+                    <DialogTitle>{dialogTitle}</DialogTitle>
+                    <DialogDescription>{dialogDescription}</DialogDescription>
+                </div>
+                 {enquiry?.id && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
+                    <Button onClick={() => setIsEditing(true)}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit
+                    </Button>
+                )}
+            </div>
+          </DialogHeader>
+          <Form {...form}>
+            <form id="enquiry-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto px-2">
+              {isEditing ? (
+                <FormField
+                  control={control}
+                  name="customerId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Customer</FormLabel>
+                      <div className="flex items-center gap-2">
+                        <Combobox
+                          options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
+                          value={field.value}
+                          onChange={(value) => field.onChange(value)}
+                          placeholder="Select a customer..."
+                          searchPlaceholder="Search customers..."
+                          notFoundText="No customer found."
+                        />
+                        <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)}>
+                            <PlusCircle className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <ReadOnlyField label="Customer" value={customers?.find(c => c.id === getValues('customerId'))?.name} />
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {isEditing ? (
+                    <FormField control={control} name="enquiryTypeId" render={({ field }) => (
+                      <FormItem><FormLabel>Type of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an enquiry type" /></SelectTrigger></FormControl><SelectContent>{enquiryTypes?.map(type => (<SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                    )}/>
+                  ) : (
+                    <ReadOnlyField label="Type of Enquiry" value={enquiryTypes?.find(t => t.id === getValues('enquiryTypeId'))?.name} />
+                  )}
+                  {isEditing ? (
+                    <FormField control={control} name="sourceId" render={({ field }) => (
+                        <FormItem><FormLabel>Source of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a source" /></SelectTrigger></FormControl><SelectContent>{enquirySources?.map(source => ( <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem> ))}</SelectContent></Select><FormMessage /></FormItem>
+                    )}/>
+                  ) : (
+                    <ReadOnlyField label="Source of Enquiry" value={enquirySources?.find(s => s.id === getValues('sourceId'))?.name} />
+                  )}
+              </div>
+              <FormField control={control} name="enquiry" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Enquiry Details</FormLabel>
+                    {isEditing ? (
+                        <FormControl><Textarea placeholder="e.g., Customer asked about bulk pricing for SG balls..." {...field} /></FormControl>
+                    ) : (
+                        <div className="text-sm p-3 border rounded-md bg-muted min-h-24 whitespace-pre-wrap">{field.value || 'No details provided.'}</div>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                  control={form.control}
+                  name="saleType"
+                  render={({ field }) => (
+                      <FormItem className="space-y-3">
+                      <FormLabel>Potential Sale Type</FormLabel>
+                       {isEditing ? (
+                          <FormControl>
+                              <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
+                                  <FormItem className="flex items-center space-x-3 space-y-0">
+                                      <FormControl><RadioGroupItem value="GST" /></FormControl>
+                                      <FormLabel className="font-normal">GST</FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-3 space-y-0">
+                                      <FormControl><RadioGroupItem value="Cash" /></FormControl>
+                                      <FormLabel className="font-normal">Cash</FormLabel>
+                                  </FormItem>
+                              </RadioGroup>
+                          </FormControl>
+                       ) : (
+                           <div className="text-sm p-3 border rounded-md bg-muted">{field.value || 'Not specified'}</div>
+                       )}
+                      <FormMessage />
+                      </FormItem>
+                  )}
+              />
+              
+              <Separator />
+              <div className="space-y-4">
+                  <FormLabel>Interested Products (Optional)</FormLabel>
+                  {fields.map((field, index) => {
+                      const currentFilters = itemFilters[index] || { brandId: 'all', categoryId: 'all', subCategoryId: 'all' };
+                      const filteredSubCategories = subCategories?.filter(sc => currentFilters.categoryId === 'all' || sc.categoryId === currentFilters.categoryId).sort((a,b) => a.name.localeCompare(b.name)) || [];
+                      const filteredProducts = products?.filter(p => 
+                          (currentFilters.brandId === 'all' || p.brand === currentFilters.brandId) &&
+                          (currentFilters.categoryId === 'all' || p.category === currentFilters.categoryId) &&
+                          (currentFilters.subCategoryId === 'all' || p.subCategory === currentFilters.subCategoryId)
+                      ).sort((a, b) => a.name.localeCompare(b.name)) || [];
+
+                      return (
+                          <div key={field.id} className="space-y-3 border p-3 rounded-lg relative">
+                              {isEditing && <div className="flex justify-end sm:absolute sm:top-2 sm:right-2">
+                                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveItem(index)}>
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                              </div>}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                  <Select value={currentFilters.brandId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], brandId: value }; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={!isEditing}>
+                                    <SelectTrigger><SelectValue placeholder="Brand" /></SelectTrigger>
+                                    <SelectContent><SelectItem value="all">All Brands</SelectItem>{sortedBrands?.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+                                  </Select>
+                                  <Select value={currentFilters.categoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], categoryId: value, subCategoryId: 'all' }; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={!isEditing}>
+                                      <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+                                      <SelectContent><SelectItem value="all">All Categories</SelectItem>{sortedCategories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                                  </Select>
+                                  <Select value={currentFilters.subCategoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index].subCategoryId = value; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={filteredSubCategories.length === 0 || !isEditing}>
+                                      <SelectTrigger><SelectValue placeholder="Sub-Category" /></SelectTrigger>
+                                      <SelectContent><SelectItem value="all">All Sub-Categories</SelectItem>{filteredSubCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}</SelectContent>
+                                  </Select>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start">
+                                <FormField control={control} name={`items.${index}.productId`} render={({ field: formField }) => (
+                                      <FormItem><FormLabel className="sr-only">Product</FormLabel><Select onValueChange={(value) => {
+                                          formField.onChange(value);
+                                          const product = products?.find(p => p.id === value);
+                                          if (product) {
+                                              setValue(`items.${index}.productName`, product.name);
+                                              setValue(`items.${index}.brandId`, product.brand);
+                                              setValue(`items.${index}.categoryId`, product.category);
+                                              setValue(`items.${index}.subCategoryId`, product.subCategory);
+                                              setValue(`items.${index}.unitPrice`, product.finalPrice && product.finalPrice > 0 ? product.finalPrice : product.sellingPrice);
+                                              setValue(`items.${index}.gstRate`, product.gstRate);
+                                              const qty = getValues(`items.${index}.quantity`) || 1;
+                                              setValue(`items.${index}.totalPrice`, (product.finalPrice && product.finalPrice > 0 ? product.finalPrice : product.sellingPrice) * qty);
+                                          }
+                                      }} value={formField.value} disabled={!isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl><SelectContent>{filteredProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                  )}/>
+                                  <FormField control={control} name={`items.${index}.quantity`} render={({ field }) => (
+                                      <FormItem><FormLabel className="sr-only">Quantity</FormLabel><FormControl><Input type="number" placeholder="Qty" {...field} disabled={!isEditing} onChange={(e) => {field.onChange(e); const p = products?.find(p => p.id === getValues(`items.${index}.productId`)); if(p) setValue(`items.${index}.totalPrice`, (p.finalPrice && p.finalPrice > 0 ? p.finalPrice : p.sellingPrice) * Number(e.target.value))}} /></FormControl><FormMessage /></FormItem>
+                                  )}/>
+                                  <FormField control={control} name={`items.${index}.unitPrice`} render={({ field }) => (
+                                      <FormItem><FormLabel className="sr-only">Unit Price</FormLabel><FormControl><Input type="number" placeholder="Unit Price" {...field} disabled={!isEditing} onChange={(e) => {field.onChange(e); const qty = getValues(`items.${index}.quantity`); setValue(`items.${index}.totalPrice`, Number(e.target.value) * qty)}} /></FormControl><FormMessage /></FormItem>
+                                  )}/>
+                            </div>
+                          </div>
+                      );
+                  })}
+                  {isEditing && <Button type="button" variant="outline" size="sm" onClick={handleAppendItem}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Product
+                  </Button>}
+              </div>
+              
+              {totalAmount > 0 && (
+                  <div className="space-y-2 rounded-lg border p-4">
+                      <h4 className="font-medium">Enquiry Value</h4>
+                      <div className="flex justify-between"><span>Subtotal</span><span>₹{subTotal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+                      {watchedSaleType === 'GST' && (
+                          <div className="flex justify-between"><span>GST</span><span>₹{gstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+                      )}
+                      <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span>Total</span><span>₹{totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+                  </div>
+              )}
+              
+              <Separator />
+              <FormField
+                control={control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={!isEditing}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                          {enquiryStatuses?.map(status => (
+                              <SelectItem key={status.id} value={status.name}>{status.name}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {watchedStatus === 'Converted' && (
+                  <FormField
+                      control={control}
+                      name="convertedToId"
+                      render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>Converted To</FormLabel>
+                                <div className="flex items-center gap-2">
+                                  <Select onValueChange={field.onChange} value={field.value} disabled={!isEditing || conversionOptions.length === 0}>
+                                      <FormControl><SelectTrigger><SelectValue placeholder="Link to Sale or Quotation" /></SelectTrigger></FormControl>
+                                      <SelectContent>
+                                          {conversionOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                                      </SelectContent>
+                                  </Select>
+                                   {isEditing && <Button type="button" variant="outline" size="icon" onClick={() => setIsQuotationDialogOpen(true)} disabled={!watchedCustomerId}>
+                                        <PlusCircle className="h-4 w-4" />
+                                        <span className="sr-only">Create New Quotation</span>
+                                  </Button>}
+                                </div>
+                              {conversionOptions.length === 0 && <FormDescription>No sales or quotations found for this customer.</FormDescription>}
+                              <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+              )}
+              
+              <div className="space-y-4 pt-4">
+                  <Separator />
+                  <h3 className="text-lg font-medium">Follow-ups ({watchedFollowUps?.length || 0})</h3>
+                  <div className="rounded-md border max-h-48 overflow-y-auto">
+                      <DataTable columns={followUpColumns({ users: usersData || [] })} data={watchedFollowUps || []} />
+                  </div>
+                  <div className="space-y-4 p-4 border rounded-lg">
+                      <Label htmlFor="new-follow-up">Add Follow-up</Label>
+                      <Textarea id="new-follow-up" value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="e.g., Called customer, sent quotation..." />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Select value={newFollowUpType} onValueChange={setNewFollowUpType}>
+                              <SelectTrigger><SelectValue placeholder="Select Follow-up Type..." /></SelectTrigger>
+                              <SelectContent>
+                                {followUpTypes?.map(type => <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>)}
+                              </SelectContent>
+                          </Select>
+                          <Select value={nextAction} onValueChange={setNextAction}>
+                              <SelectTrigger><SelectValue placeholder="Select Next Action..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Call Back">Call Back</SelectItem>
+                                <SelectItem value="Send Email">Send Email</SelectItem>
+                                <SelectItem value="Schedule Meeting">Schedule Meeting</SelectItem>
+                                <SelectItem value="No Action">No Action</SelectItem>
+                              </SelectContent>
+                          </Select>
+                      </div>
+                      <Button type="button" size="sm" onClick={handleAddFollowUp}>Add Note</Button>
+                  </div>
+              </div>
+              
+            </form>
+          </Form>
+           <DialogFooter className="sm:justify-between pt-4">
+                <div>
+                  {isEditing && (
+                    <Button type="submit" form="enquiry-form">Save Changes</Button>
+                  )}
+                </div>
+                 <div>
+                    <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    {!isEditing && enquiry?.id && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
+                      <Button type="button" onClick={handleSubmit(onSubmit)}>Save Follow-up</Button>
+                    )}
+                 </div>
+              </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

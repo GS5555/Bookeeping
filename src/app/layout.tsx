@@ -1,9 +1,19 @@
-import type {Metadata} from 'next';
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
+import { cn } from '@/lib/utils';
+import { ThemeProvider } from '@/components/theme-provider';
+import { Analytics } from '@/components/analytics';
+import { FirebaseClientProvider } from '@/firebase';
+import { AppShell } from '@/app/layout/app-shell';
+import { SidebarProvider } from '@/components/ui/sidebar';
+import { Toaster } from "@/components/ui/toaster";
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'NextMinimal - Clean Starter',
-  description: 'A professional and minimal Next.js starter project with TypeScript and Tailwind CSS.',
+  title: 'Cricket Store Manager',
+  description: 'ERP for a cricket goods store',
 };
 
 export default function RootLayout({
@@ -12,13 +22,30 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-      </head>
-      <body className="font-body antialiased min-h-screen flex flex-col">{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={cn(
+          'min-h-screen bg-background font-sans antialiased',
+          inter.variable
+        )}
+        suppressHydrationWarning={true}
+      >
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            storageKey="cricket-store-theme"
+            enableSystem={false}
+            disableTransitionOnChange
+        >
+          <FirebaseClientProvider>
+            <SidebarProvider>
+                <AppShell>{children}</AppShell>
+            </SidebarProvider>
+          </FirebaseClientProvider>
+          <Toaster />
+        </ThemeProvider>
+        <Analytics />
+      </body>
     </html>
   );
 }

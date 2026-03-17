@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -100,7 +101,8 @@ ${colorConfig
   )
 }
 
-const ChartTooltip = RechartsPrimitive.Tooltip
+const ChartTooltip = RechartsPrimitive.Tooltip;
+
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
@@ -254,7 +256,7 @@ const ChartTooltipContent = React.forwardRef<
     )
   }
 )
-ChartTooltipContent.displayName = "ChartTooltip"
+ChartTooltipContent.displayName = "ChartTooltipContent"
 
 const ChartLegend = RechartsPrimitive.Legend
 

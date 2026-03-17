@@ -1,0 +1,1546 @@
+
+
+{
+  "entities": {
+    "Product": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Product",
+      "type": "object",
+      "description": "Represents an item for sale in the cricket store.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the product."
+        },
+        "storeId": {
+          "type": "string",
+          "description": "Reference to Store. (Relationship: Store 1:N Product)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the product."
+        },
+        "sku": {
+          "type": "string",
+          "description": "Unique stock keeping unit for the product."
+        },
+        "serialNumber": {
+          "type": "string",
+          "description": "The serial number of the product, if applicable."
+        },
+        "brand": {
+          "type": "string",
+          "description": "Brand of the product."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the product."
+        },
+        "handPreference": {
+          "type": "string",
+          "description": "The preferred hand for the product, if applicable (e.g., for gloves).",
+          "enum": ["Normal", "Left", "Right", "Blank"]
+        },
+        "vendorId": {
+          "type": "string",
+          "description": "Reference to Vendor. (Relationship: Vendor 1:N Product)"
+        },
+        "purchasePrice": {
+          "type": "number",
+          "description": "Purchase price of the product."
+        },
+        "miscellaneousCost": {
+          "type": "number",
+          "description": "Miscellaneous costs like transportation, handling etc."
+        },
+        "profitPercentage": {
+          "type": "number",
+          "description": "Profit margin as a percentage."
+        },
+        "profitAmount": {
+          "type": "number",
+          "description": "Profit margin as a fixed amount."
+        },
+        "sellingPrice": {
+          "type": "number",
+          "description": "Calculated selling price of the product."
+        },
+        "finalPrice": {
+          "type": "number",
+          "description": "An optional manual override for the selling price. If set, this price is used in sales."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the product."
+        },
+        "hsnCode": {
+          "type": "string",
+          "description": "HSN (Harmonized System Nomenclature) code for the product."
+        },
+        "gstRate": {
+          "type": "number",
+          "description": "GST (Goods and Services Tax) rate for the product."
+        },
+        "isBundle": {
+          "type": "boolean",
+          "description": "Indicates if the product is a bundle."
+        },
+        "bundleItems": {
+          "type": "array",
+          "description": "Array of sub-product IDs and quantities if the product is a bundle.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates if the product is active."
+        },
+        "locationComment": {
+          "type": "string",
+          "description": "Comment on the location of the product."
+        },
+        "priceHistory": {
+            "type": "array",
+            "description": "An array of price change records for the product.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "sellingPrice": { "type": "number" },
+                    "purchasePrice": { "type": "number" },
+                    "date": { "type": "string", "format": "date-time" }
+                },
+                "required": ["sellingPrice", "purchasePrice", "date"]
+            }
+        }
+      },
+      "required": [
+        "id",
+        "storeId",
+        "name",
+        "sku",
+        "category",
+        "vendorId",
+        "purchasePrice",
+        "sellingPrice",
+        "description",
+        "hsnCode",
+        "gstRate",
+        "isBundle",
+        "isActive"
+      ]
+    },
+    "InventoryItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "InventoryItem",
+      "type": "object",
+      "description": "Represents an inventory item with its stock level, denormalized from Product.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the inventory item."
+        },
+        "storeId": {
+          "type": "string",
+          "description": "Reference to Store. (Relationship: Store 1:N InventoryItem)"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Reference to Product. (Relationship: Product 1:1 InventoryItem)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the product."
+        },
+        "sku": {
+          "type": "string",
+          "description": "Unique stock keeping unit for the product."
+        },
+        "brand": {
+          "type": "string",
+          "description": "Brand of the product."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the product."
+        },
+        "vendorId": {
+          "type": "string",
+          "description": "Reference to Vendor. (Relationship: Vendor 1:N InventoryItem)"
+        },
+        "purchasePrice": {
+          "type": "number",
+          "description": "Purchase price of the product."
+        },
+        "miscellaneousCost": {
+          "type": "number",
+          "description": "Miscellaneous costs like transportation, handling etc."
+        },
+        "sellingPrice": {
+          "type": "number",
+          "description": "Calculated selling price of the product."
+        },
+        "finalPrice": {
+          "type": "number",
+          "description": "An optional manual override for the selling price."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the product."
+        },
+        "hsnCode": {
+          "type": "string",
+          "description": "HSN (Harmonized System Nomenclature) code for the product."
+        },
+        "gstRate": {
+          "type": "number",
+          "description": "GST (Goods and Services Tax) rate for the product."
+        },
+        "isBundle": {
+          "type": "boolean",
+          "description": "Indicates if the product is a bundle."
+        },
+        "bundleItems": {
+          "type": "array",
+          "description": "Array of sub-product IDs and quantities if the product is a bundle.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates if the product is active."
+        },
+        "locationComment": {
+          "type": "string",
+          "description": "Comment on the location of the product."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity of the item in stock."
+        },
+        "lastStockUpdate": {
+          "type": "string",
+          "description": "Date and time of the last stock update.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "storeId",
+        "productId",
+        "name",
+        "sku",
+        "category",
+        "vendorId",
+        "purchasePrice",
+        "sellingPrice",
+        "description",
+        "hsnCode",
+        "gstRate",
+        "isBundle",
+        "isActive",
+        "quantity",
+        "lastStockUpdate"
+      ]
+    },
+    "Customer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Customer",
+      "type": "object",
+      "description": "Represents a customer.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the customer."
+        },
+        "storeId": {
+          "type": "string",
+          "description": "Reference to Store. (Relationship: Store 1:N Customer)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the customer (e.g., Mr., Ms.)."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the customer."
+        },
+        "customerType": {
+          "type": "string",
+          "description": "Type of customer (e.g., Retail, Wholesale)."
+        },
+        "gstNumber": {
+          "type": "string",
+          "description": "GST (Goods and Services Tax) number of the customer."
+        },
+        "address": {
+          "type": "string",
+          "description": "Address of the customer."
+        },
+        "city": {
+          "type": "string",
+          "description": "City of the customer."
+        },
+        "state": {
+          "type": "string",
+          "description": "State of the customer."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the customer."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the customer.",
+          "format": "email"
+        },
+        "referenceName": {
+          "type": "string",
+          "description": "Name of the person who referred the customer."
+        },
+        "referenceContact": {
+          "type": "string",
+          "description": "Contact number of the person who referred the customer."
+        },
+        "purpose": {
+          "type": "string",
+          "description": "The customer's purpose for their visit or registration."
+        }
+      },
+      "required": [
+        "id",
+        "storeId",
+        "name",
+        "phone",
+        "email"
+      ]
+    },
+    "Vendor": {
+      "$schema": "http://json-schema.org/draft-07/schema#_continue",
+      "title": "Vendor",
+      "type": "object",
+      "description": "Represents a vendor.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the vendor."
+        },
+        "storeId": {
+          "type": "string",
+          "description": "Reference to Store. (Relationship: Store 1:N Vendor)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the vendor."
+        },
+        "vendorType": {
+          "type": "string",
+          "description": "Type of vendor (e.g., Manufacturer, Wholesaler)."
+        },
+        "contactPerson": {
+          "type": "string",
+          "description": "Contact person of the vendor."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the vendor.",
+          "format": "email"
+        },
+        "gstNumber": {
+          "type": "string",
+          "description": "GST (Goods and Services Tax) number of the vendor."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the vendor."
+        },
+        "address": {
+          "type": "string",
+          "description": "Address of the vendor."
+        },
+        "products": {
+          "type": "array",
+          "description": "Array of product IDs supplied by the vendor.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "storeId",
+        "name",
+        "contactPerson",
+        "phone",
+        "email"
+      ]
+    },
+    "PurchaseOrder": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PurchaseOrder",
+      "type": "object",
+      "description": "Represents a purchase order placed with a vendor.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the purchase order."
+        },
+        "storeId": {
+          "type": "string",
+          "description": "Reference to Store. (Relationship: Store 1:N PurchaseOrder)"
+        },
+        "vendorId": {
+          "type": "string",
+          "description": "Reference to Vendor. (Relationship: Vendor 1:N PurchaseOrder)"
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "Date when the order was placed.",
+          "format": "date-time"
+        },
+        "expectedDeliveryDate": {
+          "type": "string",
+          "description": "Expected delivery date for the order.",
+          "format": "date-time"
+        },
+        "items": {
+          "type": "array",
+          "description": "Array of product IDs, quantities, and prices in the order.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total amount of the purchase order."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the purchase order ('Pending', 'Received', 'Cancelled')."
+        },
+        "paymentStatus": {
+          "type": "string",
+          "description": "Payment status of the purchase order."
+        }
+      },
+      "required": [
+        "id",
+        "storeId",
+        "vendorId",
+        "orderDate",
+        "expectedDeliveryDate",
+        "items",
+        "totalAmount",
+        "status",
+        "paymentStatus"
+      ]
+    },
+    "SaleItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SaleItem",
+      "type": "object",
+      "description": "Represents an item within a sale.",
+      "properties": {
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "brandName": { "type": "string" },
+        "color1": { "type": "string" },
+        "color2": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unitPrice": { "type": "number" },
+        "discount": { "type": "number" },
+        "totalPrice": { "type": "number" },
+        "hsnCode": { "type": "string" },
+        "gstRate": { "type": "number" },
+        "categoryId": { "type": "string" },
+        "subCategoryId": { "type": "string" }
+      },
+      "required": ["productId", "productName", "quantity", "unitPrice", "totalPrice", "hsnCode", "gstRate"]
+    },
+    "Sale": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Sale",
+      "type": "object",
+      "description": "Represents a customer transaction.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the sale."
+        },
+        "storeId": {
+          "type": "string",
+          "description": "Reference to Store. (Relationship: Store 1:N Sale)"
+        },
+        "saleDate": {
+          "type": "string",
+          "description": "Date of the sale.",
+          "format": "date-time"
+        },
+        "warrantyExpiryDate": {
+            "type": "string",
+            "description": "Date the warranty for the sale expires.",
+            "format": "date-time"
+        },
+        "saleType": {
+          "type": "string",
+          "description": "Type of sale ('GST' or 'Cash')."
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Reference to Customer. (Relationship: Customer 1:N Sale)"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Name of the customer."
+        },
+        "items": {
+          "type": "array",
+          "description": "Array of products sold with price details.",
+          "items": {
+            "$ref": "#/backend/entities/SaleItem"
+          }
+        },
+        "subTotal": {
+          "type": "number",
+          "description": "Subtotal of the sale."
+        },
+        "taxDetails": {
+          "type": "string",
+          "description": "Tax/GST details of the sale."
+        },
+        "appliedCouponCode": {
+          "type": "string",
+          "description": "Reference to Coupon. (Relationship: Coupon 1:N Sale)"
+        },
+        "couponDiscount": {
+          "type": "number",
+          "description": "Discount applied from the coupon."
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total amount of the sale."
+        },
+        "invoiceStatus": {
+          "type": "string",
+          "description": "Invoice status of the sale."
+        },
+        "invoiceSequence": {
+          "type": "string",
+          "description": "Invoice sequence number of the sale."
+        }
+      },
+      "required": [
+        "id",
+        "storeId",
+        "saleDate",
+        "saleType",
+        "customerId",
+        "customerName",
+        "items",
+        "subTotal",
+        "taxDetails",
+        "totalAmount",
+        "invoiceStatus",
+        "invoiceSequence"
+      ]
+    },
+    "SalesReturn": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SalesReturn",
+      "type": "object",
+      "description": "Represents a returned item from a sale.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the sales return."
+        },
+        "originalSaleId": {
+          "type": "string",
+          "description": "Reference to Sale. (Relationship: Sale 1:N SalesReturn)"
+        },
+        "returnDate": {
+          "type": "string",
+          "description": "Date of the return.",
+          "format": "date-time"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Reference to Product. (Relationship: Product 1:N SalesReturn)"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity of the returned item."
+        },
+        "condition": {
+          "type": "string",
+          "description": "Condition of the returned item ('Sellable' or 'Non-Sellable')."
+        },
+        "refundAmount": {
+          "type": "number",
+          "description": "Refund amount for the returned item."
+        }
+      },
+      "required": [
+        "id",
+        "originalSaleId",
+        "returnDate",
+        "productId",
+        "quantity",
+        "condition",
+        "refundAmount"
+      ]
+    },
+    "Expense": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Expense",
+      "type": "object",
+      "description": "Represents an operational cost.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the expense."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company for this expense."
+        },
+        "expenseDate": {
+          "type": "string",
+          "description": "Date of the expense.",
+          "format": "date-time"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the expense."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the expense."
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of the expense."
+        },
+        "vendorId": {
+          "type": "string",
+          "description": "Reference to Vendor. (Relationship: Vendor 1:N Expense)"
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "expenseDate",
+        "category",
+        "description",
+        "amount",
+        "vendorId"
+      ]
+    },
+    "ExpenseCategory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ExpenseCategory",
+      "type": "object",
+      "description": "Defines a category for expenses.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the expense category."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the expense category (e.g., 'Rent', 'Utilities')."
+        },
+        "hsnCode": {
+            "type": "string",
+            "description": "Default HSN code for this category."
+        },
+        "gstRate": {
+            "type": "number",
+            "description": "Default GST rate for this category."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Coupon": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Coupon",
+      "type": "object",
+      "description": "Represents a discount coupon.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the coupon."
+        },
+        "storeId": {
+          "type": "string",
+          "description": "Reference to Store. (Relationship: Store 1:N Coupon)"
+        },
+        "code": {
+          "type": "string",
+          "description": "Coupon code (e.g., 'SUMMER10')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the coupon."
+        },
+        "discountType": {
+          "type": "string",
+          "description": "Type of discount ('percentage' or 'fixed')."
+        },
+        "discountValue": {
+          "type": "number",
+          "description": "Value of the discount."
+        },
+        "minPurchaseAmount": {
+          "type": "number",
+          "description": "Minimum purchase amount required to use the coupon."
+        },
+        "validFrom": {
+          "type": "string",
+          "description": "Date from which the coupon is valid.",
+          "format": "date-time"
+        },
+        "validUntil": {
+          "type": "string",
+          "description": "Date until which the coupon is valid.",
+          "format": "date-time"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates if the coupon is active."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Date and time when the coupon was created.",
+          "format": "date-time"
+        },
+        "timesUsed": {
+          "type": "number",
+          "description": "Number of times the coupon has been used."
+        },
+        "maxUses": {
+          "type": "number",
+          "description": "Maximum number of times the coupon can be used."
+        }
+      },
+      "required": [
+        "id",
+        "storeId",
+        "code",
+        "description",
+        "discountType",
+        "discountValue",
+        "minPurchaseAmount",
+        "validFrom",
+        "validUntil",
+        "isActive",
+        "createdAt",
+        "timesUsed",
+        "maxUses"
+      ]
+    },
+    "SupportTicket": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SupportTicket",
+      "type": "object",
+      "description": "Represents a customer support ticket.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the support ticket."
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Reference to Customer. (Relationship: Customer 1:N SupportTicket)"
+        },
+        "saleId": {
+          "type": "string",
+          "description": "Reference to Sale. (Relationship: Sale 1:N SupportTicket)"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject of the support ticket."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the support ticket."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the support ticket."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Date and time when the support ticket was created.",
+          "format": "date-time"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Category ID for the support ticket"
+        },
+        "subCategoryId": {
+          "type": "string",
+          "description": "Sub-Category ID for the support ticket"
+        },
+        "vendorId": {
+          "type": "string",
+          "description": "Vendor ID for the support ticket"
+        }
+      },
+      "required": [
+        "id",
+        "customerId",
+        "subject",
+        "description",
+        "status",
+        "createdAt",
+        "categoryId",
+        "subCategoryId",
+        "vendorId"
+      ]
+    },
+    "TicketMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TicketMessage",
+      "type": "object",
+      "description": "Represents a message within a support ticket.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ticket message."
+        },
+        "ticketId": {
+          "type": "string",
+          "description": "Reference to SupportTicket. (Relationship: SupportTicket 1:N TicketMessage)"
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Unique identifier of the message sender."
+        },
+        "message": {
+          "type": "string",
+          "description": "Content of the message."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Date and time when the message was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ticketId",
+        "senderId",
+        "message",
+        "createdAt"
+      ]
+    },
+    "Repair": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Repair",
+        "type": "object",
+        "description": "Represents a repair job for a customer's product.",
+        "properties": {
+            "id": { "type": "string", "description": "Unique identifier for the repair job." },
+            "storeId": { "type": "string", "description": "Reference to Store." },
+            "customerId": { "type": "string", "description": "Reference to Customer." },
+            "productId": { "type": "string", "description": "Reference to Product." },
+            "issueDescription": { "type": "string", "description": "A detailed description of the issue." },
+            "status": { "type": "string", "description": "Current status of the repair (e.g., 'Pending', 'In Progress', 'Completed', 'Cancelled')." },
+            "estimatedCost": { "type": "number", "description": "The estimated cost for the repair." },
+            "actualCost": { "type": "number", "description": "The final cost of the repair." },
+            "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the repair job was created." },
+            "completedAt": { "type": "string", "format": "date-time", "description": "Timestamp when the repair job was completed." }
+        },
+        "required": ["id", "storeId", "customerId", "productId", "issueDescription", "status", "createdAt"]
+    },
+    "EnquiryFollowUp": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "EnquiryFollowUp",
+      "type": "object",
+      "description": "Represents a follow-up action on a customer enquiry.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the follow-up." },
+        "date": { "type": "string", "format": "date-time", "description": "Timestamp of the follow-up." },
+        "notes": { "type": "string", "description": "Notes about the follow-up interaction." }
+      },
+      "required": ["id", "date", "notes"]
+    },
+    "Enquiry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Enquiry",
+      "type": "object",
+      "description": "Represents a customer enquiry or lead.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the enquiry." },
+        "storeId": { "type": "string", "description": "Reference to the store where the enquiry was made." },
+        "date": { "type": "string", "format": "date-time", "description": "Timestamp when the enquiry was created." },
+        "customerId": { "type": "string", "description": "Reference to Customer." },
+        "enquiry": { "type": "string", "description": "The details of the customer's enquiry." },
+        "status": { "type": "string", "description": "Current status of the enquiry." },
+        "convertedToId": { "type": "string", "description": "Reference to the Sale or Quotation if converted (e.g., 'sale_123', 'quotation_456')." }
+      },
+      "required": ["id", "storeId", "date", "customerId", "enquiry", "status"]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the application who has authenticated through Firebase.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user, corresponding to Firebase UID."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the user."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "URL of the user's profile photo.",
+          "format": "uri"
+        },
+        "emailVerified": {
+          "type": "boolean",
+          "description": "Indicates if the user's email address has been verified."
+        },
+        "isApproved": {
+          "type": "boolean",
+          "description": "Indicates if the user's account has been approved by an administrator."
+        },
+        "role": {
+            "type": "string",
+            "description": "The role of the user, which determines their access level.",
+            "enum": ["admin", "editor", "viewer"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user account was created in Firebase.",
+          "format": "date-time"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "Timestamp of the user's last login.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "emailVerified",
+        "isApproved",
+        "role",
+        "createdAt"
+      ]
+    },
+     "Event": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Event",
+      "type": "object",
+      "description": "Represents a calendar event for a user.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the event." },
+        "userId": { "type": "string", "description": "Reference to the User who owns the event." },
+        "title": { "type": "string", "description": "The title of the event." },
+        "description": { "type": "string", "description": "A detailed description of the event." },
+        "startTime": { "type": "string", "format": "date-time", "description": "The start time of the event." },
+        "endTime": { "type": "string", "format": "date-time", "description": "The end time of the event." },
+        "isAllDay": { "type": "boolean", "description": "Whether the event lasts all day." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the event was created." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Timestamp when the event was last updated." }
+      },
+      "required": ["id", "userId", "title", "startTime", "endTime", "createdAt", "updatedAt"]
+    },
+    "Store": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Store",
+      "type": "object",
+      "description": "Represents a store in the application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the store."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the store."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Store). The id of the user that owns the store"
+        },
+        "address": {
+          "type": "string",
+          "description": "Address of the store."
+        },
+        "city": {
+          "type": "string",
+          "description": "City of the store."
+        },
+        "state": {
+          "type": "string",
+          "description": "State of the store."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the store."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the store.",
+          "format": "email"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "ownerId"
+      ]
+    },
+    "Warranty": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Warranty",
+      "type": "object",
+      "description": "Defines a warranty period.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the warranty."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the warranty (e.g., '1 Year')."
+        },
+        "duration": {
+          "type": "string",
+          "description": "Duration string used for date calculations (e.g., '1y', '6m')."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "duration"
+      ]
+    },
+     "HandPreference": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "HandPreference",
+      "type": "object",
+      "description": "Defines a hand preference for a product.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the hand preference."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the preference (e.g., 'Left', 'Right', 'Normal')."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+     "EnquiryStatus": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "EnquiryStatus",
+      "type": "object",
+      "description": "Defines a status for an enquiry.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the enquiry status." },
+        "name": { "type": "string", "description": "Display name of the status (e.g., 'New', 'Follow-up', 'Converted')." }
+      },
+      "required": ["id", "name"]
+    },
+    "CustomerType": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CustomerType",
+      "type": "object",
+      "description": "Defines a type for a customer.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the customer type." },
+        "name": { "type": "string", "description": "Display name of the type (e.g., 'Retail', 'Wholesale')." }
+      },
+      "required": ["id", "name"]
+    },
+    "VendorType": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "VendorType",
+      "type": "object",
+      "description": "Defines a type for a vendor.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the vendor type." },
+        "name": { "type": "string", "description": "Display name of the type (e.g., 'Manufacturer', 'Wholesaler')." }
+      },
+      "required": ["id", "name"]
+    },
+    "ActivityLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ActivityLog",
+      "type": "object",
+      "description": "Represents a log of user activity.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the log entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who performed the action."
+        },
+        "username": {
+          "type": "string",
+          "description": "The name of the user at the time of the action."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The date and time of the action.",
+          "format": "date-time"
+        },
+        "action": {
+          "type": "string",
+          "description": "A description of the action performed (e.g., 'Created Sale #INV-123')."
+        },
+        "ipAddress": {
+          "type": "string",
+          "description": "The IP address from which the action was performed."
+        },
+        "details": {
+          "type": "object",
+          "description": "Optional object for storing additional context about the action."
+        }
+      },
+      "required": ["id", "userId", "username", "timestamp", "action", "ipAddress"]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles, with 'userId' corresponding to the Firebase UID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/events/{eventId}",
+        "definition": {
+          "entityName": "Event",
+          "schema": {
+            "$ref": "#/backend/entities/Event"
+          },
+          "description": "Stores calendar events for a specific user.",
+          "params": [
+            { "name": "userId", "description": "The Firebase UID of the user." },
+            { "name": "eventId", "description": "The unique identifier for the event." }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}",
+        "definition": {
+          "entityName": "Store",
+          "schema": {
+            "$ref": "#/backend/entities/Store"
+          },
+          "description": "Stores store information. Includes ownerId for identifying the store owner.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/products/{productId}",
+        "definition": {
+          "entityName": "Product",
+          "schema": {
+            "$ref": "#/backend/entities/Product"
+          },
+          "description": "Stores product information. Includes denormalized 'storeId' for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "productId",
+              "description": "The unique identifier for the product."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/inventoryItems/{inventoryItemId}",
+        "definition": {
+          "entityName": "InventoryItem",
+          "schema": {
+            "$ref": "#/backend/entities/InventoryItem"
+          },
+          "description": "Stores inventory item information, denormalized from Product. Includes denormalized 'storeId' for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "inventoryItemId",
+              "description": "The unique identifier for the inventory item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/customers/{customerId}",
+        "definition": {
+          "entityName": "Customer",
+          "schema": {
+            "$ref": "#/backend/entities/Customer"
+          },
+          "description": "Stores customer information. Includes denormalized 'storeId' for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "customerId",
+              "description": "The unique identifier for the customer."
+            }
+          ]
+        }
+      },
+       {
+        "path": "/stores/{storeId}/enquiries/{enquiryId}",
+        "definition": {
+          "entityName": "Enquiry",
+          "schema": {
+            "$ref": "#/backend/entities/Enquiry"
+          },
+          "description": "Stores customer enquiries. Sub-collection 'followUps' stores follow-up interactions.",
+          "params": [
+            { "name": "storeId", "description": "The unique identifier for the store." },
+            { "name": "enquiryId", "description": "The unique identifier for the enquiry." }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/enquiries/{enquiryId}/followUps/{followUpId}",
+        "definition": {
+          "entityName": "EnquiryFollowUp",
+          "schema": {
+            "$ref": "#/backend/entities/EnquiryFollowUp"
+          },
+          "description": "Stores follow-up notes for a specific enquiry.",
+          "params": [
+            { "name": "storeId", "description": "The unique identifier for the store." },
+            { "name": "enquiryId", "description": "The unique identifier for the enquiry." },
+            { "name": "followUpId", "description": "The unique identifier for the follow-up note." }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/vendors/{vendorId}",
+        "definition": {
+          "entityName": "Vendor",
+          "schema": {
+            "$ref": "#/backend/entities/Vendor"
+          },
+          "description": "Stores vendor information. Includes denormalized 'storeId' for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "vendorId",
+              "description": "The unique identifier for the vendor."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/purchaseOrders/{purchaseOrderId}",
+        "definition": {
+          "entityName": "PurchaseOrder",
+          "schema": {
+            "$ref": "#/backend/entities/PurchaseOrder"
+          },
+          "description": "Stores purchase order information. Includes denormalized 'storeId' for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "purchaseOrderId",
+              "description": "The unique identifier for the purchase order."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/sales/{saleId}",
+        "definition": {
+          "entityName": "Sale",
+          "schema": {
+            "$ref": "#/backend/entities/Sale"
+          },
+          "description": "Stores sale information. Includes denormalized 'storeId', 'customerId', and 'customerName' for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "saleId",
+              "description": "The unique identifier for the sale."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/sales/{saleId}/salesReturns/{salesReturnId}",
+        "definition": {
+          "entityName": "SalesReturn",
+          "schema": {
+            "$ref": "#/backend/entities/SalesReturn"
+          },
+          "description": "Stores sales return information. Includes denormalized 'storeId' from the Sale document for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "saleId",
+              "description": "The unique identifier for the sale."
+            },
+            {
+              "name": "salesReturnId",
+              "description": "The unique identifier for the sales return."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/expenses/{expenseId}",
+        "definition": {
+          "entityName": "Expense",
+          "schema": {
+            "$ref": "#/backend/entities/Expense"
+          },
+          "description": "Stores expense information. Includes denormalized 'storeId' for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "expenseId",
+              "description": "The unique identifier for the expense."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/expenseCategories/{expenseCategoryId}",
+        "definition": {
+          "entityName": "ExpenseCategory",
+          "schema": {
+            "$ref": "#/backend/entities/ExpenseCategory"
+          },
+          "description": "Stores expense category information. Includes denormalized 'storeId' for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "expenseCategoryId",
+              "description": "The unique identifier for the expense category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/coupons/{couponId}",
+        "definition": {
+          "entityName": "Coupon",
+          "schema": {
+            "$ref": "#/backend/entities/Coupon"
+          },
+          "description": "Stores coupon information. Includes denormalized 'storeId' for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "couponId",
+              "description": "The unique identifier for the coupon."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/supportTickets/{supportTicketId}",
+        "definition": {
+          "entityName": "SupportTicket",
+          "schema": {
+            "$ref": "#/backend/entities/SupportTicket"
+          },
+          "description": "Stores support ticket information. Includes denormalized 'storeId' for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "supportTicketId",
+              "description": "The unique identifier for the support ticket."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/supportTickets/{supportTicketId}/ticketMessages/{ticketMessageId}",
+        "definition": {
+          "entityName": "TicketMessage",
+          "schema": {
+            "$ref": "#/backend/entities/TicketMessage"
+          },
+          "description": "Stores ticket message information. Includes denormalized 'storeId' from the SupportTicket document for authorization independence.",
+          "params": [
+            {
+              "name": "storeId",
+              "description": "The unique identifier for the store."
+            },
+            {
+              "name": "supportTicketId",
+              "description": "The unique identifier for the support ticket."
+            },
+            {
+              "name": "ticketMessageId",
+              "description": "The unique identifier for the ticket message."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/repairs/{repairId}",
+        "definition": {
+          "entityName": "Repair",
+          "schema": {
+            "$ref": "#/backend/entities/Repair"
+          },
+          "description": "Stores repair job information for a specific store.",
+          "params": [
+            { "name": "storeId", "description": "The unique identifier for the store." },
+            { "name": "repairId", "description": "The unique identifier for the repair job." }
+          ]
+        }
+      },
+      {
+        "path": "/stores/{storeId}/activityLogs/{logId}",
+        "definition": {
+          "entityName": "ActivityLog",
+          "schema": {
+            "$ref": "#/backend/entities/ActivityLog"
+          },
+          "description": "Stores a log of all user activities within a store.",
+          "params": [
+            { "name": "storeId", "description": "The unique identifier for the store." },
+            { "name": "logId", "description": "The unique identifier for the log entry." }
+          ]
+        }
+      },
+      {
+        "path": "/settings/global/warranties/{warrantyId}",
+        "definition": {
+          "entityName": "Warranty",
+          "schema": { "$ref": "#/backend/entities/Warranty" },
+          "description": "Stores global warranty options.",
+          "params": [
+            { "name": "warrantyId", "description": "The unique identifier for the warranty." }
+          ]
+        }
+      },
+      {
+        "path": "/settings/global/handPreferences/{handPreferenceId}",
+        "definition": {
+          "entityName": "HandPreference",
+          "schema": { "$ref": "#/backend/entities/HandPreference" },
+          "description": "Stores global hand preference options.",
+          "params": [
+            { "name": "handPreferenceId", "description": "The unique identifier for the hand preference." }
+          ]
+        }
+      },
+      {
+        "path": "/settings/global/enquiryStatuses/{enquiryStatusId}",
+        "definition": {
+          "entityName": "EnquiryStatus",
+          "schema": { "$ref": "#/backend/entities/EnquiryStatus" },
+          "description": "Stores global enquiry status options.",
+          "params": [
+            { "name": "enquiryStatusId", "description": "The unique identifier for the enquiry status." }
+          ]
+        }
+      },
+       {
+        "path": "/settings/global/customerTypes/{customerTypeId}",
+        "definition": {
+          "entityName": "CustomerType",
+          "schema": { "$ref": "#/backend/entities/CustomerType" },
+          "description": "Stores global customer type options.",
+          "params": [
+            { "name": "customerTypeId", "description": "The unique identifier for the customer type." }
+          ]
+        }
+      },
+      {
+        "path": "/settings/global/vendorTypes/{vendorTypeId}",
+        "definition": {
+          "entityName": "VendorType",
+          "schema": { "$ref": "#/backend/entities/VendorType" },
+          "description": "Stores global vendor type options.",
+          "params": [
+            { "name": "vendorTypeId", "description": "The unique identifier for the vendor type." }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure is designed for the Cricket Store Manager application, prioritizing security, scalability, and ease of debugging, according to the core design principles. The primary strategy is Authorization Independence achieved via denormalization. Each document includes the necessary authorization context to avoid `get()` calls in security rules.\n\nThe `users/{userId}` collection stores user profiles, with the `userId` derived from Firebase Authentication's `uid`. User-owned data is stored under hierarchical paths like `/users/{userId}/stores/{storeId}`, reflecting the User 1:N Store relationship. This makes ownership clear and simplifies security rules. The `Store` documents contain an `ownerId` field, which is also used to establish the ownership relationship.\n\nFor entities related to a `Store`, such as `Product`, `Vendor`, `Customer`, etc., the structure uses collections like `/stores/{storeId}/products/{productId}`.  Authorization independence is maintained by including `storeId` in each of these documents, avoiding the need to query the parent `Store` document to determine access rights.  This enables atomic operations and easier debugging.  The `InventoryItem` is also stored under `/stores/{storeId}`, with a denormalized structure containing all fields of the associated `Product` to enable efficient querying and display of inventory data without requiring joins.\n\nThe `Sale` document includes `customerId` and `customerName`. Similar to above, this enables Authorization Independence within Sales collection.\n\nThis structure supports the QAPs requirement by structurally segregating data based on access needs. Private user data resides under `/users/{userId}`, while store-specific data resides under `/stores/{storeId}`. Security rules can then be applied at the collection level based on these paths."
+  }
+}
+
+    
