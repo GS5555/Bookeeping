@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -10,6 +11,8 @@ import Link from 'next/link';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { downloadInvoice } from '@/lib/actions';
+import { useIsMounted } from '@/hooks/use-is-mounted';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const formatCurrency = (amount: number): string => {
     if (typeof amount !== 'number') return '₹0.00';
@@ -42,6 +45,7 @@ export default function InvoicePage() {
     const params = useParams();
     const { id } = params;
     const firestore = useFirestore();
+    const isMounted = useIsMounted();
 
     const saleRef = useMemoFirebase(() => firestore && id ? doc(firestore, 'stores', STORE_ID, 'sales', id as string) : null, [firestore, id]);
     const { data: sale, isLoading: isSaleLoading } = useDoc<Sale>(saleRef);
@@ -52,7 +56,7 @@ export default function InvoicePage() {
     const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
     const { data: companyDetails, isLoading: isCompanyLoading } = useDoc<Company>(companyDocRef);
 
-    if (isSaleLoading || isCustomerLoading || isCompanyLoading) {
+    if (isSaleLoading || isCustomerLoading || isCompanyLoading || !isMounted) {
         return <div className="flex items-center justify-center h-screen bg-white"><p className="animate-pulse font-medium">Loading TAX INVOICE details...</p></div>;
     }
     

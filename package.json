@@ -12,7 +12,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf .next && echo 'Next.js cache cleared.'"
+    "clean": "rm -rf .next && rm -rf node_modules/.cache && echo 'Next.js build cache cleared.'"
   },
   "dependencies": {
     "@genkit-ai/google-cloud": "^1.0.0",
