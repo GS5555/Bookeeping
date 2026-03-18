@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,6 +42,7 @@ const STORE_ID = 'store_main';
 
 const enquiryItemSchema = z.object({
   productId: z.string().optional(),
+  sku: z.string().default(''),
   productName: z.string().optional(),
   quantity: z.coerce.number().min(1).default(1),
   unitPrice: z.coerce.number().min(0).default(0),
@@ -108,7 +110,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
             reset(enquiry);
         } else {
             setIsEditing(true);
-            reset({ customerId: "", enquiry: "", status: "New", items: [{ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, gstRate: 0 }] });
+            reset({ customerId: "", enquiry: "", status: "New", items: [{ productId: "", sku: '', productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, gstRate: 0 }] });
         }
     }
   }, [open, enquiry, reset]);
@@ -127,13 +129,14 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
         toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
     } else {
         setValue(`items.${index}.productId`, product.id);
+        setValue(`items.${index}.sku`, product.sku);
         setValue(`items.${index}.productName`, product.name);
         setValue(`items.${index}.unitPrice`, product.sellingPrice);
         setValue(`items.${index}.gstRate`, product.gstRate);
         
         // Auto-append logic
         if (index === watchedItems.length - 1) {
-            append({ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, gstRate: 0 });
+            append({ productId: "", sku: '', productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, gstRate: 0 });
         }
     }
   }
@@ -142,10 +145,15 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
     const customer = customers?.find(c => c.id === data.customerId);
     
     // Ignore empty line items
-    const validItems = (data.items || []).filter(i => i.productId && i.productId !== "").map(item => ({
-        ...item,
-        totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)
-    }));
+    const validItems = (data.items || []).filter(i => i.productId && i.productId !== "").map(item => {
+        const product = products?.find(p => p.id === item.productId);
+        return {
+            ...item,
+            productId: item.productId!,
+            sku: item.sku || product?.sku || '',
+            totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)
+        }
+    });
 
     onSuccess({
       storeId: STORE_ID,
@@ -213,7 +221,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
               <div className="space-y-4">
                   <div className="flex items-center justify-between border-b pb-2">
                       <Label className="text-lg font-black uppercase tracking-tight">Interested Products</Label>
-                      {isEditing && <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>}
+                      {isEditing && <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", sku: '', productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>}
                   </div>
                   {fields.map((field, index) => {
                       const selectedProdId = watchedItems[index]?.productId;

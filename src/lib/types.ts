@@ -96,6 +96,7 @@ export interface InventoryItem {
 export interface SaleItem {
   productId: string;
   productName: string;
+  sku: string;
   serialNumber?: string;
   brandId: string;
   brandName?: string;
@@ -211,6 +212,7 @@ export interface PurchaseOrder {
     items: {
         productId: string;
         productName: string;
+        sku: string;
         color1?: string;
         color2?: string;
         imageUrl?: string;
@@ -429,6 +431,7 @@ export interface FollowUpType {
 export interface QuotationItem {
   productId: string;
   productName: string;
+  sku: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -483,6 +486,7 @@ export interface EnquiryFollowUp {
 export interface EnquiryItem {
   productId: string;
   productName: string;
+  sku: string;
   brandId: string;
   categoryId: string;
   subCategoryId?: string;

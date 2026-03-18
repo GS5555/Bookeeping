@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -129,6 +130,7 @@ export default function QuotationPage() {
                     <thead>
                         <tr className="border-b-2 border-gray-900 text-xs font-black text-gray-900 uppercase">
                             <th className="py-3 text-left">Item Description</th>
+                            <th className="py-3 text-left w-32">SKU</th>
                             <th className="py-3 text-left w-24">HSN</th>
                             <th className="py-3 text-right w-20">GST</th>
                             <th className="py-3 text-right w-20">Qty</th>
@@ -140,6 +142,7 @@ export default function QuotationPage() {
                         {quotation.items.map((item, index) => (
                             <tr key={index} className="text-sm text-gray-800">
                                 <td className="py-4 font-bold">{item.productName}</td>
+                                <td className="py-4 font-mono text-xs">{item.sku || 'N/A'}</td>
                                 <td className="py-4">{item.hsnCode}</td>
                                 <td className="py-4 text-right">{item.gstRate}%</td>
                                 <td className="py-4 text-right font-medium">{item.quantity}</td>

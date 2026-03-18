@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,6 +47,7 @@ const STORE_ID = 'store_main';
 
 const saleItemSchema = z.object({
     productId: z.string().optional(),
+    sku: z.string().default(''),
     brandId: z.string().optional(),
     handPreference: z.string().default('Normal'),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1.").default(1),
@@ -126,7 +128,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       storeId: STORE_ID,
       saleDate: new Date(),
       saleType: "GST",
-      items: [{ productId: "", brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' }],
+      items: [{ productId: "", sku: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' }],
       useDifferentShipping: false,
       couponCode: "",
       manualDiscountPercentage: 0,
@@ -202,6 +204,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
     } else {
         setValue(`items.${index}.productId`, product.id);
+        setValue(`items.${index}.sku`, product.sku);
         setValue(`items.${index}.brandId`, product.brand);
         setValue(`items.${index}.unitPrice`, product.finalPrice || product.sellingPrice);
         setValue(`items.${index}.hsnCode`, product.hsnCode);
@@ -210,7 +213,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         setValue(`items.${index}.subCategoryId`, product.subCategory || '');
         
         if (index === fields.length - 1) {
-            append({ productId: "", brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
+            append({ productId: "", sku: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
         }
     }
   };
@@ -223,6 +226,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         const brand = brands.find(b => b.id === item.brandId);
         return {
             ...item,
+            productId: item.productId!,
+            sku: item.sku || product?.sku || '',
             productName: product?.name || 'Unknown',
             brandName: brand?.name || 'Unknown',
             totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),

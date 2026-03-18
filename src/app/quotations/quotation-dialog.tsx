@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,6 +41,7 @@ const STORE_ID = 'store_main';
 
 const quotationItemSchema = z.object({
     productId: z.string().optional(),
+    sku: z.string().default(''),
     productName: z.string().optional(),
     quantity: z.coerce.number().min(1).default(1),
     unitPrice: z.coerce.number().min(0).default(0),
@@ -124,7 +126,7 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
         } as any);
       } else {
         setIsEditing(true);
-        reset({ customerId: "", date: new Date(), validUntil: addDays(new Date(), 30), deliveryDate: addDays(new Date(), 7), status: "Draft", items: [{ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 }] });
+        reset({ customerId: "", date: new Date(), validUntil: addDays(new Date(), 30), deliveryDate: addDays(new Date(), 7), status: "Draft", items: [{ productId: "", sku: '', productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 }] });
       }
     }
   }, [open, quotation, reset]);
@@ -143,6 +145,7 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
         toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
     } else {
         setValue(`items.${index}.productId`, product.id); 
+        setValue(`items.${index}.sku`, product.sku); 
         setValue(`items.${index}.productName`, product.name); 
         setValue(`items.${index}.unitPrice`, product.finalPrice || product.sellingPrice); 
         setValue(`items.${index}.hsnCode`, product.hsnCode); 
@@ -150,7 +153,7 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
         
         // Auto-append logic
         if (index === fields.length - 1) {
-            append({ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 });
+            append({ productId: "", sku: '', productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 });
         }
     }
   }
@@ -159,13 +162,17 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
     const customer = customers?.find(c => c.id === data.customerId);
     
     // Ignore empty line items
-    const validItems = data.items.filter(i => i.productId && i.productId !== "").map(item => ({
-        ...item,
-        productId: item.productId!,
-        productName: item.productName!,
-        hsnCode: item.hsnCode || '',
-        totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)
-    }));
+    const validItems = data.items.filter(i => i.productId && i.productId !== "").map(item => {
+        const product = products?.find(p => p.id === item.productId);
+        return {
+            ...item,
+            productId: item.productId!,
+            sku: item.sku || product?.sku || '',
+            productName: item.productName!,
+            hsnCode: item.hsnCode || '',
+            totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)
+        }
+    });
     
     if (validItems.length === 0) {
         toast({ title: "Error", description: "Select at least one product.", variant: "destructive" });
@@ -232,7 +239,7 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
              <div className="space-y-4">
                 <div className="flex items-center justify-between border-b pb-2">
                     <Label className="text-lg font-black uppercase tracking-tight">Line Items</Label>
-                    {isEditing && <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>}
+                    {isEditing && <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", sku: '', productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>}
                 </div>
                 {fields.map((field, index) => {
                     const selectedProdId = watchedItems[index]?.productId;

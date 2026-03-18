@@ -1,11 +1,10 @@
 
-
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
 import { Enquiry, EnquiryFollowUp, User } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { MoreHorizontal, Pencil, Trash2, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -20,6 +19,7 @@ import { useIsMounted } from "@/hooks/use-is-mounted"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Checkbox } from "@/components/ui/checkbox"
+import Link from "next/link"
 
 interface ActionsCellProps {
     enquiry: Enquiry;
@@ -70,10 +70,17 @@ const ActionsCell = ({ enquiry, onEdit, onDelete }: ActionsCellProps) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem asChild>
+                    <Link href={`/enquiry-slip/${enquiry.id}`} target="_blank">
+                        <FileText className="mr-2 h-4 w-4" />
+                        Print / View Slip
+                    </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onEdit(enquiry)}>
                     <Pencil className="mr-2 h-4 w-4" />
-                    Edit / View
+                    Edit Details
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)} className="text-destructive">
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete Enquiry
@@ -111,9 +118,9 @@ export const columns = (options: { onEdit: (enquiry: Enquiry) => void; onDelete:
     accessorKey: "enquiryNumber",
     header: "Enquiry #",
     cell: ({ row }) => (
-        <Button variant="link" className="p-0 h-auto font-medium" onClick={() => options.onEdit(row.original)}>
+        <Link href={`/enquiry-slip/${row.original.id}`} target="_blank" className="font-medium hover:underline text-primary">
             {row.original.enquiryNumber}
-        </Button>
+        </Link>
     )
   },
   {

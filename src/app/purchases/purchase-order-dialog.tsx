@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,6 +42,7 @@ const STORE_ID = 'store_main';
 
 const poItemSchema = z.object({
     productId: z.string().optional(),
+    sku: z.string().default(''),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1.").default(1),
     unitPrice: z.coerce.number().min(0, "Unit price cannot be negative.").default(0),
     hsnCode: z.string().optional(),
@@ -103,7 +105,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
       purchaseType: "GST",
       orderDate: new Date(),
       expectedDeliveryDate: addDays(new Date(), 7),
-      items: [{ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 }],
+      items: [{ productId: "", sku: '', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 }],
       paymentMethod: 'Other',
       paymentStatus: 'Unpaid',
       comments: '',
@@ -123,7 +125,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
   useEffect(() => {
     if (open) {
         reset();
-        append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 });
+        append({ productId: "", sku: '', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 });
     }
   }, [open, reset, append]);
 
@@ -154,6 +156,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
         toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
     } else {
         setValue(`items.${index}.productId`, product.id);
+        setValue(`items.${index}.sku`, product.sku);
         setValue(`items.${index}.productName`, product.name);
         setValue(`items.${index}.unitPrice`, product.purchasePrice);
         setValue(`items.${index}.hsnCode`, product.hsnCode);
@@ -161,7 +164,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
         
         // Auto-append logic
         if (index === watchedItems.length - 1) {
-            append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 });
+            append({ productId: "", sku: '', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 });
         }
     }
   }
@@ -181,6 +184,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
         const product = products?.find(p => p.id === item.productId);
         return {
             productId: item.productId!,
+            sku: item.sku || product?.sku || '',
             productName: product?.name || 'Unknown Product',
             quantity: item.quantity,
             quantityReceived: 0,
@@ -262,7 +266,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             <div className="space-y-4">
                 <div className="flex items-center justify-between border-b pb-2">
                     <FormLabel className="text-lg font-black uppercase tracking-tight">Line Items</FormLabel>
-                    <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", sku: '', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>
                 </div>
                 {fields.map((field, index) => {
                     const selectedProdId = watchedItems[index]?.productId;
