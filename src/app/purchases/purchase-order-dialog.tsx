@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Truck } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Truck, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -37,6 +37,7 @@ import { collection, query, orderBy } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { Combobox } from "@/components/ui/combobox";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 const STORE_ID = 'store_main';
 
@@ -75,6 +76,7 @@ interface PODialogProps {
 
 export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogProps) {
   const firestore = useFirestore();
+  const [productSearchOpen, setProductSearchOpen] = useState<{ [key: number]: boolean }>({});
 
   const vendorsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'vendors'), orderBy('name')) : null, [firestore]);
   const { data: vendors } = useCollection<Vendor>(vendorsRef);
@@ -108,7 +110,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
-  const { setValue, reset, watch } = form;
+  const { setValue, reset, watch, getValues } = form;
 
   const watchedItems = watch("items") || [];
   const watchedPurchaseType = watch("purchaseType");
@@ -132,6 +134,21 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     });
     return { subTotal: sub, gstAmount: gst, totalAmount: Math.round(sub + gst) };
   }, [watchedItems, watchedPurchaseType]);
+
+  const handleProductSelect = (productId: string, index: number) => {
+    const product = products?.find(p => p.id === productId);
+    if (product) {
+        setValue(`items.${index}.productId`, product.id);
+        setValue(`items.${index}.unitCost`, product.purchasePrice);
+        setValue(`items.${index}.hsnCode`, product.hsnCode);
+        setValue(`items.${index}.gstRate`, product.gstRate);
+        
+        if (index === watchedItems.length - 1) {
+            append({ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 });
+        }
+    }
+    setProductSearchOpen(prev => ({ ...prev, [index]: false }));
+  }
 
   const onSubmit = (data: POFormValues) => {
     const vendor = vendors?.find(v => v.id === data.vendorId);
@@ -238,35 +255,37 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                             <div className="sm:col-span-6">
                                 <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
                                     <FormItem>
-                                        <FormControl>
-                                            <Combobox
-                                                options={sortedProducts?.map(p => ({ value: p.id, label: `${p.name} (${p.sku})` })) || []}
-                                                value={f.value || ""}
-                                                onChange={(val) => {
-                                                    f.onChange(val);
-                                                    const p = products?.find(prod => prod.id === val);
-                                                    if(p) {
-                                                        setValue(`items.${index}.unitCost`, p.purchasePrice);
-                                                        setValue(`items.${index}.hsnCode`, p.hsnCode);
-                                                        setValue(`items.${index}.gstRate`, p.gstRate);
-                                                    }
-                                                    if (index === watchedItems.length - 1) {
-                                                        append({ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 });
-                                                    }
-                                                }}
-                                                placeholder="Select Product"
-                                                searchPlaceholder="Search products..."
-                                                notFoundText="No product found."
-                                            />
-                                        </FormControl>
+                                        <Popover open={productSearchOpen[index]} onOpenChange={(o) => setProductSearchOpen(prev => ({ ...prev, [index]: o }))}>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" className="w-full justify-between h-10 font-normal border-muted-foreground/50">
+                                                    <span className="truncate">{f.value ? products?.find(p => p.id === f.value)?.name : "Search products..."}</span>
+                                                    <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                                <Command>
+                                                    <CommandInput placeholder="Search Name or SKU..." />
+                                                    <CommandList>
+                                                        <CommandEmpty>No results.</CommandEmpty>
+                                                        <CommandGroup>
+                                                            {sortedProducts?.map(p => (
+                                                                <CommandItem key={p.id} value={`${p.name} ${p.sku}`} onSelect={() => handleProductSelect(p.id, index)}>
+                                                                    <div className="flex flex-col"><span className="font-bold">{p.name}</span><span className="text-[10px] opacity-70">SKU: {p.sku}</span></div>
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
                                     </FormItem>
                                 )}/>
                             </div>
                             <div className="sm:col-span-2">
-                                <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10" />} />
+                                <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10 border-muted-foreground/50" />} />
                             </div>
                             <div className="sm:col-span-4">
-                                <FormField control={form.control} name={`items.${index}.unitCost`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black" />} />
+                                <FormField control={form.control} name={`items.${index}.unitCost`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50" />} />
                             </div>
                         </CardContent>
                     </Card>
@@ -277,10 +296,10 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                 <h4 className="font-bold text-xs uppercase tracking-widest text-primary flex items-center gap-2"><Truck className="h-4 w-4" /> Shipping & Logistics</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <FormField control={form.control} name="courierCompany" render={({ field }) => (
-                        <FormItem className="lg:col-span-2"><FormLabel className="text-[10px] font-bold uppercase">Courier</FormLabel><Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent>{sortedCouriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent></Select></FormItem>
+                        <FormItem className="lg:col-span-2"><FormLabel className="text-[10px] font-bold uppercase">Courier</FormLabel><Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger className="h-9 border-muted-foreground/50"><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent>{sortedCouriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent></Select></FormItem>
                     )}/>
-                    <FormField control={form.control} name="trackingNumber" render={({ field }) => <FormItem><FormLabel className="text-[10px] font-bold uppercase">Tracking #</FormLabel><FormControl><Input {...field} className="h-9" /></FormControl></FormItem>} />
-                    <FormField control={form.control} name="numberOfBoxes" render={({ field }) => <FormItem><FormLabel className="text-[10px] font-bold uppercase">Boxes</FormLabel><FormControl><Input type="number" {...field} className="h-9" /></FormControl></FormItem>} />
+                    <FormField control={form.control} name="trackingNumber" render={({ field }) => <FormItem><FormLabel className="text-[10px] font-bold uppercase">Tracking #</FormLabel><FormControl><Input {...field} className="h-9 border-muted-foreground/50" /></FormControl></FormItem>} />
+                    <FormField control={form.control} name="numberOfBoxes" render={({ field }) => <FormItem><FormLabel className="text-[10px] font-bold uppercase">Boxes</FormLabel><FormControl><Input type="number" {...field} className="h-9 border-muted-foreground/50" /></FormControl></FormItem>} />
                 </div>
             </div>
 

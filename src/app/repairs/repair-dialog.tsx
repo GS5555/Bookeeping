@@ -28,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { Edit } from "lucide-react";
+import { Edit, Search } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 
 const STORE_ID = 'store_main';
@@ -153,7 +153,7 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                 <FormField control={form.control} name="issueDescription" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Issue Description <span className="text-destructive font-black">*</span></FormLabel>
-                    <FormControl><Textarea {...field} className="min-h-24" /></FormControl>
+                    <FormControl><Textarea {...field} className="min-h-24 border-muted-foreground/50" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}/>
@@ -162,7 +162,7 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                     <FormItem>
                       <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Status" /></SelectTrigger></FormControl>
+                        <FormControl><SelectTrigger className="h-10 border-muted-foreground/50"><SelectValue placeholder="Status" /></SelectTrigger></FormControl>
                         <SelectContent>
                           <SelectItem value="Pending">Pending</SelectItem>
                           <SelectItem value="In Progress">In Progress</SelectItem>
@@ -175,7 +175,7 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                   <FormField control={form.control} name="estimatedCost" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Est. Cost (₹)</FormLabel>
-                      <FormControl><Input type="number" {...field} className="h-10" /></FormControl>
+                      <FormControl><Input type="number" {...field} className="h-10 border-muted-foreground/50" /></FormControl>
                     </FormItem>
                   )}/>
                 </div>
