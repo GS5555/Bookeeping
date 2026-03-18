@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Search, MapPin, Truck } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Search, MapPin, Truck, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -40,7 +40,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 
 const STORE_ID = 'store_main';
 
@@ -91,9 +91,12 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [productSearchOpen, setProductSearchOpen] = useState<{ [key: number]: boolean }>({});
-  
+  const customerRef = useRef<HTMLDivElement>(null);
+  const productRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+
   const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
   const { data: customers } = useCollection<Customer>(customersRef);
 
@@ -152,6 +155,23 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const selectedCustomer = useMemo(() => customers?.find(c => c.id === watchedCustomerId), [customers, watchedCustomerId]);
   const customerAddresses = useMemo(() => selectedCustomer?.addresses || [], [selectedCustomer]);
   const primaryAddress = useMemo(() => customerAddresses.find(a => a.isPrimary) || customerAddresses[0], [customerAddresses]);
+
+  // Click outside listener for inline results
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customerRef.current && !customerRef.current.contains(event.target as Node)) {
+        setCustomerSearchOpen(false);
+      }
+      Object.keys(productRefs.current).forEach(key => {
+        const index = parseInt(key);
+        if (productRefs.current[index] && !productRefs.current[index]!.contains(event.target as Node)) {
+          setProductSearchOpen(prev => ({ ...prev, [index]: false }));
+        }
+      });
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const lastItem = watchedItems[watchedItems.length - 1];
@@ -272,42 +292,37 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                         <FormItem>
                             <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer *</FormLabel>
                             <div className="flex items-center gap-2">
-                                <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="outline" className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50">
-                                            <span className="truncate">{field.value ? sortedCustomers?.find(v => v.id === field.value)?.name : "Search customers..."}</span>
-                                            <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent 
-                                        className="w-[--radix-popover-trigger-width] p-0" 
-                                        align="start" 
-                                        onOpenAutoFocus={(e) => e.preventDefault()}
-                                        onCloseAutoFocus={(e) => e.preventDefault()}
-                                        onInteractOutside={(e) => e.preventDefault()}
+                                <div className="relative flex-1" ref={customerRef}>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50 bg-background"
+                                        onClick={() => setCustomerSearchOpen(!customerSearchOpen)}
                                     >
-                                        <Command shouldFilter={true}>
-                                            <CommandInput 
-                                                placeholder="Type name..." 
-                                                autoFocus 
-                                                onPointerDown={(e) => e.currentTarget.focus()}
-                                            />
-                                            <CommandList>
-                                                <CommandEmpty>No customer found.</CommandEmpty>
-                                                <CommandGroup>
-                                                    {sortedCustomers?.map(c => (
-                                                        <CommandItem key={c.id} value={c.name} onSelect={() => { setValue("customerId", c.id); setCustomerSearchOpen(false); }}>
-                                                            <div className="flex items-center justify-between w-full">
-                                                                <span>{c.name}</span>
-                                                                {c.gstNumber && <Badge variant="outline" className="text-[9px]">GST</Badge>}
-                                                            </div>
-                                                        </CommandItem>
-                                                    ))}
-                                                </CommandGroup>
-                                            </CommandList>
-                                        </Command>
-                                    </PopoverContent>
-                                </Popover>
+                                        <span className="truncate">{field.value ? sortedCustomers?.find(v => v.id === field.value)?.name : "Search customers..."}</span>
+                                        <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
+                                    </Button>
+                                    {customerSearchOpen && (
+                                        <div className="absolute top-full left-0 z-[100] w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-xl outline-none">
+                                            <Command shouldFilter={true}>
+                                                <CommandInput placeholder="Type name..." autoFocus onPointerDown={(e) => e.currentTarget.focus()} />
+                                                <CommandList className="max-h-[200px] overflow-y-auto overflow-x-hidden p-1">
+                                                    <CommandEmpty className="py-6 text-center text-sm">No customer found.</CommandEmpty>
+                                                    <CommandGroup>
+                                                        {sortedCustomers?.map(c => (
+                                                            <CommandItem key={c.id} value={c.name} onSelect={() => { field.onChange(c.id); setCustomerSearchOpen(false); }} className="cursor-pointer">
+                                                                <div className="flex items-center justify-between w-full">
+                                                                    <span>{c.name}</span>
+                                                                    {c.gstNumber && <Badge variant="outline" className="text-[9px]">GST</Badge>}
+                                                                </div>
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </div>
+                                    )}
+                                </div>
                                 <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)} className="shrink-0 h-10 w-10"><PlusCircle className="h-4 w-4" /></Button>
                             </div>
                         </FormItem>
@@ -345,7 +360,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                         <FormItem>
                             <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sale Date *</FormLabel>
                             <Popover>
-                                <PopoverTrigger asChild><Button variant="outline" className="w-full pl-3 text-left font-normal h-10 border-muted-foreground/50">{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></PopoverTrigger>
+                                <PopoverTrigger asChild><Button variant="outline" className="w-full pl-3 text-left font-normal h-10 border-muted-foreground/50 bg-background">{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/></PopoverContent>
                             </Popover>
                         </FormItem>
@@ -390,39 +405,34 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                               <div className="col-span-12 sm:col-span-6">
                                   <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
                                       <FormItem>
-                                          <Popover open={productSearchOpen[index]} onOpenChange={(o) => setProductSearchOpen(prev => ({ ...prev, [index]: o }))}>
-                                              <PopoverTrigger asChild>
-                                                  <Button variant="outline" className="w-full justify-between h-10 font-normal border-muted-foreground/50">
-                                                      <span className="truncate">{f.value ? allProducts?.find(p => p.id === f.value)?.name : "Search products..."}</span>
-                                                      <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
-                                                  </Button>
-                                              </PopoverTrigger>
-                                              <PopoverContent 
-                                                className="w-[--radix-popover-trigger-width] p-0" 
-                                                align="start" 
-                                                onOpenAutoFocus={(e) => e.preventDefault()}
-                                                onCloseAutoFocus={(e) => e.preventDefault()}
-                                                onInteractOutside={(e) => e.preventDefault()}
+                                          <div className="relative" ref={el => productRefs.current[index] = el}>
+                                              <Button
+                                                  type="button"
+                                                  variant="outline"
+                                                  className="w-full justify-between h-10 font-normal border-muted-foreground/50 bg-background"
+                                                  onClick={() => setProductSearchOpen(prev => ({ ...prev, [index]: !prev[index] }))}
                                               >
-                                                  <Command shouldFilter={true}>
-                                                      <CommandInput 
-                                                        placeholder="Search Name or SKU..." 
-                                                        autoFocus 
-                                                        onPointerDown={(e) => e.currentTarget.focus()}
-                                                      />
-                                                      <CommandList>
-                                                          <CommandEmpty>No results.</CommandEmpty>
-                                                          <CommandGroup>
-                                                              {sortedProducts?.map(p => (
-                                                                  <CommandItem key={p.id} value={`${p.name} ${p.sku}`} onSelect={() => handleProductSelect(p.id, index)}>
-                                                                      <div className="flex flex-col"><span className="font-bold">{p.name}</span><span className="text-[10px] opacity-70">SKU: {p.sku}</span></div>
-                                                                  </CommandItem>
-                                                              ))}
-                                                          </CommandGroup>
-                                                      </CommandList>
-                                                  </Command>
-                                              </PopoverContent>
-                                          </Popover>
+                                                  <span className="truncate">{f.value ? allProducts?.find(p => p.id === f.value)?.name : "Search products..."}</span>
+                                                  <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
+                                              </Button>
+                                              {productSearchOpen[index] && (
+                                                  <div className="absolute top-full left-0 z-[100] w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-xl outline-none">
+                                                      <Command shouldFilter={true}>
+                                                          <CommandInput placeholder="Search Name or SKU..." autoFocus onPointerDown={(e) => e.currentTarget.focus()} />
+                                                          <CommandList className="max-h-[200px] overflow-y-auto overflow-x-hidden p-1">
+                                                              <CommandEmpty className="py-6 text-center text-sm">No results.</CommandEmpty>
+                                                              <CommandGroup>
+                                                                  {sortedProducts?.map(p => (
+                                                                      <CommandItem key={p.id} value={`${p.name} ${p.sku}`} onSelect={() => handleProductSelect(p.id, index)} className="cursor-pointer">
+                                                                          <div className="flex flex-col"><span className="font-bold">{p.name}</span><span className="text-[10px] opacity-70">SKU: {p.sku}</span></div>
+                                                                      </CommandItem>
+                                                                  ))}
+                                                              </CommandGroup>
+                                                          </CommandList>
+                                                      </Command>
+                                                  </div>
+                                              )}
+                                          </div>
                                       </FormItem>
                                   )} />
                               </div>
@@ -430,7 +440,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                   <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10 border-muted-foreground/50"/>} />
                               </div>
                               <div className="col-span-8 sm:col-span-4">
-                                  <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50" />} />
+                                  <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50 bg-background" />} />
                               </div>
                           </CardContent>
                       </Card>
@@ -444,13 +454,13 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                     <FormField control={form.control} name="courierCompany" render={({ field }) => (
                         <FormItem className="md:col-span-2">
                             <Select onValueChange={field.onChange} value={field.value}>
-                                <FormControl><SelectTrigger className="h-9 border-muted-foreground/50"><SelectValue placeholder="Select Courier" /></SelectTrigger></FormControl>
+                                <FormControl><SelectTrigger className="h-9 border-muted-foreground/50 bg-background"><SelectValue placeholder="Select Courier" /></SelectTrigger></FormControl>
                                 <SelectContent>{couriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
                             </Select>
                         </FormItem>
                     )} />
-                    <FormField control={form.control} name="trackingNumber" render={({ field }) => <FormItem><FormControl><Input placeholder="Tracking #" {...field} className="h-9 border-muted-foreground/50" /></FormControl></FormItem>} />
-                    <FormField control={form.control} name="numberOfBoxes" render={({ field }) => <FormItem><FormControl><Input type="number" {...field} className="h-9 border-muted-foreground/50" /></FormControl></FormItem>} />
+                    <FormField control={form.control} name="trackingNumber" render={({ field }) => <FormItem><FormControl><Input placeholder="Tracking #" {...field} className="h-9 border-muted-foreground/50 bg-background" /></FormControl></FormItem>} />
+                    <FormField control={form.control} name="numberOfBoxes" render={({ field }) => <FormItem><FormControl><Input type="number" {...field} className="h-9 border-muted-foreground/50 bg-background" /></FormControl></FormItem>} />
                 </div>
             </div>
             <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 space-y-3">

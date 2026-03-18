@@ -1,8 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
-
+import { Check, ChevronsUpDown, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,11 +12,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 
 export interface ComboboxOption {
     value: string;
@@ -35,68 +29,81 @@ interface ComboboxProps {
     disabled?: boolean;
 }
 
+/**
+ * A portal-free Combobox that works reliably inside Dialogs.
+ * Uses local absolute positioning instead of Radix Popover.
+ */
 export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notFoundText, className, disabled }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
+  const containerRef = React.useRef<HTMLDivElement>(null)
 
-  // Find the label for the current value
+  // Handle click outside to close the dropdown
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
   const selectedLabel = React.useMemo(() => {
     return options.find((option) => option.value === value)?.label || ""
   }, [options, value])
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn("w-full justify-between h-10 px-3 font-normal", className)}
-          disabled={disabled}
-        >
-          <span className="truncate">
-            {value ? selectedLabel : placeholder}
-          </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent 
-        className="w-[--radix-popover-trigger-width] p-0" 
-        align="start"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
+    <div className="relative w-full" ref={containerRef}>
+      <Button
+        type="button"
+        variant="outline"
+        role="combobox"
+        aria-expanded={open}
+        className={cn("w-full justify-between h-10 px-3 font-normal bg-background", className)}
+        disabled={disabled}
+        onClick={() => setOpen(!open)}
       >
-        <Command shouldFilter={true}>
-          <CommandInput 
-            placeholder={searchPlaceholder} 
-            autoFocus 
-            onPointerDown={(e) => e.currentTarget.focus()}
-          />
-          <CommandList className="max-h-[300px] overflow-y-auto">
-            <CommandEmpty>{notFoundText}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.label}
-                  onSelect={() => {
-                    onChange(option.value === value ? "" : option.value)
-                    setOpen(false)
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === option.value ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {option.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+        <span className="truncate">
+          {value ? selectedLabel : placeholder}
+        </span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+
+      {open && (
+        <div className="absolute top-full left-0 z-[100] w-full mt-1 rounded-md border bg-popover text-popover-foreground shadow-xl outline-none animate-in fade-in-0 zoom-in-95">
+          <Command shouldFilter={true} className="w-full">
+            <CommandInput 
+              placeholder={searchPlaceholder} 
+              autoFocus 
+              className="h-10"
+            />
+            <CommandList className="max-h-[250px] overflow-y-auto overflow-x-hidden p-1">
+              <CommandEmpty className="py-6 text-center text-sm">{notFoundText}</CommandEmpty>
+              <CommandGroup>
+                {options.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    value={option.label}
+                    onSelect={() => {
+                      onChange(option.value === value ? "" : option.value)
+                      setOpen(false)
+                    }}
+                    className="flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="truncate">{option.label}</span>
+                    <Check
+                      className={cn(
+                        "h-4 w-4 ml-2",
+                        value === option.value ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </div>
+      )}
+    </div>
   )
 }
