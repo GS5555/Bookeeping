@@ -275,7 +275,12 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                             <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                    <PopoverContent 
+                                        className="w-[--radix-popover-trigger-width] p-0" 
+                                        align="start" 
+                                        onOpenAutoFocus={(e) => e.preventDefault()}
+                                        onInteractOutside={(e) => e.preventDefault()}
+                                    >
                                         <Command shouldFilter={true}>
                                             <CommandInput placeholder="Type name..." autoFocus />
                                             <CommandList>
@@ -383,7 +388,12 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                                       <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                                                   </Button>
                                               </PopoverTrigger>
-                                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                              <PopoverContent 
+                                                className="w-[--radix-popover-trigger-width] p-0" 
+                                                align="start" 
+                                                onOpenAutoFocus={(e) => e.preventDefault()}
+                                                onInteractOutside={(e) => e.preventDefault()}
+                                              >
                                                   <Command shouldFilter={true}>
                                                       <CommandInput placeholder="Search Name or SKU..." autoFocus />
                                                       <CommandList>

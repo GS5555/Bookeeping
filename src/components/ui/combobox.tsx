@@ -63,6 +63,7 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
         className="w-[--radix-popover-trigger-width] p-0" 
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
       >
         <Command shouldFilter={true}>
           <CommandInput placeholder={searchPlaceholder} autoFocus />

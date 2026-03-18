@@ -43,7 +43,7 @@ const STORE_ID = 'store_main';
 const poItemSchema = z.object({
     productId: z.string().min(1, "Product is required."),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1.").default(1),
-    unitCost: z.coerce.number().min(0, "Unit cost cannot be negative.").default(0),
+    unitPrice: z.coerce.number().min(0, "Unit price cannot be negative.").default(0),
     hsnCode: z.string(),
     gstRate: z.number(),
     imageUrl: z.string().optional(),
@@ -76,6 +76,7 @@ interface PODialogProps {
 export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogProps) {
   const firestore = useFirestore();
   const [productSearchOpen, setProductSearchOpen] = useState<{ [key: number]: boolean }>({});
+  const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
 
   const vendorsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'vendors'), orderBy('name')) : null, [firestore]);
   const { data: vendors } = useCollection<Vendor>(vendorsRef);
@@ -97,7 +98,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
       purchaseType: "GST",
       orderDate: new Date(),
       expectedDeliveryDate: new Date(new Date().setDate(new Date().getDate() + 7)),
-      items: [{ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 }],
+      items: [{ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 }],
       paymentMethod: 'Other',
       paymentStatus: 'Unpaid',
       comments: '',
@@ -117,7 +118,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
   useEffect(() => {
     if (open) {
         reset();
-        append({ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 });
+        append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 });
     }
   }, [open, reset, append]);
 
@@ -166,8 +167,8 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             productName: product?.name || 'Unknown Product',
             quantity: item.quantity,
             quantityReceived: 0,
-            unitCost: item.unitCost,
-            totalCost: item.quantity * item.unitCost,
+            unitCost: item.unitPrice,
+            totalCost: item.quantity * item.unitPrice,
             hsnCode: item.hsnCode,
             gstRate: item.gstRate,
         }
@@ -214,21 +215,26 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     <FormItem>
                         <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Vendor <span className="text-destructive font-black">*</span></FormLabel>
                         <FormControl>
-                            <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+                            <Popover open={vendorSearchOpen} onOpenChange={setVendorSearchOpen}>
                                 <PopoverTrigger asChild>
                                     <Button variant="outline" className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50">
                                         <span className="truncate">{field.value ? sortedVendors?.find(v => v.id === field.value)?.name : "Select a vendor"}</span>
                                         <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                <PopoverContent 
+                                    className="w-[--radix-popover-trigger-width] p-0" 
+                                    align="start" 
+                                    onOpenAutoFocus={(e) => e.preventDefault()}
+                                    onInteractOutside={(e) => e.preventDefault()}
+                                >
                                     <Command shouldFilter={true}>
                                         <CommandInput placeholder="Type name..." autoFocus />
                                         <CommandList>
                                             <CommandEmpty>No vendor found.</CommandEmpty>
                                             <CommandGroup>
                                                 {sortedVendors?.map(v => (
-                                                    <CommandItem key={v.id} value={v.name} onSelect={() => { field.onChange(v.id); setCustomerSearchOpen(false); }}>
+                                                    <CommandItem key={v.id} value={v.name} onSelect={() => { field.onChange(v.id); setVendorSearchOpen(false); }}>
                                                         <span>{v.name}</span>
                                                     </CommandItem>
                                                 ))}
@@ -257,7 +263,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             <div className="space-y-4">
                 <div className="flex items-center justify-between border-b pb-2">
                     <FormLabel className="text-lg font-black uppercase tracking-tight">Line Items</FormLabel>
-                    <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>
                 </div>
                 {fields.map((field, index) => (
                     <Card key={field.id} className="border-2 shadow-sm overflow-hidden bg-accent/5">
@@ -276,7 +282,12 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                                     <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                            <PopoverContent 
+                                                className="w-[--radix-popover-trigger-width] p-0" 
+                                                align="start" 
+                                                onOpenAutoFocus={(e) => e.preventDefault()}
+                                                onInteractOutside={(e) => e.preventDefault()}
+                                            >
                                                 <Command shouldFilter={true}>
                                                     <CommandInput placeholder="Search Name or SKU..." autoFocus />
                                                     <CommandList>
@@ -299,7 +310,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                 <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10 border-muted-foreground/50" />} />
                             </div>
                             <div className="sm:col-span-4">
-                                <FormField control={form.control} name={`items.${index}.unitCost`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50" />} />
+                                <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50" />} />
                             </div>
                         </CardContent>
                     </Card>
