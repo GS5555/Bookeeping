@@ -1,4 +1,3 @@
-
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Calendar } from '@/components/ui/calendar';
@@ -10,7 +9,7 @@ import { collection, query, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { Event } from '@/lib/types';
 import { format, isSameDay, addMinutes, differenceInMilliseconds } from 'date-fns';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Clock, Edit, Trash2, Search, Download } from 'lucide-react';
+import { Clock, Edit, Trash2, Search, Download, PlusCircle } from 'lucide-react';
 import { EventDialog } from './event-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog';
@@ -27,237 +26,90 @@ export default function PlannerPage() {
     const { currentUser } = useCurrentUser();
     const firestore = useFirestore();
     const { toast } = useToast();
-    const [notifiedEventIds, setNotifiedEventIds] = useState<Set<string>>(new Set());
 
     const eventsRef = useMemoFirebase(() => {
         if (!currentUser || !firestore) return null;
-        return query(
-            collection(firestore, 'users', currentUser.id, 'events')
-        );
+        return query(collection(firestore, 'users', currentUser.id, 'events'));
     }, [currentUser, firestore]);
 
-    const { data: events, isLoading: areEventsLoading } = useCollection<Event>(eventsRef);
+    const { data: events } = useCollection<Event>(eventsRef);
 
     const searchedEvents = useMemo(() => {
         if (!events) return [];
         if (!searchQuery) return events;
-        return events.filter(event => 
-            event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            event.description?.toLowerCase().includes(searchQuery.toLowerCase())
-        ).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        const low = searchQuery.toLowerCase();
+        return events.filter(e => e.title.toLowerCase().includes(low) || e.description?.toLowerCase().includes(low))
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     }, [events, searchQuery]);
 
     const eventsToDisplay = useMemo(() => {
         if (searchQuery) return searchedEvents;
         if (!events || !date) return [];
-        return events
-            .filter(event => isSameDay(new Date(event.startTime), date))
+        return events.filter(e => isSameDay(new Date(e.startTime), date))
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
     }, [events, date, searchQuery, searchedEvents]);
 
-    const daysWithEvents = useMemo(() => {
-        if (!searchedEvents) return [];
-        return searchedEvents.map(event => new Date(event.startTime));
-    }, [searchedEvents]);
-
-    const handleCreateEvent = () => {
-        setEditingEvent(undefined);
-        setIsEventDialogOpen(true);
-    }
-    
-    const handleEditEvent = (event: Event) => {
-        setEditingEvent(event);
-        setIsEventDialogOpen(true);
-    };
-
-    const handleDeleteRequest = (event: Event) => {
-        setDeletingEvent(event);
-    };
-
-    const handleDeleteConfirm = async () => {
-        if (!firestore || !currentUser || !deletingEvent) return;
-        const eventRef = doc(firestore, 'users', currentUser.id, 'events', deletingEvent.id);
-        try {
-            await deleteDoc(eventRef);
-            toast({ title: 'Success!', description: 'Event deleted.' });
-            setDeletingEvent(undefined);
-        } catch (error) {
-            console.error('Error deleting event:', error);
-            toast({ title: 'Error', description: 'Could not delete event.', variant: 'destructive' });
-        }
-    };
-    
-    useEffect(() => {
-        if (!events) return;
-
-        const timeouts = events.map(event => {
-            const startTime = new Date(event.startTime);
-            const notificationTime = addMinutes(startTime, -10);
-            const now = new Date();
-
-            if (notificationTime > now && !notifiedEventIds.has(event.id)) {
-                const timeoutMs = differenceInMilliseconds(notificationTime, now);
-                if (timeoutMs > 2147483647) return null; // setTimeout has a max value
-
-                const timeoutId = setTimeout(() => {
-                    toast({
-                        title: `Reminder: ${event.title}`,
-                        description: `Starts at ${format(startTime, 'p')}`,
-                    });
-                    setNotifiedEventIds(prev => new Set(prev).add(event.id));
-                }, timeoutMs);
-                return timeoutId;
-            }
-            return null;
-        }).filter(Boolean);
-
-        return () => {
-            timeouts.forEach(timeoutId => {
-                if(timeoutId) clearTimeout(timeoutId);
-            });
-        };
-    }, [events, toast, notifiedEventIds]);
+    const daysWithEvents = useMemo(() => events?.map(e => new Date(e.startTime)) || [], [events]);
 
     const handleEventSuccess = async (event: Event) => {
         if (!firestore || !currentUser) return;
-        const isEditing = !!editingEvent;
-        const eventRef = doc(firestore, 'users', currentUser.id, 'events', event.id);
         try {
-            await setDoc(eventRef, event, { merge: true });
-            toast({
-                title: 'Success!',
-                description: `Your event has been ${isEditing ? 'updated' : 'saved'}.`,
-            });
+            await setDoc(doc(firestore, 'users', currentUser.id, 'events', event.id), event, { merge: true });
+            toast({ title: 'Success', description: 'Schedule updated.' });
             setIsEventDialogOpen(false);
-            setEditingEvent(undefined);
-        } catch(error) {
-            console.error("Error saving event:", error);
-            toast({
-                title: 'Error',
-                description: 'Could not save your event. Please try again.',
-                variant: 'destructive',
-            });
-        }
+        } catch(e) { toast({ title: 'Error', variant: 'destructive' }); }
     }
 
-    const handleExport = () => {
-        if (!events || events.length === 0) {
-            toast({
-                title: "No Data",
-                description: "There are no events to export.",
-            });
-            return;
-        }
-        const dataToExport = events.map(event => ({
-            title: event.title,
-            description: event.description || '',
-            startTime: format(new Date(event.startTime), 'yyyy-MM-dd HH:mm:ss'),
-            endTime: format(new Date(event.endTime), 'yyyy-MM-dd HH:mm:ss'),
-        }));
-        exportToExcel(dataToExport, 'planner_export');
-    };
-
     return (
-        <>
+        <div className="flex flex-col gap-6 min-w-0 max-w-full">
             <PageHeader title="Planner">
-                <div className="relative w-full max-w-sm">
+                <div className="relative w-full sm:max-w-xs">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                        placeholder="Search events..." 
-                        className="pl-8" 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                    <Input placeholder="Filter..." className="pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 </div>
-                <Button variant="outline" onClick={handleExport} disabled={!events || events.length === 0}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Export All
-                </Button>
-                <Button onClick={handleCreateEvent}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Event
-                </Button>
+                <Button onClick={() => { setEditingEvent(undefined); setIsEventDialogOpen(true); }} size="sm"><PlusCircle className="mr-2 h-4 w-4" /> New Event</Button>
             </PageHeader>
             
-            <EventDialog 
-                open={isEventDialogOpen}
-                onOpenChange={setIsEventDialogOpen}
-                onSuccess={handleEventSuccess}
-                event={editingEvent}
-                selectedDate={date}
-            />
+            <EventDialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen} onSuccess={handleEventSuccess} event={editingEvent} selectedDate={date} />
+            <DeleteConfirmationDialog open={!!deletingEvent} onOpenChange={() => setDeletingEvent(undefined)} onConfirm={async () => {
+                if (firestore && currentUser && deletingEvent) {
+                    await deleteDoc(doc(firestore, 'users', currentUser.id, 'events', deletingEvent.id));
+                    setDeletingEvent(undefined);
+                    toast({ title: 'Deleted' });
+                }
+            }} itemName={deletingEvent?.title || ''} />
 
-            <DeleteConfirmationDialog
-                open={!!deletingEvent}
-                onOpenChange={() => setDeletingEvent(undefined)}
-                onConfirm={handleDeleteConfirm}
-                itemName={deletingEvent?.title || 'this event'}
-            />
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2">
-                    <Card>
-                         <CardContent className="p-0 sm:p-4">
-                            <Calendar
-                                mode="single"
-                                selected={date}
-                                onSelect={setDate}
-                                className="rounded-md w-full"
-                                modifiers={{ highlighted: daysWithEvents }}
-                                modifiersStyles={{ highlighted: { border: "2px solid hsl(var(--primary))" } }}
-                            />
-                        </CardContent>
-                    </Card>
-                </div>
-                 <div>
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>
-                                {searchQuery 
-                                    ? `Search Results (${searchedEvents.length})` 
-                                    : `Schedule for ${date ? format(date, 'PPP') : '...'}`
-                                }
-                            </CardTitle>
-                            <CardDescription>
-                                {searchQuery
-                                    ? `Found ${searchedEvents.length} event(s) matching your search.`
-                                    : `You have ${eventsToDisplay.length} event(s) today.`
-                                }
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="max-h-[400px] overflow-y-auto">
-                           {eventsToDisplay.length > 0 ? (
-                               <div className="space-y-1">
-                                   {eventsToDisplay.map(event => (
-                                       <div key={event.id} className="group flex items-start gap-3 rounded-md p-2 hover:bg-muted">
-                                           <Clock className="h-5 w-5 text-muted-foreground mt-1 flex-shrink-0" />
-                                           <div className="flex-1">
-                                                <p className="font-semibold">{event.title}</p>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {format(new Date(event.startTime), 'p')} - {format(new Date(event.endTime), 'p')}
-                                                </p>
-                                                {event.description && <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{event.description}</p>}
-                                           </div>
-                                            <div className="ml-auto flex items-center gap-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditEvent(event)}>
-                                                    <Edit className="h-4 w-4" />
-                                                </Button>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteRequest(event)}>
-                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                </Button>
-                                            </div>
-                                       </div>
-                                   ))}
-                               </div>
-                           ) : (
-                                <div className="text-center text-muted-foreground py-8">
-                                    {searchQuery ? "No events found." : "No events scheduled for this day."}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-2 border-2 shadow-sm">
+                    <CardContent className="p-2 sm:p-6">
+                        <Calendar mode="single" selected={date} onSelect={setDate} className="w-full flex justify-center" modifiers={{ highlighted: daysWithEvents }} modifiersStyles={{ highlighted: { border: "2px solid hsl(var(--primary))", borderRadius: '50%' } }} />
+                    </CardContent>
+                </Card>
+                <Card className="border-2 shadow-sm">
+                    <CardHeader className="border-b pb-4">
+                        <CardTitle className="text-lg font-black uppercase tracking-tight">{searchQuery ? "Results" : format(date || new Date(), 'dd MMM yyyy')}</CardTitle>
+                        <CardDescription className="text-[10px] font-bold uppercase tracking-widest">{eventsToDisplay.length} Entries</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-4 px-2 sm:px-6">
+                        <div className="space-y-4">
+                            {eventsToDisplay.length > 0 ? eventsToDisplay.map(e => (
+                                <div key={e.id} className="group flex items-start gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
+                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0"><Clock className="h-4 w-4 text-primary" /></div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-sm truncate">{e.title}</p>
+                                        <p className="text-[10px] font-black text-muted-foreground uppercase mt-0.5">{format(new Date(e.startTime), 'p')} - {format(new Date(e.endTime), 'p')}</p>
+                                        {e.description && <p className="text-xs mt-2 text-muted-foreground line-clamp-2">{e.description}</p>}
+                                    </div>
+                                    <div className="flex flex-col gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingEvent(e); setIsEventDialogOpen(true); }}><Edit className="h-3.5 w-3.5" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeletingEvent(e)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                                    </div>
                                 </div>
-                           )}
-                        </CardContent>
-                    </Card>
-                 </div>
+                            )) : <div className="text-center py-12 text-muted-foreground italic text-sm">No plans for this day.</div>}
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
-        </>
+        </div>
     );
 }

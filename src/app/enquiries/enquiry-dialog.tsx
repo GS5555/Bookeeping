@@ -7,14 +7,13 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Enquiry, EnquiryFollowUp, Customer, Quotation, Product, Brand, Category, SubCategory, EnquiryStatus, EnquiryType, EnquirySource, FollowUpType, User } from "@/lib/types";
+import { Enquiry, EnquiryFollowUp, Customer, Product, EnquiryStatus, EnquiryType, EnquirySource, FollowUpType, User } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -27,16 +26,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useMemo, useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, doc, setDoc } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { Separator } from "@/components/ui/separator";
 import { DataTable } from "@/components/data-table";
 import { followUpColumns } from "./columns";
 import { Label } from "@/components/ui/label";
 import { PlusCircle, Trash2, Edit } from "lucide-react";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { toast } from "@/hooks/use-toast";
-import { QuotationDialog } from "@/app/quotations/quotation-dialog";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 const STORE_ID = 'store_main';
@@ -44,9 +41,6 @@ const STORE_ID = 'store_main';
 const enquiryItemSchema = z.object({
   productId: z.string().min(1, "Product is required."),
   productName: z.string(),
-  brandId: z.string(),
-  categoryId: z.string(),
-  subCategoryId: z.string().optional(),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1."),
   unitPrice: z.coerce.number().min(0, "Unit price cannot be negative."),
   gstRate: z.number(),
@@ -69,7 +63,6 @@ const formSchema = z.object({
   status: z.string().min(1, "Status is required."),
   enquiryTypeId: z.string().optional(),
   sourceId: z.string().optional(),
-  convertedToId: z.string().optional(),
   followUps: z.array(followUpSchema).optional(),
   items: z.array(enquiryItemSchema).optional(),
   saleType: z.enum(["GST", "Cash"]).optional(),
@@ -86,7 +79,7 @@ interface EnquiryDialogProps {
 
 const ReadOnlyField = ({ label, value }: { label: string, value: React.ReactNode }) => (
     <div className="space-y-1">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
         <div className="text-sm p-2 border rounded-md bg-muted min-h-[40px] flex items-center">{value || <span className="text-muted-foreground/70">N/A</span>}</div>
     </div>
 );
@@ -95,7 +88,6 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
-  const [isQuotationDialogOpen, setIsQuotationDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(!enquiry);
   
   const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
@@ -118,20 +110,9 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
 
   const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
-  
-  const brandsRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'brands') : null, [firestore]);
-  const { data: brands } = useCollection<Brand>(brandsRef);
-  
-  const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
-  const { data: categories } = useCollection<Category>(categoriesRef);
-  
-  const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
-  const { data: subCategories } = useCollection<SubCategory>(subCategoriesRef);
 
   const [newFollowUpNote, setNewFollowUpNote] = useState("");
   const [newFollowUpType, setNewFollowUpType] = useState("");
-  const [nextAction, setNextAction] = useState("");
-  const [itemFilters, setItemFilters] = useState<{ brandId: string; categoryId: string; subCategoryId: string; }[]>([]);
 
   const form = useForm<EnquiryFormValues>({
     resolver: zodResolver(formSchema),
@@ -143,18 +124,13 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   
-  const handleAppendItem = () => {
-    append({ productId: "", productName: "", brandId: "", categoryId: "", quantity: 1, unitPrice: 0, gstRate: 0, totalPrice: 0 });
-    setItemFilters(prev => [...prev, { brandId: 'all', categoryId: 'all', subCategoryId: 'all' }]);
-  };
-  
   const totals = useMemo(() => {
     let sub = 0;
     let gst = 0;
     watchedItems.forEach(item => {
-      sub += item.totalPrice;
+      sub += (item.totalPrice || 0);
       if (watchedSaleType === 'GST') {
-        gst += item.totalPrice * (item.gstRate / 100);
+        gst += (item.totalPrice || 0) * ((item.gstRate || 0) / 100);
       }
     });
     return { subTotal: sub, gstAmount: gst, totalAmount: sub + gst };
@@ -168,23 +144,20 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                 ...enquiry,
                 followUps: enquiry.followUps || [],
                 items: enquiry.items || [],
-                saleType: enquiry.saleType || 'GST',
+                saleType: (enquiry.saleType as any) || 'GST',
             });
-            setItemFilters(enquiry.items?.map(item => ({ brandId: item.brandId || 'all', categoryId: item.categoryId || 'all', subCategoryId: item.subCategoryId || 'all' })) || []);
         } else {
             setIsEditing(true);
-            reset({ customerId: "", enquiry: "", status: "New", convertedToId: "", followUps: [], items: [], saleType: 'GST' });
-            setItemFilters([]);
+            reset({ customerId: "", enquiry: "", status: "New", followUps: [], items: [], saleType: 'GST' });
         }
         setNewFollowUpNote("");
         setNewFollowUpType("");
-        setNextAction("");
     }
   }, [open, enquiry, reset]);
 
   const handleAddFollowUp = () => {
     if (newFollowUpNote.trim() === "" || newFollowUpType.trim() === "" || !currentUser) {
-        toast({ title: 'Missing Information', description: 'Please provide a note and select a follow-up type.', variant: 'destructive'});
+        toast({ title: 'Missing Information', description: 'Note and type required.', variant: 'destructive'});
         return;
     }
     const currentFollowUps = getValues("followUps") || [];
@@ -193,14 +166,12 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
         date: new Date().toISOString(),
         notes: newFollowUpNote,
         type: newFollowUpType,
-        nextAction: nextAction,
         userId: currentUser.id,
         userName: currentUser.displayName || 'Unknown User'
     };
     setValue("followUps", [...currentFollowUps, followUp]);
     setNewFollowUpNote("");
     setNewFollowUpType("");
-    setNextAction("");
   };
 
   const onSubmit = (data: EnquiryFormValues) => {
@@ -215,176 +186,144 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
       totalAmount: totals.totalAmount,
       createdBy: enquiry?.createdBy || currentUser?.id,
       createdByName: enquiry?.createdByName || currentUser?.displayName,
-    };
+    } as any;
     onSuccess(submittedEnquiry);
   };
-  
-  const enquiryAsQuotation = useMemo(() => {
-    const formValues = getValues();
-    const customer = customers?.find(c => c.id === formValues.customerId);
-    if (!customer) return undefined;
-    return {
-        id: `qt_${Date.now()}`,
-        customerId: formValues.customerId,
-        customerName: customer.name,
-        billingAddress: customer.addresses.find(a => a.isPrimary)!,
-        items: formValues.items?.map(item => {
-            const product = products?.find(p => p.id === item.productId);
-            return {
-                productId: item.productId,
-                productName: product?.name || item.productName,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                totalPrice: item.quantity * item.unitPrice,
-                hsnCode: product?.hsnCode || '',
-                gstRate: product?.gstRate || 0,
-                imageUrl: product?.imageUrl || ''
-            };
-        }) || [],
-        status: 'Draft'
-    } as Partial<Quotation>;
-  }, [getValues, customers, products]);
-
-  const dialogTitle = enquiry?.id ? `Edit Enquiry #${enquiry.enquiryNumber}` : "Add New Enquiry";
 
   return (
     <>
       <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
-      <QuotationDialog open={isQuotationDialogOpen} onOpenChange={setIsQuotationDialogOpen} onSuccess={() => {}} quotation={enquiryAsQuotation} onConvertToSale={() => {}} />
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
-          <DialogHeader className="p-6 pb-4 border-b flex flex-row items-center justify-between">
-            <div className="flex-1">
-                <DialogTitle>{dialogTitle}</DialogTitle>
-                <DialogDescription className="line-clamp-1">{enquiry?.id ? `Enquiry from ${enquiry.customerName}` : "Log a new customer enquiry."}</DialogDescription>
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 border-b">
+            <div className="flex justify-between items-center pr-6">
+                <div>
+                    <DialogTitle>{enquiry?.id ? `Enquiry #${enquiry.enquiryNumber}` : "New Enquiry"}</DialogTitle>
+                    <DialogDescription>Capture customer interests and follow-ups.</DialogDescription>
+                </div>
+                {enquiry?.id && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
+                    <Button onClick={() => setIsEditing(true)} size="sm">
+                        <Edit className="mr-2 h-4 w-4" /> Edit
+                    </Button>
+                )}
             </div>
-            {enquiry?.id && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-                <Button onClick={() => setIsEditing(true)} size="sm">
-                    <Edit className="mr-2 h-4 w-4" /> Edit
-                </Button>
-            )}
           </DialogHeader>
+          
           <Form {...form}>
-            <form id="enquiry-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-              {isEditing ? (
-                <FormField
-                  control={control}
-                  name="customerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Customer</FormLabel>
-                      <div className="flex items-center gap-2">
-                        <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
-                            <SelectContent>{customers?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                        <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)}><PlusCircle className="h-4 w-4" /></Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : (
-                <ReadOnlyField label="Customer" value={customers?.find(c => c.id === getValues('customerId'))?.name} />
-              )}
+            <form id="enquiry-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {isEditing ? (
-                    <FormField control={control} name="enquiryTypeId" render={({ field }) => (
-                      <FormItem><FormLabel>Type of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an enquiry type" /></SelectTrigger></FormControl><SelectContent>{enquiryTypes?.map(type => (<SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                    <FormField control={control} name="customerId" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</FormLabel>
+                            <div className="flex gap-2">
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select customer" /></SelectTrigger></FormControl>
+                                    <SelectContent>{customers?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)} className="shrink-0"><PlusCircle className="h-4 w-4" /></Button>
+                            </div>
+                            <FormMessage />
+                        </FormItem>
                     )}/>
                   ) : (
-                    <ReadOnlyField label="Type of Enquiry" value={enquiryTypes?.find(t => t.id === getValues('enquiryTypeId'))?.name} />
+                    <ReadOnlyField label="Customer" value={customers?.find(c => c.id === getValues('customerId'))?.name} />
                   )}
                   {isEditing ? (
-                    <FormField control={control} name="sourceId" render={({ field }) => (
-                        <FormItem><FormLabel>Source of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a source" /></SelectTrigger></FormControl><SelectContent>{enquirySources?.map(source => ( <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem> ))}</SelectContent></Select><FormMessage /></FormItem>
+                    <FormField control={control} name="status" render={({ field }) => (
+                        <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger className="h-10"><SelectValue /></SelectTrigger></FormControl><SelectContent>{enquiryStatuses?.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select></FormItem>
                     )}/>
                   ) : (
-                    <ReadOnlyField label="Source of Enquiry" value={enquirySources?.find(s => s.id === getValues('sourceId'))?.name} />
+                    <ReadOnlyField label="Status" value={getValues('status')} />
                   )}
               </div>
+
               <FormField control={control} name="enquiry" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Enquiry Details</FormLabel>
-                    {isEditing ? (
-                        <FormControl><Textarea placeholder="Details..." {...field} /></FormControl>
-                    ) : (
-                        <div className="text-sm p-3 border rounded-md bg-muted min-h-24 whitespace-pre-wrap">{field.value || 'No details provided.'}</div>
-                    )}
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Enquiry Details</FormLabel>
+                    {isEditing ? <FormControl><Textarea {...field} className="min-h-24" /></FormControl> : <div className="text-sm p-3 border rounded-md bg-muted whitespace-pre-wrap">{field.value}</div>}
                     <FormMessage />
                   </FormItem>
-                )}
-              />
-              
-              <Separator />
+              )}/>
+
               <div className="space-y-4">
-                  <FormLabel className="text-base font-bold">Interested Products</FormLabel>
+                  <div className="flex items-center justify-between border-b pb-2">
+                      <Label className="text-lg font-black uppercase tracking-tight">Interested Products</Label>
+                      {isEditing && <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", productName: "", quantity: 1, unitPrice: 0, gstRate: 0, totalPrice: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>}
+                  </div>
                   {fields.map((field, index) => (
-                      <div key={field.id} className="space-y-3 border p-3 rounded-lg relative bg-accent/5">
-                          {isEditing && <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>}
-                          <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start pt-2">
-                                <FormField control={control} name={`items.${index}.productId`} render={({ field: formField }) => (
-                                      <FormItem><Select onValueChange={(value) => {
-                                              formField.onChange(value);
-                                              const product = products?.find(p => p.id === value);
-                                              if (product) {
-                                                  setValue(`items.${index}.productName`, product.name);
-                                                  setValue(`items.${index}.unitPrice`, product.finalPrice || product.sellingPrice);
-                                                  setValue(`items.${index}.gstRate`, product.gstRate);
-                                                  const qty = getValues(`items.${index}.quantity`) || 1;
-                                                  setValue(`items.${index}.totalPrice`, (product.finalPrice || product.sellingPrice) * qty);
+                      <div key={field.id} className="border-2 p-4 rounded-lg bg-card shadow-sm space-y-4">
+                          <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-black text-muted-foreground uppercase">Item #{index + 1}</span>
+                              {isEditing && <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                              <div className="sm:col-span-6">
+                                  {isEditing ? (
+                                      <FormField control={control} name={`items.${index}.productId`} render={({ field: f }) => (
+                                          <Select onValueChange={(val) => {
+                                              f.onChange(val);
+                                              const p = products?.find(prod => prod.id === val);
+                                              if(p) {
+                                                  setValue(`items.${index}.productName`, p.name);
+                                                  setValue(`items.${index}.unitPrice`, p.sellingPrice);
+                                                  setValue(`items.${index}.gstRate`, p.gstRate);
+                                                  setValue(`items.${index}.totalPrice`, p.sellingPrice * (getValues(`items.${index}.quantity`) || 1));
                                               }
-                                          }} value={formField.value} disabled={!isEditing}>
-                                            <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl>
-                                            <SelectContent>{products?.sort((a,b)=>a.name.localeCompare(b.name)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                                        </Select></FormItem>
-                                  )}/>
-                                  <FormField control={control} name={`items.${index}.quantity`} render={({ field }) => (
-                                      <FormItem><FormControl><Input type="number" placeholder="Qty" {...field} disabled={!isEditing} className="h-10" /></FormControl></FormItem>
-                                  )}/>
-                                  <FormField control={control} name={`items.${index}.unitPrice`} render={({ field }) => (
-                                      <FormItem><FormControl><Input type="number" placeholder="Price" {...field} disabled={!isEditing} className="h-10 font-bold" /></FormControl></FormItem>
-                                  )}/>
-                            </div>
+                                          }} value={f.value}>
+                                              <SelectTrigger className="h-10"><SelectValue placeholder="Product" /></SelectTrigger>
+                                              <SelectContent>{products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                                          </Select>
+                                      )}/>
+                                  ) : <ReadOnlyField label="Product" value={getValues(`items.${index}.productName`)} />}
+                              </div>
+                              <div className="sm:col-span-2">
+                                  {isEditing ? (
+                                      <FormField control={control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10" />} />
+                                  ) : <ReadOnlyField label="Qty" value={getValues(`items.${index}.quantity`)} />}
+                              </div>
+                              <div className="sm:col-span-4">
+                                  {isEditing ? (
+                                      <FormField control={control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black" />} />
+                                  ) : <ReadOnlyField label="Price" value={`₹${getValues(`items.${index}.unitPrice`)?.toLocaleString()}`} />}
+                              </div>
+                          </div>
                       </div>
                   ))}
-                  {isEditing && <Button type="button" variant="outline" size="sm" onClick={handleAppendItem}><PlusCircle className="mr-2 h-4 w-4" /> Add Product</Button>}
               </div>
-              
-              <div className="space-y-2 rounded-lg border p-4 bg-muted/30">
-                  <div className="flex justify-between text-sm"><span>Subtotal</span><span>₹{totals.subTotal.toLocaleString()}</span></div>
-                  <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span>Total</span><span>₹{totals.totalAmount.toLocaleString()}</span></div>
+
+              <div className="rounded-2xl border-2 border-primary/20 p-6 bg-primary/5 shadow-inner flex justify-between items-center">
+                  <span className="text-xl font-black uppercase tracking-tighter">Est. Total</span>
+                  <span className="text-3xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
               </div>
-              
+
               <Separator />
-              <FormField control={control} name="status" render={({ field }) => (
-                  <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger></FormControl><SelectContent>{enquiryStatuses?.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select></FormItem>
-              )}/>
               
-              <div className="space-y-4 pt-4">
-                  <h3 className="text-lg font-medium">Follow-ups</h3>
-                  <div className="space-y-4 p-4 border rounded-lg bg-muted/10">
-                      <Textarea value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="Add a follow-up note..." className="h-20" />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Select value={newFollowUpType} onValueChange={setNewFollowUpType}>
-                              <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
-                              <SelectContent>{followUpTypes?.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
-                          </Select>
-                          <Button type="button" size="sm" onClick={handleAddFollowUp}>Add Note</Button>
-                      </div>
+              <div className="space-y-4">
+                  <h3 className="text-lg font-black uppercase tracking-tight">Follow-up Log</h3>
+                  <div className="border rounded-lg overflow-hidden">
+                      <DataTable columns={followUpColumns({ users: usersData || [] })} data={getValues("followUps") || []} />
                   </div>
+                  {isEditing && (
+                      <div className="p-4 border-2 border-dashed rounded-lg bg-muted/30 space-y-4">
+                          <Textarea value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="New interaction notes..." />
+                          <div className="flex flex-col sm:flex-row gap-2">
+                              <Select value={newFollowUpType} onValueChange={setNewFollowUpType}>
+                                  <SelectTrigger className="flex-1"><SelectValue placeholder="Interaction Type" /></SelectTrigger>
+                                  <SelectContent>{followUpTypes?.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
+                              </Select>
+                              <Button type="button" onClick={handleAddFollowUp} className="shrink-0">Add Entry</Button>
+                          </div>
+                      </div>
+                  )}
               </div>
             </form>
           </Form>
           
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t bg-muted/5">
-                {isEditing ? (
-                    <Button type="submit" form="enquiry-form" className="w-full sm:w-auto">Save Changes</Button>
-                ) : (
-                    <Button type="button" onClick={handleSubmit(onSubmit)} className="w-full sm:w-auto">Save Interaction</Button>
-                )}
-                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">Cancel</Button>
-            </DialogFooter>
+          <DialogFooter className="p-6 border-t bg-muted/5 gap-2">
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+              {isEditing && <Button type="submit" form="enquiry-form">Save Enquiry</Button>}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

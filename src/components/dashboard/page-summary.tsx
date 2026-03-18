@@ -21,11 +21,6 @@ const cardColorClasses = [
     { bg: 'bg-chart-3/20', text: 'text-chart-3', border: 'border-chart-3/30' },
     { bg: 'bg-chart-4/20', text: 'text-chart-4', border: 'border-chart-4/30' },
     { bg: 'bg-chart-5/20', text: 'text-chart-5', border: 'border-chart-5/30' },
-    { bg: 'bg-chart-6/20', text: 'text-chart-6', border: 'border-chart-6/30' },
-    { bg: 'bg-chart-7/20', text: 'text-chart-7', border: 'border-chart-7/30' },
-    { bg: 'bg-chart-8/20', text: 'text-chart-8', border: 'border-chart-8/30' },
-    { bg: 'bg-chart-9/20', text: 'text-chart-9', border: 'border-chart-9/30' },
-    { bg: 'bg-chart-10/20', text: 'text-chart-10', border: 'border-chart-10/30' },
 ];
 
 export function PageSummary({ cards }: PageSummaryProps) {
@@ -34,18 +29,18 @@ export function PageSummary({ cards }: PageSummaryProps) {
       {cards.map((card, index) => {
           const colorClasses = cardColorClasses[index % cardColorClasses.length];
           return (
-            <Card key={card.title} className={cn("min-w-0 w-full", colorClasses.bg, colorClasses.border)}>
+            <Card key={card.title} className={cn("min-w-0 w-full shadow-sm", colorClasses.bg, colorClasses.border)}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className={cn("text-xs sm:text-sm font-medium", colorClasses.text)}>
+                <CardTitle className={cn("text-xs font-bold uppercase tracking-wider", colorClasses.text)}>
                   {card.title}
                 </CardTitle>
                 <card.icon className={cn("h-4 w-4 shrink-0", colorClasses.text)} />
               </CardHeader>
               <CardContent className={cn(colorClasses.text)}>
-                <div className="text-xl sm:text-2xl font-bold truncate">{card.value}</div>
+                <div className="text-xl sm:text-2xl font-black truncate tracking-tighter">{card.value}</div>
                 {card.description && (
                   <p className={cn(
-                    "text-[9px] sm:text-[10px] opacity-80 break-words line-clamp-2", 
+                    "text-[10px] font-medium opacity-80 mt-1 truncate", 
                     colorClasses.text
                   )}>
                     {card.description}

@@ -1,7 +1,6 @@
-
 'use client';
 import { useState, useMemo, useEffect } from 'react';
-import { collection, query, where, orderBy, doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { PageHeader } from '@/components/layout/page-header';
@@ -10,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PlusCircle, Trash2, Edit, Save, X, Notebook, Search, Download } from 'lucide-react';
+import { PlusCircle, Trash2, Edit, Save, X, Notebook, Search, Download, ArrowLeft } from 'lucide-react';
 import { Note } from '@/lib/types';
 import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
@@ -26,13 +25,14 @@ export default function NotesPage() {
         return query(collection(firestore, 'users', currentUser.id, 'notes'), orderBy('updatedAt', 'desc'));
     }, [firestore, currentUser]);
 
-    const { data: notes, isLoading: areNotesLoading } = useCollection<Note>(notesCollectionRef);
+    const { data: notes } = useCollection<Note>(notesCollectionRef);
 
     const [selectedNote, setSelectedNote] = useState<Note | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [isListView, setIsListView] = useState(true);
 
     const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'editor' || currentUser?.role === 'data-entry';
     const canDelete = currentUser?.role === 'admin' || currentUser?.role === 'editor';
@@ -40,10 +40,8 @@ export default function NotesPage() {
     const filteredNotes = useMemo(() => {
         if (!notes) return [];
         if (!searchQuery) return notes;
-        return notes.filter(note =>
-            note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            note.content.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+        const low = searchQuery.toLowerCase();
+        return notes.filter(note => note.title.toLowerCase().includes(low) || note.content.toLowerCase().includes(low));
     }, [notes, searchQuery]);
 
     useEffect(() => {
@@ -51,6 +49,7 @@ export default function NotesPage() {
             setTitle(selectedNote.title);
             setContent(selectedNote.content);
             setIsEditing(false);
+            setIsListView(false);
         } else {
             setTitle('');
             setContent('');
@@ -60,11 +59,7 @@ export default function NotesPage() {
 
     const handleSelectNote = (note: Note) => {
         if (isEditing && selectedNote) {
-            toast({
-                title: 'Unsaved Changes',
-                description: 'Please save or cancel your current note before switching.',
-                variant: 'destructive',
-            });
+            toast({ title: 'Unsaved Changes', variant: 'destructive' });
             return;
         }
         setSelectedNote(note);
@@ -76,194 +71,114 @@ export default function NotesPage() {
         setTitle('New Note');
         setContent('');
         setIsEditing(true);
+        setIsListView(false);
     };
 
     const handleSaveNote = async () => {
-        if (!canEdit || !firestore || !currentUser || !title) {
-            toast({ title: 'Error', description: 'Title is required.', variant: 'destructive' });
-            return;
-        }
-
+        if (!canEdit || !firestore || !currentUser || !title) return;
         const noteId = selectedNote?.id || doc(collection(firestore, 'users', currentUser.id, 'notes')).id;
         const noteRef = doc(firestore, 'users', currentUser.id, 'notes', noteId);
-
-        const newNoteData: Partial<Note> = {
-            title,
-            content,
-            userId: currentUser.id,
-            updatedAt: new Date().toISOString(),
-        };
-
-        if (!selectedNote) {
-            newNoteData.createdAt = new Date().toISOString();
-        }
+        const now = new Date().toISOString();
+        const data: Partial<Note> = { title, content, userId: currentUser.id, updatedAt: now };
+        if (!selectedNote) data.createdAt = now;
 
         try {
-            await setDoc(noteRef, newNoteData, { merge: true });
-            toast({ title: 'Success!', description: 'Note saved successfully.' });
+            await setDoc(noteRef, data, { merge: true });
+            toast({ title: 'Note Saved' });
             setIsEditing(false);
-            if (!selectedNote) {
-                // If it was a new note, we need to "select" it to show the content
-                setSelectedNote({ ...newNoteData, id: noteId } as Note);
-            } else {
-                setSelectedNote({ ...selectedNote, ...newNoteData });
-            }
-        } catch (error) {
-            console.error('Error saving note:', error);
-            toast({ title: 'Error', description: 'Could not save note.', variant: 'destructive' });
-        }
+            if (!selectedNote) setSelectedNote({ ...data, id: noteId } as Note);
+        } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
     };
 
     const handleDeleteNote = async () => {
         if (!canDelete || !firestore || !currentUser || !selectedNote) return;
-
-        const noteRef = doc(firestore, 'users', currentUser.id, 'notes', selectedNote.id);
         try {
-            await deleteDoc(noteRef);
-            toast({ title: 'Success!', description: 'Note deleted.' });
+            await deleteDoc(doc(firestore, 'users', currentUser.id, 'notes', selectedNote.id));
+            toast({ title: 'Note Deleted' });
             setSelectedNote(null);
-            setTitle('');
-            setContent('');
-            setIsEditing(false);
-        } catch (error) {
-            console.error('Error deleting note:', error);
-            toast({ title: 'Error', description: 'Could not delete note.', variant: 'destructive' });
-        }
-    };
-
-    const handleExport = () => {
-        if (!notes || notes.length === 0) {
-            toast({
-                title: "No Data",
-                description: "There are no notes to export.",
-            });
-            return;
-        }
-        const dataToExport = notes.map(note => ({
-            title: note.title,
-            content: note.content,
-            updatedAt: format(new Date(note.updatedAt), 'yyyy-MM-dd HH:mm:ss'),
-            createdAt: format(new Date(note.createdAt), 'yyyy-MM-dd HH:mm:ss'),
-        }));
-        exportToExcel(dataToExport, 'notes_export');
+            setIsListView(true);
+        } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
     };
 
     return (
-        <>
+        <div className="flex flex-col h-[calc(100vh-8rem)] sm:h-[calc(100vh-12rem)] min-w-0 max-w-full">
             <PageHeader title="My Notes">
-                <div className="relative w-full max-w-sm">
+                <div className="relative w-full sm:max-w-xs">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search notes..."
-                        className="pl-8"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                    <Input placeholder="Search..." className="pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 </div>
-                <Button variant="outline" onClick={handleExport} disabled={!notes || notes.length === 0}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Export All
-                </Button>
-                {canEdit && (
-                    <Button onClick={handleNewNote}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        New Note
-                    </Button>
-                )}
+                <Button onClick={handleNewNote} size="sm"><PlusCircle className="mr-2 h-4 w-4" /> New</Button>
             </PageHeader>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8 h-[calc(100vh-12rem)]">
-                <Card className="col-span-1 flex flex-col">
-                    <CardHeader>
-                        <CardTitle>All Notes</CardTitle>
-                        <CardDescription>Your personal notes.</CardDescription>
+
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 min-h-0 overflow-hidden">
+                <Card className={cn("flex flex-col min-h-0", !isListView && "hidden md:flex")}>
+                    <CardHeader className="py-4 border-b">
+                        <CardTitle className="text-base font-black uppercase tracking-widest">Register</CardTitle>
                     </CardHeader>
-                    <CardContent className="flex-1 overflow-hidden">
+                    <CardContent className="p-0 flex-1 overflow-hidden">
                         <ScrollArea className="h-full">
-                            <div className="space-y-2">
-                                {filteredNotes?.map(note => (
-                                    <Button
+                            <div className="divide-y">
+                                {filteredNotes.map(note => (
+                                    <button
                                         key={note.id}
-                                        variant="ghost"
                                         className={cn(
-                                            "w-full justify-start h-auto p-2 flex flex-col items-start",
-                                            selectedNote?.id === note.id && "bg-accent text-accent-foreground"
+                                            "w-full text-left p-4 transition-colors hover:bg-muted/50",
+                                            selectedNote?.id === note.id && "bg-primary/5"
                                         )}
                                         onClick={() => handleSelectNote(note)}
                                     >
-                                        <p className="font-semibold truncate w-full text-left">{note.title}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            Updated {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
+                                        <p className="font-bold text-sm truncate">{note.title}</p>
+                                        <p className="text-[10px] text-muted-foreground uppercase font-medium mt-1">
+                                            {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
                                         </p>
-                                    </Button>
+                                    </button>
                                 ))}
                             </div>
                         </ScrollArea>
                     </CardContent>
                 </Card>
-                <Card className="md:col-span-2 lg:col-span-3 flex flex-col">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        {isEditing ? (
-                            <Input
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                className="text-2xl font-bold p-0 border-0 shadow-none focus-visible:ring-0 h-auto"
-                            />
-                        ) : (
-                            <CardTitle>{selectedNote ? selectedNote.title : 'Select a note'}</CardTitle>
-                        )}
-                        <div className="flex items-center gap-2">
-                            {selectedNote && !isEditing && canEdit && (
-                                <Button variant="outline" size="icon" onClick={() => setIsEditing(true)}>
-                                    <Edit className="h-4 w-4" />
-                                </Button>
-                            )}
-                            {isEditing && (
-                                <>
-                                    <Button variant="outline" size="icon" onClick={() => { setIsEditing(false); if(selectedNote) {setTitle(selectedNote.title); setContent(selectedNote.content); }}}>
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                    <Button size="icon" onClick={handleSaveNote}>
-                                        <Save className="h-4 w-4" />
-                                    </Button>
-                                </>
-                            )}
-                            {selectedNote && canDelete && (
-                                <Button variant="destructive" size="icon" onClick={handleDeleteNote}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+
+                <Card className={cn("md:col-span-2 lg:col-span-3 flex flex-col min-h-0 border-2 shadow-sm", isListView && "hidden md:flex")}>
+                    <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4 sm:px-6">
+                        <div className="flex items-center gap-3">
+                            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsListView(true)}><ArrowLeft className="h-4 w-4" /></Button>
+                            {isEditing ? (
+                                <Input value={title} onChange={(e) => setTitle(e.target.value)} className="font-black text-lg border-none p-0 focus-visible:ring-0 bg-transparent h-auto" />
+                            ) : (
+                                <CardTitle className="text-lg font-black truncate">{selectedNote?.title || 'Editor'}</CardTitle>
                             )}
                         </div>
+                        <div className="flex items-center gap-2">
+                            {selectedNote && !isEditing && canEdit && <Button variant="outline" size="icon" onClick={() => setIsEditing(true)}><Edit className="h-4 w-4" /></Button>}
+                            {isEditing && (
+                                <div className="flex gap-1">
+                                    <Button variant="ghost" size="icon" onClick={() => { setIsEditing(false); if(selectedNote) { setTitle(selectedNote.title); setContent(selectedNote.content); } }}><X className="h-4 w-4" /></Button>
+                                    <Button size="icon" onClick={handleSaveNote}><Save className="h-4 w-4" /></Button>
+                                </div>
+                            )}
+                            {selectedNote && canDelete && <Button variant="destructive" size="icon" onClick={handleDeleteNote}><Trash2 className="h-4 w-4" /></Button>}
+                        </div>
                     </CardHeader>
-                    <CardContent className="flex-1 flex flex-col">
+                    <CardContent className="flex-1 p-0 overflow-hidden relative">
                         {selectedNote || isEditing ? (
                             isEditing ? (
-                                <Textarea
-                                    value={content}
-                                    onChange={(e) => setContent(e.target.value)}
-                                    placeholder="Start writing your note here..."
-                                    className="flex-1 text-base resize-none"
-                                />
+                                <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Start typing..." className="h-full border-none resize-none rounded-none focus-visible:ring-0 p-6 text-base leading-relaxed" />
                             ) : (
-                                <ScrollArea className="flex-1">
-                                    <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap">
-                                        {selectedNote?.content || <p className="text-muted-foreground">This note is empty.</p>}
+                                <ScrollArea className="h-full p-6">
+                                    <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap font-medium leading-relaxed">
+                                        {selectedNote?.content || <p className="text-muted-foreground italic">No content.</p>}
                                     </div>
                                 </ScrollArea>
                             )
                         ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                                <Notebook className="h-16 w-16 mb-4" />
-                                <p>
-                                    {searchQuery 
-                                        ? `No notes found matching your search.`
-                                        : "Select a note from the list to view it, or create a new one."
-                                    }
-                                </p>
+                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-12 text-center">
+                                <Notebook className="h-16 w-16 mb-4 opacity-10" />
+                                <p className="text-xs font-black uppercase tracking-widest">Select a note to view its contents</p>
                             </div>
                         )}
                     </CardContent>
                 </Card>
             </div>
-        </>
+        </div>
     );
 }
