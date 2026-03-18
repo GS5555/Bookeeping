@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Sale, Customer, Product, Coupon, InventoryItem, Brand, HandPreference, Warranty, Store, Category, SubCategory } from "@/lib/types";
+import { Sale, Customer, Product, Coupon, InventoryItem, Brand, HandPreference, Warranty, Store, Category, SubCategory, Courier, Address } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, AlertCircle } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, AlertCircle, MapPin, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,11 +39,14 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 const STORE_ID = 'store_main';
 
 const saleItemSchema = z.object({
-    productId: z.string().min(1, "Product is required."),
+    productId: z.string().optional(),
     brandId: z.string().optional(),
     handPreference: z.string().default('Normal'),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1.").default(1),
@@ -63,12 +66,18 @@ const formSchema = z.object({
   saleType: z.enum(["GST", "Cash"], { required_error: "Sale type is required." }),
   warrantyId: z.string().optional(),
   items: z.array(saleItemSchema).min(1, "At least one product must be selected."),
+  useDifferentShipping: z.boolean().default(false),
+  shippingAddressId: z.string().optional(),
   couponCode: z.string().optional(),
   manualDiscountPercentage: z.coerce.number().min(0).max(100).default(0),
   paymentMethod: z.enum(["NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Cash", "Other", "Sponsored", "Replacement"]),
   paymentDetails: z.string().optional(),
   invoiceStatus: z.enum(["Paid", "Unpaid", "Partially Paid"]),
   amountPaid: z.coerce.number().min(0).optional(),
+  courierCompany: z.string().optional(),
+  trackingNumber: z.string().optional(),
+  trackingLink: z.string().url("Invalid tracking URL").or(z.literal("")).optional(),
+  numberOfBoxes: z.coerce.number().int().min(1).default(1),
 });
 
 type SaleFormValues = z.infer<typeof formSchema>;
@@ -94,6 +103,9 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
 
   const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
   const { data: stores } = useCollection<Store>(storesRef);
+
+  const couriersRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'couriers') : null, [firestore]);
+  const { data: couriers } = useCollection<Courier>(couriersRef);
 
   const couponsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'coupons') : null, [firestore]);
   const { data: coupons } = useCollection<Coupon>(couponsRef);
@@ -124,11 +136,13 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
       saleDate: new Date(),
       saleType: "GST",
       items: [{ productId: "", brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' }],
+      useDifferentShipping: false,
       couponCode: "",
       manualDiscountPercentage: 0,
       paymentMethod: "Cash",
       paymentDetails: "",
       invoiceStatus: "Paid",
+      numberOfBoxes: 1,
     },
   });
 
@@ -141,6 +155,11 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
   const watchedCustomerId = watch("customerId");
   const watchedStoreId = watch("storeId");
   const watchedManualDiscount = watch("manualDiscountPercentage");
+  const watchedUseDifferentShipping = watch("useDifferentShipping");
+
+  const selectedCustomer = useMemo(() => customers?.find(c => c.id === watchedCustomerId), [customers, watchedCustomerId]);
+  const customerAddresses = useMemo(() => selectedCustomer?.addresses || [], [selectedCustomer]);
+  const primaryAddress = useMemo(() => customerAddresses.find(a => a.isPrimary) || customerAddresses[0], [customerAddresses]);
 
   const totals = useMemo(() => {
     const subTotalVal = watchedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
@@ -158,9 +177,8 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
 
     let cgstVal = 0, sgstVal = 0, igstVal = 0;
     if(watchedSaleType === 'GST' && subTotalVal > 0) {
-        const customer = customers?.find(c => c.id === watchedCustomerId);
         const store = stores?.find(s => s.id === watchedStoreId);
-        const isInterState = customer?.addresses.find(a => a.isPrimary)?.state !== store?.state;
+        const isInterState = primaryAddress?.state !== store?.state;
         
         watchedItems.forEach(item => {
             if (!item.productId) return;
@@ -182,7 +200,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
         subTotal: subTotalVal, totalDiscount: totalDiscountValue, totalAmount: finalRounded, 
         cgstAmount: cgstVal, sgstAmount: sgstVal, igstAmount: igstVal, roundOff: finalRounded - rawTotal 
     };
-  }, [watchedItems, watchedCouponCode, watchedManualDiscount, watchedSaleType, watchedCustomerId, watchedStoreId, coupons, customers, stores]);
+  }, [watchedItems, watchedCouponCode, watchedManualDiscount, watchedSaleType, watchedStoreId, primaryAddress, coupons, stores]);
 
   const balanceDue = useMemo(() => {
     const status = watch('invoiceStatus');
@@ -204,11 +222,13 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
           saleDate: new Date(),
           saleType: "GST",
           items: sale?.items || [{ productId: "", brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' }],
+          useDifferentShipping: false,
           couponCode: "",
           manualDiscountPercentage: 0,
           paymentMethod: "Cash",
           paymentDetails: "",
           invoiceStatus: "Paid",
+          numberOfBoxes: 1,
         });
       }
     }
@@ -234,12 +254,18 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
         setValue(`items.${index}.hsnCode`, product.hsnCode);
         setValue(`items.${index}.gstRate`, product.gstRate);
         setValue(`items.${index}.handPreference`, (product.handPreference && product.handPreference !== 'Blank') ? product.handPreference : 'Normal');
+        
+        // Auto-add new row if this is the last row
+        if (index === watchedItems.length - 1) {
+            append({ productId: "", brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
+        }
     }
   }
 
   const handleFormSubmit = (data: SaleFormValues) => {
     if (!customers || !allProducts || !brands || !currentUser) return;
     
+    // Filter out empty rows
     const validItems = data.items.filter(i => i.productId && i.productId !== "").map(item => {
         const product = allProducts.find(p => p.id === item.productId);
         const brand = brands.find(b => b.id === item.brandId);
@@ -262,6 +288,9 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
 
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
+    const shippingAddress = data.useDifferentShipping 
+        ? customer?.addresses.find(a => a.id === data.shippingAddressId) 
+        : billingAddress;
     
     if (!customer || !billingAddress) {
         toast({ title: "Error", description: "Customer profile is incomplete.", variant: "destructive" });
@@ -274,6 +303,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
       customerId: customer.id,
       customerName: customer.name,
       billingAddress,
+      shippingAddress,
       saleDate: data.saleDate.toISOString(),
       saleTime: format(new Date(), 'HH:mm'),
       dueDate: format(addDays(data.saleDate, 30), "yyyy-MM-dd"),
@@ -286,6 +316,10 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
       invoiceStatus: data.invoiceStatus, paymentMethod: data.paymentMethod,
       invoiceSequence: sale?.invoiceSequence || `INV-${Date.now().toString().slice(-5)}`,
       createdBy: currentUser.id, createdByName: currentUser.displayName,
+      courierCompany: data.courierCompany,
+      trackingNumber: data.trackingNumber,
+      trackingLink: data.trackingLink,
+      numberOfBoxes: data.numberOfBoxes,
     } as Sale;
     
     onSuccess(finalSale);
@@ -306,74 +340,120 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
         
         <Form {...form}>
           <form id="sale-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pt-2">
-                <FormField control={form.control} name="customerId" render={({ field }) => ( 
-                  <FormItem>
-                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        Customer <span className="text-destructive font-black">*</span>
-                    </FormLabel>
-                    <div className="flex items-center gap-2">
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="h-10">
-                            <SelectValue placeholder="Select a customer" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => (
-                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)} className="shrink-0 h-10 w-10"><PlusCircle className="h-4 w-4" /></Button>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="saleDate" render={({ field }) => ( 
-                  <FormItem>
-                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        Sale Date <span className="text-destructive font-black">*</span>
-                    </FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant="outline" className="w-full pl-3 text-left font-normal h-10">
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/>
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="saleType" render={({ field }) => (
-                    <FormItem className="space-y-3">
-                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice Type</FormLabel>
-                    <FormControl>
-                        <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
-                            <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="GST" /></FormControl><FormLabel className="font-normal">GST Invoice</FormLabel></FormItem>
-                            <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-normal">Retail Receipt</FormLabel></FormItem>
-                        </RadioGroup>
-                    </FormControl>
-                    </FormItem>
-                )} />
-                <FormField control={form.control} name="warrantyId" render={({ field }) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start pt-2">
+                <div className="space-y-4">
+                    <FormField control={form.control} name="customerId" render={({ field }) => ( 
                     <FormItem>
-                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Warranty</FormLabel>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                            Customer <span className="text-destructive font-black">*</span>
+                        </FormLabel>
+                        <div className="flex items-center gap-2">
                         <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="No Warranty" /></SelectTrigger></FormControl>
-                            <SelectContent><SelectItem value="none">None</SelectItem>{warranties?.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+                            <FormControl>
+                            <SelectTrigger className="h-10">
+                                <SelectValue placeholder="Select a customer" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            {customers?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => (
+                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))}
+                            </SelectContent>
                         </Select>
+                        <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)} className="shrink-0 h-10 w-10"><PlusCircle className="h-4 w-4" /></Button>
+                        </div>
+                        <FormMessage />
                     </FormItem>
-                )} />
+                    )} />
+
+                    {selectedCustomer && (
+                        <div className="p-4 rounded-lg bg-muted/30 border space-y-2 animate-in fade-in duration-300">
+                            <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-widest">
+                                <MapPin className="h-3 w-3" /> Billing Address
+                            </div>
+                            <p className="text-sm font-medium">
+                                {primaryAddress?.street}, {primaryAddress?.city}, {primaryAddress?.state} {primaryAddress?.zip}
+                            </p>
+                            <div className="pt-2 flex items-center gap-2">
+                                <FormField control={form.control} name="useDifferentShipping" render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                        <FormControl>
+                                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                        </FormControl>
+                                        <Label className="text-xs font-bold uppercase cursor-pointer">Ship to different address?</Label>
+                                    </FormItem>
+                                )} />
+                            </div>
+                            {watchedUseDifferentShipping && (
+                                <FormField control={form.control} name="shippingAddressId" render={({ field }) => (
+                                    <FormItem className="pt-2">
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger className="h-8 text-xs">
+                                                    <SelectValue placeholder="Select shipping address" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {customerAddresses.map(addr => (
+                                                    <SelectItem key={addr.id} value={addr.id}>
+                                                        {addr.street}, {addr.city}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </FormItem>
+                                )} />
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div className="space-y-4">
+                    <FormField control={form.control} name="saleDate" render={({ field }) => ( 
+                    <FormItem>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                            Sale Date <span className="text-destructive font-black">*</span>
+                        </FormLabel>
+                        <Popover>
+                        <PopoverTrigger asChild>
+                            <FormControl>
+                            <Button variant="outline" className="w-full pl-3 text-left font-normal h-10">
+                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                            </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/>
+                        </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                    </FormItem>
+                    )} />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField control={form.control} name="saleType" render={({ field }) => (
+                            <FormItem className="space-y-3">
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice Type</FormLabel>
+                            <FormControl>
+                                <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
+                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="GST" /></FormControl><FormLabel className="font-normal">GST Invoice</FormLabel></FormItem>
+                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-normal">Retail Receipt</FormLabel></FormItem>
+                                </RadioGroup>
+                            </FormControl>
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="warrantyId" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Warranty</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="No Warranty" /></SelectTrigger></FormControl>
+                                    <SelectContent><SelectItem value="none">None</SelectItem>{warranties?.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </FormItem>
+                        )} />
+                    </div>
+                </div>
             </div>
 
             <div className="space-y-4">
@@ -396,9 +476,9 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                                   <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
                                   {selectedProdId && (
                                       <div className="flex flex-wrap gap-1">
-                                          <Badge variant="outline" className="text-[10px] uppercase h-5">SKU: {product?.sku}</Badge>
-                                          <Badge variant="outline" className="text-[10px] uppercase h-5">CAT: {category?.name}</Badge>
-                                          {subCategory && <Badge variant="outline" className="text-[10px] uppercase h-5">SUB: {subCategory.name}</Badge>}
+                                          <Badge variant="outline" className="text-[10px] uppercase h-5 bg-blue-100 text-blue-700 border-blue-200">SKU: {product?.sku}</Badge>
+                                          <Badge variant="outline" className="text-[10px] uppercase h-5 bg-purple-100 text-purple-700 border-purple-200">CAT: {category?.name}</Badge>
+                                          {subCategory && <Badge variant="outline" className="text-[10px] uppercase h-5 bg-indigo-100 text-indigo-700 border-indigo-200">SUB: {subCategory.name}</Badge>}
                                           <Badge variant="outline" className="text-[10px] font-black uppercase text-orange-600 bg-orange-50 px-1.5 h-5 border-orange-200">STOCK: {stock}</Badge>
                                       </div>
                                   )}
@@ -439,6 +519,47 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                       </Card>
                   )
               })}
+            </div>
+
+            <Separator />
+            
+            <div className="space-y-4">
+                <h4 className="font-bold text-xs uppercase tracking-widest text-primary flex items-center gap-2">
+                    <Truck className="h-4 w-4" /> Shipping & Logistics
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <FormField control={form.control} name="courierCompany" render={({ field }) => (
+                        <FormItem className="lg:col-span-2">
+                            <FormLabel className="text-[10px] font-bold uppercase">Courier Company</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                    <SelectTrigger className="h-9"><SelectValue placeholder="Select Courier" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {couriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </FormItem>
+                    )} />
+                    <FormField control={form.control} name="trackingNumber" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-[10px] font-bold uppercase">Tracking #</FormLabel>
+                            <FormControl><Input placeholder="AWB Number" {...field} className="h-9" /></FormControl>
+                        </FormItem>
+                    )} />
+                    <FormField control={form.control} name="numberOfBoxes" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-[10px] font-bold uppercase">Boxes</FormLabel>
+                            <FormControl><Input type="number" {...field} className="h-9" /></FormControl>
+                        </FormItem>
+                    )} />
+                </div>
+                <FormField control={form.control} name="trackingLink" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="text-[10px] font-bold uppercase">Tracking Link</FormLabel>
+                        <FormControl><Input placeholder="https://..." {...field} className="h-9" /></FormControl>
+                    </FormItem>
+                )} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/50 p-4 sm:p-6 rounded-xl border">

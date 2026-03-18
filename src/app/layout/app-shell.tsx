@@ -21,19 +21,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password';
     const isPublicPage = pathname === '/add-customer';
+    
+    // Check if we are viewing a document (Invoice, PO, etc.)
+    const isDocumentPage = pathname.startsWith('/invoice/') || 
+                           pathname.startsWith('/purchase-order/') || 
+                           pathname.startsWith('/quotation/') || 
+                           pathname.startsWith('/return-slip/');
 
     useEffect(() => {
         if (!isLoading) {
-            if (!currentUser && !isAuthPage && !isPublicPage) {
+            if (!currentUser && !isAuthPage && !isPublicPage && !isDocumentPage) {
                 router.push('/login');
             } else if (currentUser && isAuthPage) {
                 router.push('/');
             }
         }
-    }, [currentUser, isLoading, isAuthPage, isPublicPage, router]);
+    }, [currentUser, isLoading, isAuthPage, isPublicPage, isDocumentPage, router]);
 
     if (isLoading) return <FullPageLoader />;
-    if (isAuthPage || isPublicPage) return <>{children}</>;
+    
+    // Return children directly for auth, public, or standalone document pages
+    if (isAuthPage || isPublicPage || isDocumentPage) return <>{children}</>;
+    
     if (!currentUser) return <FullPageLoader />;
     if (!currentUser.isApproved && pathname !== '/make-admin') return <PendingApproval />;
 
