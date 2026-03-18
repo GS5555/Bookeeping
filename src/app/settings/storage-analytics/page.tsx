@@ -10,16 +10,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   HardDrive, 
   RefreshCw, 
-  AlertTriangle, 
   Trash2, 
-  Archive, 
-  FileSearch, 
-  PieChart as PieChartIcon, 
   FolderTree as FolderTreeIcon,
   Search,
   CheckCircle2,
   FileBox,
-  FileWarning
+  FileWarning,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   generateMockFiles, 
@@ -35,24 +32,15 @@ import {
   Cell, 
   ResponsiveContainer, 
   Tooltip as RechartsTooltip,
-  Legend,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis
+  Legend
 } from 'recharts';
 import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { FullPageLoader } from '@/components/full-page-loader';
+import { cn } from '@/lib/utils';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -114,8 +102,8 @@ export default function StorageAnalyticsPage() {
       header: 'File Name',
       cell: ({ row }) => (
         <div className="flex flex-col">
-          <span className="font-medium truncate max-w-[200px]">{row.original.name}</span>
-          <span className="text-[10px] text-muted-foreground truncate max-w-[200px]">{row.original.path}</span>
+          <span className="font-medium truncate max-w-[150px] sm:max-w-[250px]">{row.original.name}</span>
+          <span className="text-[10px] text-muted-foreground truncate max-w-[150px] sm:max-w-[250px]">{row.original.path}</span>
         </div>
       )
     },
@@ -135,7 +123,7 @@ export default function StorageAnalyticsPage() {
     },
     {
       accessorKey: 'lastModified',
-      header: 'Last Modified',
+      header: 'Modified',
       cell: ({ row }) => <span className="text-xs whitespace-nowrap">{formatDistanceToNow(new Date(row.original.lastModified), { addSuffix: true })}</span>
     },
     {
@@ -153,7 +141,7 @@ export default function StorageAnalyticsPage() {
 
   const handleDelete = (file: StorageFile) => {
     setFiles(prev => prev.filter(f => f.id !== file.id));
-    toast({ title: "File Deleted", description: `${file.name} has been removed from the server.` });
+    toast({ title: "File Deleted", description: `${file.name} has been removed.` });
   };
 
   const handleBulkDelete = (selected: StorageFile[]) => {
@@ -163,25 +151,34 @@ export default function StorageAnalyticsPage() {
   };
 
   if (isUserLoading) return <FullPageLoader />;
-  if (currentUser?.role !== 'admin') return <div className="p-8 text-center"><FileWarning className="mx-auto h-12 w-12 text-destructive mb-4"/><h2 className="text-xl font-bold">Access Denied</h2><p>You must be an administrator to access storage analytics.</p></div>;
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+        <FileWarning className="mx-auto h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-bold">Access Denied</h2>
+        <p className="text-muted-foreground">You must be an administrator to access storage analytics.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8 p-4 sm:p-8 max-w-7xl mx-auto">
-      <PageHeader title="Storage Analytics">
-        <div className="flex items-center gap-4">
-          {lastScan && <span className="text-xs text-muted-foreground hidden sm:inline">Last scan: {lastScan.toLocaleTimeString()}</span>}
-          <Button onClick={handleScan} disabled={isScanning} variant={isScanning ? "secondary" : "default"}>
+    <div className="space-y-6 sm:space-y-8 pb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h2 className="text-2xl font-bold tracking-tight">Storage Analytics</h2>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {lastScan && <span className="text-[10px] uppercase font-bold text-muted-foreground hidden sm:inline">Last scan: {lastScan.toLocaleTimeString()}</span>}
+          <Button onClick={handleScan} disabled={isScanning} className="w-full sm:w-auto" variant={isScanning ? "secondary" : "default"}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isScanning && "animate-spin")} />
-            {isScanning ? "Scanning System..." : "Deep Scan Now"}
+            {isScanning ? "Scanning..." : "Deep Scan"}
           </Button>
         </div>
-      </PageHeader>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
         {/* Main Consumption Card */}
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center justify-between">
+          <CardHeader className="pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <HardDrive className="h-5 w-5 text-primary" />
@@ -189,7 +186,7 @@ export default function StorageAnalyticsPage() {
                 </CardTitle>
                 <CardDescription>Server-wide storage footprint analysis.</CardDescription>
               </div>
-              <div className="text-right">
+              <div className="sm:text-right">
                 <p className="text-3xl font-black tracking-tighter">{stats.totalSizeGB} GB</p>
                 <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Total Monitored Space</p>
               </div>
@@ -204,13 +201,13 @@ export default function StorageAnalyticsPage() {
               <Progress value={84} className="h-3 bg-muted" />
               <div className="flex justify-between text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
                 <span>Optimized</span>
-                <span className="text-destructive">Critical ( &gt; 80% )</span>
+                <span className="text-destructive">Critical (> 80%)</span>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4">
-              <div className="h-[250px]">
-                <p className="text-xs font-bold uppercase text-center mb-2 tracking-widest">Usage by Category</p>
+              <div className="h-[250px] w-full min-w-0">
+                <p className="text-[10px] font-bold uppercase text-center mb-4 tracking-widest text-muted-foreground">Usage by Category</p>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -229,7 +226,7 @@ export default function StorageAnalyticsPage() {
                     <RechartsTooltip 
                       formatter={(value: number) => `${(value / (1024 * 1024)).toFixed(1)} MB`}
                     />
-                    <Legend />
+                    <Legend iconSize={10} wrapperStyle={{ fontSize: '10px' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -237,16 +234,16 @@ export default function StorageAnalyticsPage() {
                 <div className="p-4 rounded-xl bg-muted/50 border border-border/50">
                   <div className="flex items-center gap-2 mb-1">
                     <FileBox className="h-4 w-4 text-primary" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Index Snapshot</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Index Snapshot</span>
                   </div>
-                  <p className="text-xl font-black">{stats.fileCount.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">Files Indexed</span></p>
+                  <p className="text-xl font-black">{stats.fileCount.toLocaleString()} <span className="text-xs font-normal text-muted-foreground uppercase">Files Indexed</span></p>
                 </div>
                 <div className="p-4 rounded-xl bg-orange-50 border border-orange-100 dark:bg-orange-950/20 dark:border-orange-900/30">
                   <div className="flex items-center gap-2 mb-1">
                     <AlertTriangle className="h-4 w-4 text-orange-600" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-orange-600">Growth Rate</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-orange-600">Growth Rate</span>
                   </div>
-                  <p className="text-xl font-black text-orange-700">+1.2 GB <span className="text-sm font-normal text-orange-600/70">/ month</span></p>
+                  <p className="text-xl font-black text-orange-700">+1.2 GB <span className="text-xs font-normal text-orange-600/70 uppercase">/ month</span></p>
                 </div>
               </div>
             </div>
@@ -254,7 +251,7 @@ export default function StorageAnalyticsPage() {
         </Card>
 
         {/* Smart Recommendations */}
-        <Card className="h-full">
+        <Card className="h-full flex flex-col">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -262,25 +259,25 @@ export default function StorageAnalyticsPage() {
             </CardTitle>
             <CardDescription>AI-driven storage recovery suggestions.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 flex-1">
             {recommendations.length > 0 ? recommendations.map(rec => (
               <div key={rec.id} className="p-4 rounded-lg border-2 border-primary/10 bg-primary/5 space-y-3">
-                <div className="flex justify-between items-start">
-                  <h4 className="font-bold text-sm">{rec.title}</h4>
-                  <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">{rec.impact}</Badge>
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
+                  <h4 className="font-bold text-sm leading-tight">{rec.title}</h4>
+                  <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px] shrink-0">{rec.impact}</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">{rec.description}</p>
                 <div className="flex items-center justify-between pt-2">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Confidence: {rec.confidence}%</span>
-                  <Button size="sm" variant="outline" className="h-7 text-[10px] uppercase font-black" onClick={() => toast({ title: "Simulated Action", description: `Performed: ${rec.action}`})}>
+                  <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Safety: {rec.confidence}%</span>
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-[9px] uppercase font-black" onClick={() => toast({ title: "Action Applied", description: `Performed: ${rec.action}`})}>
                     {rec.action}
                   </Button>
                 </div>
               </div>
             )) : (
-              <div className="text-center py-12 text-muted-foreground italic">
+              <div className="text-center py-12 text-muted-foreground italic h-full flex flex-col justify-center">
                 <CheckCircle2 className="h-12 w-12 mx-auto mb-4 opacity-20 text-green-600" />
-                <p>System is fully optimized.</p>
+                <p className="text-sm">System is fully optimized.</p>
               </div>
             )}
           </CardContent>
@@ -289,34 +286,34 @@ export default function StorageAnalyticsPage() {
 
       {/* Explorer Section */}
       <Tabs defaultValue="heavy" className="w-full">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
-          <TabsList className="grid grid-cols-2 sm:w-[400px]">
-            <TabsTrigger value="heavy">Heavy Files Registry</TabsTrigger>
-            <TabsTrigger value="directory">Directory Tree</TabsTrigger>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-4">
+          <TabsList className="grid grid-cols-2 w-full sm:w-[400px]">
+            <TabsTrigger value="heavy" className="text-xs">Heavy Registry</TabsTrigger>
+            <TabsTrigger value="directory" className="text-xs">Directory Tree</TabsTrigger>
           </TabsList>
           <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search files by name..."
-              className="pl-8"
+              placeholder="Search files..."
+              className="pl-8 text-sm h-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <TabsContent value="heavy">
+        <Card className="overflow-hidden">
+          <CardContent className="p-0 sm:pt-6">
+            <TabsContent value="heavy" className="m-0">
               <DataTable 
                 columns={fileColumns} 
                 data={filteredFiles.sort((a, b) => b.size - a.size).slice(0, 50)} 
                 onDeleteSelected={handleBulkDelete}
               />
             </TabsContent>
-            <TabsContent value="directory">
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground mb-4">Recursive folder breakdown by total consumed space.</p>
+            <TabsContent value="directory" className="m-0 p-4 sm:p-6 overflow-x-auto">
+              <div className="min-w-[300px]">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-6">Recursive Storage Consumption</p>
                 {folderTree && <FolderNode folder={folderTree} level={0} />}
               </div>
             </TabsContent>
@@ -337,19 +334,19 @@ function FolderNode({ folder, level }: { folder: StorageFolder, level: number })
   const hasChildren = folder.children && folder.children.length > 0;
 
   return (
-    <div className={cn("border-l-2 border-muted pl-4", level === 0 && "border-none pl-0")}>
-      <div className="flex items-center gap-3 py-2 group hover:bg-muted/30 rounded-md px-2 transition-colors">
-        <FolderTreeIcon className="h-4 w-4 text-primary shrink-0" />
-        <div className="flex-1 flex items-center justify-between min-w-0">
-          <span className="font-mono text-sm truncate">{folder.name}</span>
-          <div className="flex items-center gap-4 shrink-0">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase">{folder.fileCount} Files</span>
-            <Badge variant="secondary" className="font-mono text-xs">{sizeText}</Badge>
+    <div className={cn("border-l border-muted/50 ml-2 sm:ml-4", level === 0 && "border-none ml-0")}>
+      <div className="flex items-center gap-2 py-2 group hover:bg-muted/30 rounded-md px-2 transition-colors">
+        <FolderTreeIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+        <div className="flex-1 flex items-center justify-between min-w-0 gap-2">
+          <span className="font-mono text-xs truncate flex-1">{folder.name}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[9px] font-bold text-muted-foreground uppercase hidden sm:inline">{folder.fileCount} Files</span>
+            <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5">{sizeText}</Badge>
           </div>
         </div>
       </div>
       {hasChildren && (
-        <div className="mt-1 space-y-1">
+        <div className="mt-1 space-y-0.5">
           {folder.children!.sort((a, b) => b.totalSize - a.totalSize).map(child => (
             <FolderNode key={child.path} folder={child} level={level + 1} />
           ))}
@@ -357,8 +354,4 @@ function FolderNode({ folder, level }: { folder: StorageFolder, level: number })
       )}
     </div>
   );
-}
-
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(' ');
 }
