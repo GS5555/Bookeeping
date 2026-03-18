@@ -50,18 +50,18 @@ const STORE_ID = 'store_main';
 
 const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
     return (
-        <Card className="xl:col-span-3">
+        <Card className="xl:col-span-3 min-w-0">
             <CardHeader className="pb-4">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                     <div className="space-y-1">
                         <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
                             <HardDrive className="h-5 w-5 text-primary shrink-0" />
                             System Storage Diagnostics
                         </CardTitle>
-                        <CardDescription>Real-time analysis of local cache and cloud restore points.</CardDescription>
+                        <CardDescription className="text-xs">Real-time analysis of local cache and cloud restore points.</CardDescription>
                     </div>
-                    <div className="flex flex-wrap items-center justify-between sm:justify-end gap-4 w-full sm:w-auto border-t sm:border-none pt-4 sm:pt-0">
-                        <Button variant="outline" size="sm" asChild className="h-9 px-3">
+                    <div className="flex flex-wrap items-center justify-between sm:justify-end gap-4 w-full lg:w-auto border-t lg:border-none pt-4 lg:pt-0">
+                        <Button variant="outline" size="sm" asChild className="h-10 px-4 flex-1 sm:flex-none">
                             <Link href="/settings/storage-analytics">
                                 <BarChart3 className="mr-2 h-4 w-4" />
                                 <span className="whitespace-nowrap">Storage Analytics</span>
@@ -81,10 +81,10 @@ const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
                             <Database className="h-4 w-4 text-primary" />
                             <span className="font-semibold">Local Database Cache</span>
                         </div>
-                        <span className="font-mono font-bold">{stats.dbSize} MB</span>
+                        <span className="font-mono font-bold text-xs">{stats.dbSize} MB</span>
                     </div>
                     <Progress value={stats.dbPercent} className="h-2.5" />
-                    <div className="flex justify-between text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+                    <div className="flex justify-between text-[9px] sm:text-[10px] text-muted-foreground font-black uppercase tracking-widest">
                         <span>Collections Performance</span>
                         <span>{stats.dbPercent.toFixed(1)}% Usage</span>
                     </div>
@@ -106,14 +106,14 @@ const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
                                 </Tooltip>
                             </TooltipProvider>
                         </div>
-                        <p className="text-2xl font-black">{stats.restoreSize} MB</p>
+                        <p className="text-2xl font-black leading-none">{stats.restoreSize} MB</p>
                     </div>
                     <div className="p-4 rounded-xl bg-green-50/50 dark:bg-green-950/10 border border-green-100 dark:border-green-900/30 space-y-1">
                         <div className="flex items-center gap-2">
                             <div className="h-2 w-2 rounded-full bg-green-500" />
                             <span className="text-[10px] font-black uppercase tracking-widest text-green-700 dark:text-green-400">Optimization</span>
                         </div>
-                        <p className="text-2xl font-black text-green-700 dark:text-green-400">HEALTHY</p>
+                        <p className="text-2xl font-black text-green-700 dark:text-green-400 leading-none">HEALTHY</p>
                         <p className="text-[10px] font-medium text-green-600/70 uppercase">Within limits</p>
                     </div>
                 </div>
@@ -260,17 +260,17 @@ export default function SettingsPage() {
           onSuccess={handleSuccess}
         />
         
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
+        <Card className="min-w-0">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
             <div>
-                <CardTitle className="text-xl">Expense Types</CardTitle>
-                <CardDescription>Manage types of expenses.</CardDescription>
+                <CardTitle className="text-xl leading-none">Expense Types</CardTitle>
+                <CardDescription className="text-xs mt-1">Manage types of expenses.</CardDescription>
             </div>
             <Button size="sm" onClick={() => handleOpenDialog('Expense Type')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4 overflow-hidden">
             <DataTable 
                 columns={basicColumns({ 
                     onEdit: (item) => handleOpenDialog('Expense Type', item), 
@@ -280,17 +280,17 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
+        <Card className="min-w-0">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
             <div>
-                <CardTitle className="text-xl">Categories</CardTitle>
-                <CardDescription>Manage expense and product categories.</CardDescription>
+                <CardTitle className="text-xl leading-none">Categories</CardTitle>
+                <CardDescription className="text-xs mt-1">Manage expense and product categories.</CardDescription>
             </div>
             <Button size="sm" onClick={() => handleOpenDialog('Category')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4 overflow-hidden">
             <DataTable 
                 columns={columns({ 
                     onEdit: (item) => handleOpenDialog('Category', item), 
@@ -300,17 +300,17 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
+        <Card className="min-w-0">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
             <div>
-                <CardTitle className="text-xl">Sub-Categories</CardTitle>
-                <CardDescription>Manage detailed sub-categories.</CardDescription>
+                <CardTitle className="text-xl leading-none">Sub-Categories</CardTitle>
+                <CardDescription className="text-xs mt-1">Manage detailed sub-categories.</CardDescription>
             </div>
              <Button size="sm" onClick={() => handleOpenDialog('Sub-Category')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4 overflow-hidden">
              <DataTable 
                 columns={subCategoryColumns(categories || [])({ 
                     onEdit: (item) => handleOpenDialog('Sub-Category', item), 
@@ -320,17 +320,17 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
+        <Card className="min-w-0">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
              <div>
-                <CardTitle className="text-xl">Brands</CardTitle>
-                <CardDescription>Manage product and item brands.</CardDescription>
+                <CardTitle className="text-xl leading-none">Brands</CardTitle>
+                <CardDescription className="text-xs mt-1">Manage product and item brands.</CardDescription>
             </div>
              <Button size="sm" onClick={() => handleOpenDialog('Brand')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4 overflow-hidden">
              <DataTable 
                 columns={basicColumns({ 
                     onEdit: (item) => handleOpenDialog('Brand', item), 
@@ -340,17 +340,17 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
+        <Card className="min-w-0">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
             <div>
-                <CardTitle className="text-xl">Colors</CardTitle>
-                <CardDescription>Manage product color options.</CardDescription>
+                <CardTitle className="text-xl leading-none">Colors</CardTitle>
+                <CardDescription className="text-xs mt-1">Manage product color options.</CardDescription>
             </div>
             <Button size="sm" onClick={() => handleOpenDialog('Color')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4 overflow-hidden">
             <DataTable 
                 columns={basicColumns({ 
                     onEdit: (item) => handleOpenDialog('Color', item), 
@@ -360,17 +360,17 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-         <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
+         <Card className="min-w-0">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
             <div>
-                <CardTitle className="text-xl">Courier Partners</CardTitle>
-                <CardDescription>Manage courier service options.</CardDescription>
+                <CardTitle className="text-xl leading-none">Courier Partners</CardTitle>
+                <CardDescription className="text-xs mt-1">Manage courier service options.</CardDescription>
             </div>
             <Button size="sm" onClick={() => handleOpenDialog('Courier')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4 overflow-hidden">
             <DataTable 
                 columns={courierColumns({ 
                     onEdit: (item) => handleOpenDialog('Courier', item as Courier), 
