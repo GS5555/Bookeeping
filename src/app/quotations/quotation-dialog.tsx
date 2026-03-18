@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Quotation, Product, Customer } from "@/lib/types";
+import { Quotation, Product, Customer, InventoryItem } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { PlusCircle, Trash2, Edit } from "lucide-react";
+import { PlusCircle, Trash2, Edit, Package } from "lucide-react";
 import { addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMemo, useEffect, useState } from "react";
@@ -33,6 +33,8 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
 import { toast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const STORE_ID = 'store_main';
 
@@ -73,7 +75,7 @@ const ReadOnlyField = ({ label, value }: { label: string, value: React.ReactNode
     </div>
 );
 
-export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: QuotationDialogProps) {
+export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onConvertToSale }: QuotationDialogProps) {
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const [isEditing, setIsEditing] = useState(!quotation?.id);
@@ -83,6 +85,9 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
   
   const productsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'products'), orderBy('name')) : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
+
+  const inventoryRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'inventoryItems') : null, [firestore]);
+  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
 
   const sortedProducts = useMemo(() => [...(products || [])].sort((a, b) => a.name.localeCompare(b.name)), [products]);
   const sortedCustomers = useMemo(() => [...(customers || [])].sort((a, b) => a.name.localeCompare(b.name)), [customers]);
@@ -139,7 +144,7 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
     } else {
         setValue(`items.${index}.productId`, product.id); 
         setValue(`items.${index}.productName`, product.name); 
-        setValue(`items.${index}.unitPrice`, product.sellingPrice); 
+        setValue(`items.${index}.unitPrice`, product.finalPrice || product.sellingPrice); 
         setValue(`items.${index}.hsnCode`, product.hsnCode); 
         setValue(`items.${index}.gstRate`, product.gstRate); 
         
@@ -185,13 +190,16 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="max-w-[95vw] sm:max-w-4xl max-h-[95vh] flex flex-col p-0" 
+        className="max-w-[95vw] sm:max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden" 
         onInteractOutside={(e) => e.preventDefault()}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogHeader className="p-6 border-b">
           <div className="flex justify-between items-center pr-6">
-            <div><DialogTitle>{quotation?.id ? "View Quotation" : "New Quotation"}</DialogTitle></div>
+            <div>
+                <DialogTitle>{quotation?.id ? "View Quotation" : "New Quotation"}</DialogTitle>
+                <DialogDescription>Create a professional proposal for your customer.</DialogDescription>
+            </div>
             {quotation?.id && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
               <Button onClick={() => setIsEditing(true)} size="sm"><Edit className="mr-2 h-4 w-4" /> Edit</Button>
             )}
@@ -223,42 +231,65 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
             </div>
              <div className="space-y-4">
                 <div className="flex items-center justify-between border-b pb-2">
-                    <Label className="text-lg font-black uppercase tracking-tight">Items</Label>
+                    <Label className="text-lg font-black uppercase tracking-tight">Line Items</Label>
                     {isEditing && <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>}
                 </div>
-                {fields.map((field, index) => (
-                    <Card key={field.id} className="border-2 shadow-sm bg-accent/5 overflow-visible">
-                        <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
-                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
-                            {isEditing && <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>}
-                        </CardHeader>
-                        <CardContent className="p-4 grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-3 items-end overflow-visible">
-                            {isEditing ? (
-                                <FormField control={control} name={`items.${index}.productId`} render={({ field: f }) => (
-                                    <FormItem className="overflow-visible">
-                                        <Combobox 
-                                            options={sortedProducts?.map(p => ({ 
-                                                value: p.id, 
-                                                label: `${p.name} (${p.sku})`,
-                                                searchTerms: `${p.name} ${p.sku}`.toLowerCase()
-                                            })) || []} 
-                                            value={f.value || ""} 
-                                            onChange={(v) => handleProductSelect(v, index)} 
-                                            placeholder="Select Product" 
-                                            searchPlaceholder="Type name or SKU..." 
-                                            notFoundText="No product found." 
-                                        />
-                                    </FormItem>
-                                )}/>
-                            ) : <ReadOnlyField label="Product" value={getValues(`items.${index}.productName`)} />}
-                            {isEditing ? <FormField control={control} name={`items.${index}.quantity`} render={({ field: f }) => <FormItem><FormControl><Input type="number" {...f} className="h-10"/></FormControl></FormItem>} /> : <ReadOnlyField label="Qty" value={getValues(`items.${index}.quantity`)} />}
-                            {isEditing ? <FormField control={control} name={`items.${index}.unitPrice`} render={({ field: f }) => <FormItem><FormControl><Input type="number" {...f} className="h-10 font-black"/></FormControl></FormItem>} /> : <ReadOnlyField label="Price" value={`₹${getValues(`items.${index}.unitPrice`)?.toLocaleString()}`} />}
-                        </CardContent>
-                    </Card>
-                ))}
+                {fields.map((field, index) => {
+                    const selectedProdId = watchedItems[index]?.productId;
+                    const product = products?.find(p => p.id === selectedProdId);
+                    const stockItem = inventory?.find(i => i.productId === selectedProdId);
+                    const currentStock = stockItem?.stockBatches?.reduce((sum, b) => sum + b.quantity, 0) || 0;
+
+                    return (
+                        <Card key={field.id} className={cn("border-2 shadow-sm overflow-visible", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-accent/5")}>
+                            <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
+                                    {product && (
+                                        <div className="flex gap-1">
+                                            <Badge className="text-[9px] font-black h-5 bg-blue-100 text-blue-700 border-blue-200 uppercase">SKU: {product.sku}</Badge>
+                                            <Badge className={cn("text-[9px] font-black h-5 uppercase", currentStock < 10 ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")}>
+                                                Stock: {currentStock}
+                                            </Badge>
+                                        </div>
+                                    )}
+                                </div>
+                                {isEditing && <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>}
+                            </CardHeader>
+                            <CardContent className="p-4 grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-3 items-end overflow-visible">
+                                <div className="md:col-span-1 overflow-visible">
+                                    {isEditing ? (
+                                        <FormField control={control} name={`items.${index}.productId`} render={({ field: f }) => (
+                                            <FormItem className="overflow-visible">
+                                                <Combobox 
+                                                    options={sortedProducts?.map(p => ({ 
+                                                        value: p.id, 
+                                                        label: `${p.name} (${p.sku})`,
+                                                        searchTerms: `${p.name} ${p.sku}`.toLowerCase()
+                                                    })) || []} 
+                                                    value={f.value || ""} 
+                                                    onChange={(v) => handleProductSelect(v, index)} 
+                                                    placeholder="Select Product" 
+                                                    searchPlaceholder="Type name or SKU..." 
+                                                    notFoundText="No product found." 
+                                                />
+                                            </FormItem>
+                                        )}/>
+                                    ) : <ReadOnlyField label="Product" value={getValues(`items.${index}.productName`)} />}
+                                </div>
+                                <div className="md:col-span-1">
+                                    {isEditing ? <FormField control={control} name={`items.${index}.quantity`} render={({ field: f }) => <FormItem><FormControl><Input type="number" {...f} className="h-10 border-muted-foreground/50"/></FormControl></FormItem>} /> : <ReadOnlyField label="Qty" value={getValues(`items.${index}.quantity`)} />}
+                                </div>
+                                <div className="md:col-span-1">
+                                    {isEditing ? <FormField control={control} name={`items.${index}.unitPrice`} render={({ field: f }) => <FormItem><FormControl><Input type="number" {...f} className="h-10 font-black border-muted-foreground/50"/></FormControl></FormItem>} /> : <ReadOnlyField label="Price" value={`₹${getValues(`items.${index}.unitPrice`)?.toLocaleString()}`} />}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                })}
             </div>
             <div className="rounded-2xl border-2 border-primary/20 p-6 sm:p-8 bg-primary/5 shadow-inner flex justify-between items-center">
-                <span className="text-xl sm:text-2xl font-black uppercase tracking-tighter">Est. Total</span>
+                <span className="text-xl sm:text-2xl font-black uppercase tracking-tighter">Estimated Total</span>
                 <span className="text-3xl sm:text-4xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
             </div>
           </form>

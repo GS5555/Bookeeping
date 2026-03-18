@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { PurchaseOrder, Product, Vendor, Courier } from "@/lib/types";
+import { PurchaseOrder, Product, Vendor, Courier, InventoryItem } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Truck } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Truck, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,6 +36,7 @@ import { collection, query, orderBy } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
+import { Badge } from "@/components/ui/badge";
 
 const STORE_ID = 'store_main';
 
@@ -45,6 +46,7 @@ const poItemSchema = z.object({
     unitPrice: z.coerce.number().min(0, "Unit price cannot be negative.").default(0),
     hsnCode: z.string().optional(),
     gstRate: z.number().default(0),
+    productName: z.string().optional(),
 });
 
 const formSchema = z.object({
@@ -78,6 +80,9 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
 
   const productsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'products'), orderBy('name')) : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
+
+  const inventoryRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'inventoryItems') : null, [firestore]);
+  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
 
   const couriersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'couriers'), orderBy('name')) : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersRef);
@@ -144,6 +149,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
         toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
     } else {
         setValue(`items.${index}.productId`, product.id);
+        setValue(`items.${index}.productName`, product.name);
         setValue(`items.${index}.unitPrice`, product.purchasePrice);
         setValue(`items.${index}.hsnCode`, product.hsnCode);
         setValue(`items.${index}.gstRate`, product.gstRate);
@@ -210,7 +216,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0" 
+        className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden" 
         onInteractOutside={(e) => e.preventDefault()}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
@@ -253,40 +259,57 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     <FormLabel className="text-lg font-black uppercase tracking-tight">Line Items</FormLabel>
                     <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>
                 </div>
-                {fields.map((field, index) => (
-                    <Card key={field.id} className="border-2 shadow-sm bg-accent/5 overflow-visible">
-                        <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
-                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
-                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
-                        </CardHeader>
-                        <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end overflow-visible">
-                            <div className="sm:col-span-6 overflow-visible">
-                                <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
-                                    <FormItem className="overflow-visible">
-                                        <Combobox
-                                            options={sortedProducts?.map(p => ({ 
-                                                value: p.id, 
-                                                label: `${p.name} (${p.sku})`,
-                                                searchTerms: `${p.name} ${p.sku}`.toLowerCase()
-                                            })) || []}
-                                            value={f.value || ''}
-                                            onChange={(val) => handleProductSelect(val, index)}
-                                            placeholder="Search products..."
-                                            searchPlaceholder="Type name or SKU..."
-                                            notFoundText="No product found."
-                                        />
-                                    </FormItem>
-                                )}/>
-                            </div>
-                            <div className="sm:col-span-2">
-                                <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10 border-muted-foreground/50 bg-background" />} />
-                            </div>
-                            <div className="sm:col-span-4">
-                                <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50 bg-background" />} />
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+                {fields.map((field, index) => {
+                    const selectedProdId = watchedItems[index]?.productId;
+                    const product = products?.find(p => p.id === selectedProdId);
+                    const stockItem = inventory?.find(i => i.productId === selectedProdId);
+                    const currentStock = stockItem?.stockBatches?.reduce((sum, b) => sum + b.quantity, 0) || 0;
+
+                    return (
+                        <Card key={field.id} className={cn("border-2 shadow-sm overflow-visible", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
+                            <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
+                                    {product && (
+                                        <div className="flex gap-1">
+                                            <Badge className="text-[9px] font-black h-5 bg-blue-100 text-blue-700 border-blue-200 uppercase">SKU: {product.sku}</Badge>
+                                            <Badge className={cn("text-[9px] font-black h-5 uppercase", currentStock < 10 ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")}>
+                                                Stock: {currentStock}
+                                            </Badge>
+                                        </div>
+                                    )}
+                                </div>
+                                <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
+                            </CardHeader>
+                            <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end overflow-visible">
+                                <div className="sm:col-span-6 overflow-visible">
+                                    <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
+                                        <FormItem className="overflow-visible">
+                                            <Combobox
+                                                options={sortedProducts?.map(p => ({ 
+                                                    value: p.id, 
+                                                    label: `${p.name} (${p.sku})`,
+                                                    searchTerms: `${p.name} ${p.sku}`.toLowerCase()
+                                                })) || []}
+                                                value={f.value || ''}
+                                                onChange={(val) => handleProductSelect(val, index)}
+                                                placeholder="Search products..."
+                                                searchPlaceholder="Type name or SKU..."
+                                                notFoundText="No product found."
+                                            />
+                                        </FormItem>
+                                    )}/>
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10 border-muted-foreground/50 bg-background" />} />
+                                </div>
+                                <div className="sm:col-span-4">
+                                    <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50 bg-background" />} />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                })}
             </div>
 
             <div className="space-y-4 pt-4 border-t">

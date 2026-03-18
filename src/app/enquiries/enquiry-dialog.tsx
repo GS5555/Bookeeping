@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Enquiry, Customer, Product, EnquiryStatus } from "@/lib/types";
+import { Enquiry, Customer, Product, EnquiryStatus, InventoryItem } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -27,13 +27,15 @@ import { useMemo, useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
-import { PlusCircle, Trash2, Edit } from "lucide-react";
+import { PlusCircle, Trash2, Edit, Package } from "lucide-react";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const STORE_ID = 'store_main';
 
@@ -80,6 +82,9 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   
   const productsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'products'), orderBy('name')) : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
+
+  const inventoryRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'inventoryItems') : null, [firestore]);
+  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
 
   const statusesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'enquiryStatuses'), orderBy('name')) : null, [firestore]);
   const { data: statuses } = useCollection<EnquiryStatus>(statusesRef);
@@ -210,39 +215,56 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                       <Label className="text-lg font-black uppercase tracking-tight">Interested Products</Label>
                       {isEditing && <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>}
                   </div>
-                  {fields.map((field, index) => (
-                      <Card key={field.id} className="border-2 shadow-sm bg-accent/5 overflow-visible">
-                          <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
-                              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Item #{index + 1}</span>
-                              {isEditing && <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>}
-                          </CardHeader>
-                          <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end overflow-visible">
-                              <div className="sm:col-span-10 overflow-visible">
-                                  {isEditing ? (
-                                      <FormField control={control} name={`items.${index}.productId`} render={({ field: f }) => (
-                                          <FormItem className="overflow-visible">
-                                              <Combobox
-                                                  options={sortedProducts?.map(p => ({ 
-                                                      value: p.id, 
-                                                      label: `${p.name} (${p.sku})`,
-                                                      searchTerms: `${p.name} ${p.sku}`.toLowerCase()
-                                                  })) || []}
-                                                  value={f.value || ""}
-                                                  onChange={(val) => handleProductSelect(val, index)}
-                                                  placeholder="Select Product"
-                                                  searchPlaceholder="Type name or SKU..."
-                                                  notFoundText="No product found."
-                                              />
-                                          </FormItem>
-                                      )}/>
-                                  ) : <ReadOnlyField label="Product" value={getValues(`items.${index}.productName`)} />}
-                              </div>
-                              <div className="sm:col-span-2">
-                                  {isEditing ? <FormField control={control} name={`items.${index}.quantity`} render={({ field: f }) => <FormItem><FormControl><Input type="number" {...f} className="h-10" /></FormControl></FormItem>} /> : <ReadOnlyField label="Qty" value={getValues(`items.${index}.quantity`)} />}
-                              </div>
-                          </CardContent>
-                      </Card>
-                  ))}
+                  {fields.map((field, index) => {
+                      const selectedProdId = watchedItems[index]?.productId;
+                      const product = products?.find(p => p.id === selectedProdId);
+                      const stockItem = inventory?.find(i => i.productId === selectedProdId);
+                      const currentStock = stockItem?.stockBatches?.reduce((sum, b) => sum + b.quantity, 0) || 0;
+
+                      return (
+                        <Card key={field.id} className={cn("border-2 shadow-sm overflow-visible", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-accent/5")}>
+                            <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Item #{index + 1}</span>
+                                    {product && (
+                                        <div className="flex gap-1">
+                                            <Badge className="text-[9px] font-black h-5 bg-blue-100 text-blue-700 border-blue-200 uppercase">SKU: {product.sku}</Badge>
+                                            <Badge className={cn("text-[9px] font-black h-5 uppercase", currentStock < 10 ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")}>
+                                                Stock: {currentStock}
+                                            </Badge>
+                                        </div>
+                                    )}
+                                </div>
+                                {isEditing && <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>}
+                            </CardHeader>
+                            <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end overflow-visible">
+                                <div className="sm:col-span-10 overflow-visible">
+                                    {isEditing ? (
+                                        <FormField control={control} name={`items.${index}.productId`} render={({ field: f }) => (
+                                            <FormItem className="overflow-visible">
+                                                <Combobox
+                                                    options={sortedProducts?.map(p => ({ 
+                                                        value: p.id, 
+                                                        label: `${p.name} (${p.sku})`,
+                                                        searchTerms: `${p.name} ${p.sku}`.toLowerCase()
+                                                    })) || []}
+                                                    value={f.value || ""}
+                                                    onChange={(val) => handleProductSelect(val, index)}
+                                                    placeholder="Select Product"
+                                                    searchPlaceholder="Type name or SKU..."
+                                                    notFoundText="No product found."
+                                                />
+                                            </FormItem>
+                                        )}/>
+                                    ) : <ReadOnlyField label="Product" value={getValues(`items.${index}.productName`)} />}
+                                </div>
+                                <div className="sm:col-span-2">
+                                    {isEditing ? <FormField control={control} name={`items.${index}.quantity`} render={({ field: f }) => <FormItem><FormControl><Input type="number" {...f} className="h-10" /></FormControl></FormItem>} /> : <ReadOnlyField label="Qty" value={getValues(`items.${index}.quantity`)} />}
+                                </div>
+                            </CardContent>
+                        </Card>
+                      )
+                  })}
               </div>
             </form>
           </Form>
