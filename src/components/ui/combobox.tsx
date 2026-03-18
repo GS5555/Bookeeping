@@ -59,9 +59,13 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+      <PopoverContent 
+        className="w-[--radix-popover-trigger-width] p-0" 
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <Command shouldFilter={true}>
+          <CommandInput placeholder={searchPlaceholder} autoFocus />
           <CommandList className="max-h-[300px] overflow-y-auto">
             <CommandEmpty>{notFoundText}</CommandEmpty>
             <CommandGroup>

@@ -7,14 +7,13 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Sale, Customer, Product, Coupon, InventoryItem, Brand, HandPreference, Warranty, Store, Category, SubCategory, Courier, Address } from "@/lib/types";
+import { Sale, Customer, Product, Coupon, Brand, Courier, Address, Category, SubCategory } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Search, MapPin, Truck, Check } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Search, MapPin, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -64,14 +63,12 @@ const formSchema = z.object({
   storeId: z.string().min(1, "Store is required."),
   saleDate: z.date({ required_error: "Sale date is required." }),
   saleType: z.enum(["GST", "Cash"], { required_error: "Sale type is required." }),
-  warrantyId: z.string().optional(),
   items: z.array(saleItemSchema).min(1, "At least one product must be selected."),
   useDifferentShipping: z.boolean().default(false),
   shippingAddressId: z.string().optional(),
   couponCode: z.string().optional(),
   manualDiscountPercentage: z.coerce.number().min(0).max(100).default(0),
   paymentMethod: z.enum(["NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Cash", "Other", "Sponsored", "Replacement"]),
-  paymentDetails: z.string().optional(),
   invoiceStatus: z.enum(["Paid", "Unpaid", "Partially Paid"]),
   amountPaid: z.coerce.number().min(0).optional(),
   courierCompany: z.string().optional(),
@@ -121,8 +118,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
   const { data: subCategories } = useCollection<SubCategory>(subCategoriesRef);
 
-  const sortedProducts = useMemo(() => allProducts?.sort((a, b) => a.name.localeCompare(b.name)), [allProducts]);
-  const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
+  const sortedProducts = useMemo(() => [...(allProducts || [])].sort((a, b) => a.name.localeCompare(b.name)), [allProducts]);
+  const sortedCustomers = useMemo(() => [...(customers || [])].sort((a, b) => a.name.localeCompare(b.name)), [customers]);
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(formSchema),
@@ -192,8 +189,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         });
     }
     const rawTotal = taxableValue + cgstVal + sgstVal + igstVal;
-    const finalRounded = Math.round(rawTotal);
-    return { subTotal: subTotalVal, totalDiscount: totalDiscountValue, totalAmount: finalRounded, cgstAmount: cgstVal, sgstAmount: sgstVal, igstAmount: igstVal };
+    return { subTotal: subTotalVal, totalDiscount: totalDiscountValue, totalAmount: Math.round(rawTotal), cgstAmount: cgstVal, sgstAmount: sgstVal, igstAmount: igstVal };
   }, [watchedItems, watchedCouponCode, watchedManualDiscount, watchedSaleType, watchedStoreId, primaryAddress, coupons, stores]);
 
   const balanceDue = useMemo(() => {
@@ -279,9 +275,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                             <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                                        <Command>
-                                            <CommandInput placeholder="Type name..." />
+                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                        <Command shouldFilter={true}>
+                                            <CommandInput placeholder="Type name..." autoFocus />
                                             <CommandList>
                                                 <CommandEmpty>No customer found.</CommandEmpty>
                                                 <CommandGroup>
@@ -340,19 +336,17 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                             </Popover>
                         </FormItem>
                     )} />
-                    <div className="grid grid-cols-2 gap-4">
-                        <FormField control={form.control} name="saleType" render={({ field }) => (
-                            <FormItem className="space-y-3">
-                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice Type</FormLabel>
-                                <FormControl>
-                                    <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
-                                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="GST" /></FormControl><FormLabel className="font-normal">GST</FormLabel></FormItem>
-                                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-normal">Cash</FormLabel></FormItem>
-                                    </RadioGroup>
-                                </FormControl>
-                            </FormItem>
-                        )} />
-                    </div>
+                    <FormField control={form.control} name="saleType" render={({ field }) => (
+                        <FormItem className="space-y-3">
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice Type</FormLabel>
+                            <FormControl>
+                                <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
+                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="GST" /></FormControl><FormLabel className="font-normal">GST</FormLabel></FormItem>
+                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-normal">Cash</FormLabel></FormItem>
+                                </RadioGroup>
+                            </FormControl>
+                        </FormItem>
+                    )} />
                 </div>
             </div>
             <div className="space-y-4">
@@ -389,9 +383,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                                       <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                                                   </Button>
                                               </PopoverTrigger>
-                                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                                                  <Command>
-                                                      <CommandInput placeholder="Search Name or SKU..." />
+                                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                                  <Command shouldFilter={true}>
+                                                      <CommandInput placeholder="Search Name or SKU..." autoFocus />
                                                       <CommandList>
                                                           <CommandEmpty>No results.</CommandEmpty>
                                                           <CommandGroup>

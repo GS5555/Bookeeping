@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { PurchaseOrder, Product, Vendor, Store, Courier, Category, SubCategory, HandPreference } from "@/lib/types";
+import { PurchaseOrder, Product, Vendor, Courier } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +31,6 @@ import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMemo, useEffect, useState } from "react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Separator } from "@/components/ui/separator";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
@@ -87,9 +86,9 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
   const couriersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'couriers'), orderBy('name')) : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersRef);
 
-  const sortedVendors = useMemo(() => vendors?.sort((a, b) => a.name.localeCompare(b.name)), [vendors]);
-  const sortedProducts = useMemo(() => products?.sort((a, b) => a.name.localeCompare(b.name)), [products]);
-  const sortedCouriers = useMemo(() => couriers?.sort((a, b) => a.name.localeCompare(b.name)), [couriers]);
+  const sortedVendors = useMemo(() => [...(vendors || [])].sort((a, b) => a.name.localeCompare(b.name)), [vendors]);
+  const sortedProducts = useMemo(() => [...(products || [])].sort((a, b) => a.name.localeCompare(b.name)), [products]);
+  const sortedCouriers = useMemo(() => [...(couriers || [])].sort((a, b) => a.name.localeCompare(b.name)), [couriers]);
   
   const form = useForm<POFormValues>({
     resolver: zodResolver(formSchema),
@@ -110,7 +109,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
-  const { setValue, reset, watch, getValues } = form;
+  const { setValue, reset, watch } = form;
 
   const watchedItems = watch("items") || [];
   const watchedPurchaseType = watch("purchaseType");
@@ -215,14 +214,29 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     <FormItem>
                         <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Vendor <span className="text-destructive font-black">*</span></FormLabel>
                         <FormControl>
-                            <Combobox
-                                options={sortedVendors?.map(v => ({ value: v.id, label: v.name })) || []}
-                                value={field.value}
-                                onChange={field.onChange}
-                                placeholder="Select a vendor"
-                                searchPlaceholder="Search vendors..."
-                                notFoundText="No vendor found."
-                            />
+                            <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50">
+                                        <span className="truncate">{field.value ? sortedVendors?.find(v => v.id === field.value)?.name : "Select a vendor"}</span>
+                                        <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                    <Command shouldFilter={true}>
+                                        <CommandInput placeholder="Type name..." autoFocus />
+                                        <CommandList>
+                                            <CommandEmpty>No vendor found.</CommandEmpty>
+                                            <CommandGroup>
+                                                {sortedVendors?.map(v => (
+                                                    <CommandItem key={v.id} value={v.name} onSelect={() => { field.onChange(v.id); setCustomerSearchOpen(false); }}>
+                                                        <span>{v.name}</span>
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -262,9 +276,9 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                                     <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                                                <Command>
-                                                    <CommandInput placeholder="Search Name or SKU..." />
+                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                                <Command shouldFilter={true}>
+                                                    <CommandInput placeholder="Search Name or SKU..." autoFocus />
                                                     <CommandList>
                                                         <CommandEmpty>No results.</CommandEmpty>
                                                         <CommandGroup>

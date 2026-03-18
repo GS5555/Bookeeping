@@ -30,6 +30,8 @@ import { collection, query, orderBy } from "firebase/firestore";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Edit, Search } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 const STORE_ID = 'store_main';
 
@@ -62,6 +64,8 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const [isEditing, setIsEditing] = useState(!repair);
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [productSearchOpen, setProductSearchOpen] = useState(false);
   
   const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
   const { data: customers } = useCollection<Customer>(customersRef);
@@ -69,14 +73,14 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
   const productsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'products'), orderBy('name')) : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
 
-  const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
-  const sortedProducts = useMemo(() => products?.sort((a, b) => a.name.localeCompare(b.name)), [products]);
+  const sortedCustomers = useMemo(() => [...(customers || [])].sort((a, b) => a.name.localeCompare(b.name)), [customers]);
+  const sortedProducts = useMemo(() => [...(products || [])].sort((a, b) => a.name.localeCompare(b.name)), [products]);
 
   const form = useForm<RepairFormValues>({
     resolver: zodResolver(formSchema),
   });
 
-  const { getValues, reset } = form;
+  const { getValues, reset, setValue } = form;
 
   useEffect(() => {
     if(open) {
@@ -122,14 +126,29 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                   <FormItem>
                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer <span className="text-destructive font-black">*</span></FormLabel>
                     <FormControl>
-                        <Combobox
-                            options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
-                            value={field.value}
-                            onChange={field.onChange}
-                            placeholder="Select a customer"
-                            searchPlaceholder="Search customers..."
-                            notFoundText="No customer found."
-                        />
+                        <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50">
+                                    <span className="truncate">{field.value ? sortedCustomers?.find(c => c.id === field.value)?.name : "Search customers..."}</span>
+                                    <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                <Command shouldFilter={true}>
+                                    <CommandInput placeholder="Type name..." autoFocus />
+                                    <CommandList>
+                                        <CommandEmpty>No customer found.</CommandEmpty>
+                                        <CommandGroup>
+                                            {sortedCustomers?.map(c => (
+                                                <CommandItem key={c.id} value={c.name} onSelect={() => { setValue("customerId", c.id); setCustomerSearchOpen(false); }}>
+                                                    <span>{c.name}</span>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -138,14 +157,29 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                   <FormItem>
                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Product <span className="text-destructive font-black">*</span></FormLabel>
                     <FormControl>
-                        <Combobox
-                            options={sortedProducts?.map(p => ({ value: p.id, label: p.name })) || []}
-                            value={field.value}
-                            onChange={field.onChange}
-                            placeholder="Select a product"
-                            searchPlaceholder="Search products..."
-                            notFoundText="No product found."
-                        />
+                        <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50">
+                                    <span className="truncate">{field.value ? sortedProducts?.find(p => p.id === field.value)?.name : "Search products..."}</span>
+                                    <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                <Command shouldFilter={true}>
+                                    <CommandInput placeholder="Type name or SKU..." autoFocus />
+                                    <CommandList>
+                                        <CommandEmpty>No product found.</CommandEmpty>
+                                        <CommandGroup>
+                                            {sortedProducts?.map(p => (
+                                                <CommandItem key={p.id} value={`${p.name} ${p.sku}`} onSelect={() => { setValue("productId", p.id); setProductSearchOpen(false); }}>
+                                                    <div className="flex flex-col"><span className="font-bold">{p.name}</span><span className="text-[10px] opacity-70">SKU: {p.sku}</span></div>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
