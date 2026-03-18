@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -302,6 +303,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
       storeId: data.storeId,
       customerId: customer.id,
       customerName: customer.name,
+      customerGstNumber: customer.gstNumber || '',
       billingAddress,
       shippingAddress,
       saleDate: data.saleDate.toISOString(),
@@ -368,12 +370,22 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
 
                     {selectedCustomer && (
                         <div className="p-4 rounded-lg bg-muted/30 border space-y-2 animate-in fade-in duration-300">
-                            <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-widest">
-                                <MapPin className="h-3 w-3" /> Billing Address
+                            <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-widest">
+                                        <MapPin className="h-3 w-3" /> Billing Address
+                                    </div>
+                                    <p className="text-sm font-medium">
+                                        {primaryAddress?.street}, {primaryAddress?.city}, {primaryAddress?.state} {primaryAddress?.zip}
+                                    </p>
+                                </div>
+                                {selectedCustomer.gstNumber && (
+                                    <div className="text-right">
+                                        <div className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">GSTIN</div>
+                                        <Badge variant="outline" className="font-mono text-xs border-primary/30 bg-primary/5 text-primary">{selectedCustomer.gstNumber}</Badge>
+                                    </div>
+                                )}
                             </div>
-                            <p className="text-sm font-medium">
-                                {primaryAddress?.street}, {primaryAddress?.city}, {primaryAddress?.state} {primaryAddress?.zip}
-                            </p>
                             <div className="pt-2 flex items-center gap-2">
                                 <FormField control={form.control} name="useDifferentShipping" render={({ field }) => (
                                     <FormItem className="flex flex-row items-center space-x-2 space-y-0">

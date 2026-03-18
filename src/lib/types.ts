@@ -123,6 +123,7 @@ export interface Sale {
   saleType: 'GST' | 'Cash';
   customerId: string;
   customerName: string;
+  customerGstNumber?: string;
   billingAddress: Address;
   shippingAddress?: Address;
   items: SaleItem[];

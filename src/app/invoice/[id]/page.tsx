@@ -33,7 +33,7 @@ const AddressBlock = ({ label, name, address, contact }: { label: string, name: 
             <div className="mt-2 text-xs text-gray-600 font-medium">
                 {contact.email && <p>Email: {contact.email}</p>}
                 {contact.phone && <p>Phone: {contact.phone}</p>}
-                {contact.gst && <p>GSTIN: {contact.gst}</p>}
+                {contact.gst && <p className="font-black text-gray-900 mt-1">GSTIN: {contact.gst}</p>}
             </div>
         </div>
     </div>
@@ -125,7 +125,11 @@ export default function InvoicePage() {
                             label="BILLED TO" 
                             name={customer.name} 
                             address={sale.billingAddress} 
-                            contact={{ email: customer.email, phone: customer.phone, gst: customer.gstNumber }} 
+                            contact={{ 
+                                email: customer.email, 
+                                phone: customer.phone, 
+                                gst: sale.customerGstNumber || customer.gstNumber 
+                            }} 
                         />
                     )}
                     {sale.shippingAddress && sale.shippingAddress.id !== sale.billingAddress.id ? (
