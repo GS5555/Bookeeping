@@ -51,50 +51,50 @@ const STORE_ID = 'store_main';
 const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
     return (
         <Card className="xl:col-span-3">
-            <CardHeader>
-                <div className="flex items-center justify-between">
-                    <div>
-                        <CardTitle className="flex items-center gap-2">
-                            <HardDrive className="h-5 w-5 text-primary" />
+            <CardHeader className="pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="space-y-1">
+                        <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
+                            <HardDrive className="h-5 w-5 text-primary shrink-0" />
                             System Storage Diagnostics
                         </CardTitle>
                         <CardDescription>Real-time analysis of local cache and cloud restore points.</CardDescription>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <Button variant="outline" size="sm" asChild>
+                    <div className="flex flex-wrap items-center justify-between sm:justify-end gap-4 w-full sm:w-auto border-t sm:border-none pt-4 sm:pt-0">
+                        <Button variant="outline" size="sm" asChild className="h-9 px-3">
                             <Link href="/settings/storage-analytics">
                                 <BarChart3 className="mr-2 h-4 w-4" />
-                                Storage Analytics
+                                <span className="whitespace-nowrap">Storage Analytics</span>
                             </Link>
                         </Button>
-                        <div className="text-right">
-                            <p className="text-2xl font-black tracking-tighter">{stats.total} MB</p>
-                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Total Footprint</p>
+                        <div className="text-right shrink-0">
+                            <p className="text-2xl font-black tracking-tighter leading-none">{stats.total} MB</p>
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mt-1">Total Footprint</p>
                         </div>
                     </div>
                 </div>
             </CardHeader>
             <CardContent className="space-y-6">
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <div className="flex justify-between text-sm mb-1">
                         <div className="flex items-center gap-2">
                             <Database className="h-4 w-4 text-primary" />
                             <span className="font-semibold">Local Database Cache</span>
                         </div>
-                        <span className="font-mono">{stats.dbSize} MB</span>
+                        <span className="font-mono font-bold">{stats.dbSize} MB</span>
                     </div>
-                    <Progress value={stats.dbPercent} className="h-2" />
-                    <div className="flex justify-between text-[10px] text-muted-foreground font-medium uppercase tracking-widest">
+                    <Progress value={stats.dbPercent} className="h-2.5" />
+                    <div className="flex justify-between text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
                         <span>Collections Performance</span>
                         <span>{stats.dbPercent.toFixed(1)}% Usage</span>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    <div className="p-4 rounded-lg bg-muted/50 border space-y-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <div className="p-4 rounded-xl bg-muted/50 border border-border/50 space-y-1">
                         <div className="flex items-center gap-2">
                             <HardDrive className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-xs font-bold uppercase tracking-widest">Restore Points</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest">Restore Points</span>
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -106,15 +106,15 @@ const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
                                 </Tooltip>
                             </TooltipProvider>
                         </div>
-                        <p className="text-xl font-black">{stats.restoreSize} MB</p>
+                        <p className="text-2xl font-black">{stats.restoreSize} MB</p>
                     </div>
-                    <div className="p-4 rounded-lg bg-muted/50 border space-y-1">
+                    <div className="p-4 rounded-xl bg-green-50/50 dark:bg-green-950/10 border border-green-100 dark:border-green-900/30 space-y-1">
                         <div className="flex items-center gap-2">
-                            <HardDrive className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-xs font-bold uppercase tracking-widest">Optimization Status</span>
+                            <div className="h-2 w-2 rounded-full bg-green-500" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-green-700 dark:text-green-400">Optimization</span>
                         </div>
-                        <p className="text-xl font-black text-green-600">HEALTHY</p>
-                        <p className="text-[10px] font-medium text-muted-foreground uppercase">Local cache within limits</p>
+                        <p className="text-2xl font-black text-green-700 dark:text-green-400">HEALTHY</p>
+                        <p className="text-[10px] font-medium text-green-600/70 uppercase">Within limits</p>
                     </div>
                 </div>
             </CardContent>
@@ -237,16 +237,20 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader title="Settings">
-        <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".xlsx, .xls, .csv" />
-        <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="mr-2 h-4 w-4" /> Import
-        </Button>
-        <Button variant="outline" onClick={() => exportFullBackup({}, 'full_system_backup')}>
-            <Download className="mr-2 h-4 w-4" /> Export All
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+            <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".xlsx, .xls, .csv" />
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="h-9">
+                <Upload className="mr-2 h-4 w-4" /> Import
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => exportFullBackup({}, 'full_system_backup')} className="h-9">
+                <Download className="mr-2 h-4 w-4" /> Export All
+            </Button>
+        </div>
       </PageHeader>
-      <div className="grid gap-8 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+      
+      <div className="grid gap-6 sm:gap-8 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
         <StorageDiagnosticsCard stats={storageStats} />
+        
         <SettingDialog
           open={dialogState.open}
           onOpenChange={handleCloseDialog}
@@ -257,12 +261,12 @@ export default function SettingsPage() {
         />
         
         <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
             <div>
-                <CardTitle>Expense Types</CardTitle>
+                <CardTitle className="text-xl">Expense Types</CardTitle>
                 <CardDescription>Manage types of expenses.</CardDescription>
             </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Expense Type')}>
+            <Button size="sm" onClick={() => handleOpenDialog('Expense Type')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
@@ -277,12 +281,12 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
             <div>
-                <CardTitle>Categories</CardTitle>
+                <CardTitle className="text-xl">Categories</CardTitle>
                 <CardDescription>Manage expense and product categories.</CardDescription>
             </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Category')}>
+            <Button size="sm" onClick={() => handleOpenDialog('Category')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
@@ -297,12 +301,12 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
             <div>
-                <CardTitle>Sub-Categories</CardTitle>
+                <CardTitle className="text-xl">Sub-Categories</CardTitle>
                 <CardDescription>Manage detailed sub-categories.</CardDescription>
             </div>
-             <Button size="sm" onClick={() => handleOpenDialog('Sub-Category')}>
+             <Button size="sm" onClick={() => handleOpenDialog('Sub-Category')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
@@ -317,12 +321,12 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
              <div>
-                <CardTitle>Brands</CardTitle>
+                <CardTitle className="text-xl">Brands</CardTitle>
                 <CardDescription>Manage product and item brands.</CardDescription>
             </div>
-             <Button size="sm" onClick={() => handleOpenDialog('Brand')}>
+             <Button size="sm" onClick={() => handleOpenDialog('Brand')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
@@ -337,12 +341,12 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
             <div>
-                <CardTitle>Colors</CardTitle>
+                <CardTitle className="text-xl">Colors</CardTitle>
                 <CardDescription>Manage product color options.</CardDescription>
             </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Color')}>
+            <Button size="sm" onClick={() => handleOpenDialog('Color')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
@@ -357,12 +361,12 @@ export default function SettingsPage() {
         </Card>
 
          <Card>
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4">
             <div>
-                <CardTitle>Courier Partners</CardTitle>
+                <CardTitle className="text-xl">Courier Partners</CardTitle>
                 <CardDescription>Manage courier service options.</CardDescription>
             </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Courier')}>
+            <Button size="sm" onClick={() => handleOpenDialog('Courier')} className="h-8 shrink-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add
             </Button>
           </CardHeader>
