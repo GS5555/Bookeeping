@@ -553,3 +553,38 @@ export interface Event {
   createdAt: string;
   updatedAt: string;
 }
+
+// --- Storage Analytics Types ---
+
+export type StorageFileType = 'log' | 'backup' | 'media' | 'temp' | 'other';
+
+export interface StorageFile {
+  id: string;
+  name: string;
+  path: string;
+  size: number; // in bytes
+  type: StorageFileType;
+  extension: string;
+  lastModified: string;
+  createdAt: string;
+  isDuplicate?: boolean;
+}
+
+export interface StorageFolder {
+  path: string;
+  name: string;
+  totalSize: number;
+  fileCount: number;
+  children?: StorageFolder[];
+}
+
+export interface StorageRecommendation {
+  id: string;
+  title: string;
+  description: string;
+  action: string;
+  impact: string; // e.g., "Saves 1.2 GB"
+  confidence: number; // 0-100
+  type: 'delete' | 'archive' | 'truncate' | 'compress';
+  files: string[]; // file paths
+}

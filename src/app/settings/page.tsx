@@ -2,7 +2,7 @@
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Upload, Save, Database, HardDrive, Info } from 'lucide-react';
+import { PlusCircle, Download, Upload, Save, Database, HardDrive, Info, BarChart3 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -48,22 +48,6 @@ type ItemType = 'Category' | 'Sub-Category' | 'Brand' | 'Color' | 'Courier' | 'C
 
 const STORE_ID = 'store_main';
 
-const companyFormSchema = z.object({
-  name: z.string().min(1, "Company name is required"),
-  shortName: z.string().min(1, "Short name is required"),
-  address: z.string().optional(),
-  gstin: z.string().optional(),
-  email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
-  website: z.string().optional(),
-  logoUrl: z.string().url().optional().or(z.literal('')),
-  displayLogo: z.boolean().default(false),
-  invoiceTerms: z.string().optional(),
-  invoicePrefix: z.string().max(3, "Prefix must be 3 characters or less").optional(),
-});
-
-type CompanyFormValues = z.infer<typeof companyFormSchema>;
-
 const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
     return (
         <Card className="xl:col-span-3">
@@ -76,9 +60,17 @@ const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
                         </CardTitle>
                         <CardDescription>Real-time analysis of local cache and cloud restore points.</CardDescription>
                     </div>
-                    <div className="text-right">
-                        <p className="text-2xl font-black tracking-tighter">{stats.total} MB</p>
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Total Footprint</p>
+                    <div className="flex items-center gap-4">
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/settings/storage-analytics">
+                                <BarChart3 className="mr-2 h-4 w-4" />
+                                Storage Analytics
+                            </Link>
+                        </Button>
+                        <div className="text-right">
+                            <p className="text-2xl font-black tracking-tighter">{stats.total} MB</p>
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Total Footprint</p>
+                        </div>
                     </div>
                 </div>
             </CardHeader>
@@ -133,9 +125,7 @@ const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
 export default function SettingsPage() {
   const firestore = useFirestore();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
-
+  
   // Collections for storage calculation
   const salesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'sales') : null, [firestore]);
   const { data: sales } = useCollection<Sale>(salesRef);
@@ -153,8 +143,6 @@ export default function SettingsPage() {
   const { data: vendors } = useCollection<Vendor>(vendorsRef);
   const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
-  const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
-  const { data: stores } = useCollection<Store>(storesRef);
 
   // Settings Collections
   const collections: Record<ItemType, string> = {
@@ -173,22 +161,6 @@ export default function SettingsPage() {
   const { data: couriers } = useCollection<Courier>(couriersRef);
   const expenseTypesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'expenseTypes') : null, [firestore]);
   const { data: expenseTypes } = useCollection<ExpenseType>(expenseTypesRef);
-  const warrantiesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'warranties'), orderBy('name')) : null, [firestore]);
-  const { data: warranties } = useCollection<Warranty>(warrantiesRef);
-  const handPreferencesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'handPreferences') : null, [firestore]);
-  const { data: handPreferences } = useCollection<HandPreference>(handPreferencesRef);
-  const enquiryStatusesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'enquiryStatuses') : null, [firestore]);
-  const { data: enquiryStatuses } = useCollection<EnquiryStatus>(enquiryStatusesRef);
-  const customerTypesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'customerTypes') : null, [firestore]);
-  const { data: customerTypes } = useCollection<CustomerType>(customerTypesRef);
-  const vendorTypesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'vendorTypes') : null, [firestore]);
-  const { data: vendorTypes } = useCollection<VendorType>(vendorTypesRef);
-  const enquiryTypesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'enquiryTypes') : null, [firestore]);
-  const { data: enquiryTypes } = useCollection<EnquiryType>(enquiryTypesRef);
-  const enquirySourcesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'enquirySources') : null, [firestore]);
-  const { data: enquirySources } = useCollection<EnquirySource>(enquirySourcesRef);
-  const followUpTypesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'followUpTypes') : null, [firestore]);
-  const { data: followUpTypes } = useCollection<FollowUpType>(followUpTypesRef);
 
   const storageStats = useMemo(() => {
     const dataToSize = {
