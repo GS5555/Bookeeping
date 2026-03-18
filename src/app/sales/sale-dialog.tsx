@@ -173,6 +173,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // AUTO-APPEND LOGIC: If the last item gets a product, add a new empty row
   useEffect(() => {
     const lastItem = watchedItems[watchedItems.length - 1];
     if (lastItem?.productId && open) {
@@ -222,12 +223,14 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const product = allProducts?.find(p => p.id === productId);
     if (!product) return;
 
+    // Check if product already exists in a DIFFERENT row to consolidate
     const existingIndex = watchedItems.findIndex((item, i) => item.productId === productId && i !== index);
+    
     if (existingIndex > -1) {
         const currentQty = Number(getValues(`items.${existingIndex}.quantity`)) || 0;
         setValue(`items.${existingIndex}.quantity`, currentQty + (Number(getValues(`items.${index}.quantity`)) || 1));
         remove(index);
-        toast({ title: "Item consolidated" });
+        toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
     } else {
         setValue(`items.${index}.productId`, product.id);
         setValue(`items.${index}.brandId`, product.brand);
@@ -237,11 +240,14 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         setValue(`items.${index}.categoryId`, product.category);
         setValue(`items.${index}.subCategoryId`, product.subCategory || '');
     }
+    
     setProductSearchOpen(prev => ({ ...prev, [index]: false }));
   };
 
   const handleFormSubmit = (data: SaleFormValues) => {
     if (!customers || !allProducts || !brands || !currentUser) return;
+
+    // SMART SAVE: Filter out empty placeholder lines
     const validItems = data.items.filter(i => i.productId && i.productId !== "").map(item => {
         const product = allProducts.find(p => p.id === item.productId);
         const brand = brands.find(b => b.id === item.brandId);
@@ -254,12 +260,15 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
             discount: 0,
         };
     });
+
     if (validItems.length === 0) {
-        toast({ title: "Validation Error", description: "Select at least one product.", variant: "destructive" });
+        toast({ title: "Validation Error", description: "Please select at least one product.", variant: "destructive" });
         return;
     }
+
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
+
     onSuccess({
       ...data,
       id: sale?.id || `sale_${Date.now()}`,
@@ -382,6 +391,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                     )} />
                 </div>
             </div>
+
             <div className="space-y-4">
               <FormLabel className="text-lg font-black uppercase tracking-tight border-b pb-2 block">Invoice Items</FormLabel>
               {fields.map((field, index) => {
@@ -455,7 +465,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                   );
               })}
             </div>
+
             <Separator />
+
             <div className="space-y-4">
                 <h4 className="font-bold text-xs uppercase tracking-widest text-primary flex items-center gap-2"><Truck className="h-4 w-4" /> Shipping & Logistics</h4>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -471,6 +483,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                     <FormField control={form.control} name="numberOfBoxes" render={({ field }) => <FormItem><FormControl><Input type="number" {...field} className="h-9 border-muted-foreground/50 bg-background" /></FormControl></FormItem>} />
                 </div>
             </div>
+
             <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 space-y-3">
                 <div className="flex justify-between text-sm"><span>Subtotal</span><span className="font-bold">₹{totals.subTotal.toLocaleString()}</span></div>
                 {totals.totalDiscount > 0 && <div className="flex justify-between text-sm text-destructive"><span>Discount</span><span className="font-bold">-₹{totals.totalDiscount.toLocaleString()}</span></div>}
