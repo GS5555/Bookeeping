@@ -29,7 +29,6 @@ import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Edit } from "lucide-react";
-import { format } from "date-fns";
 import { Combobox } from "@/components/ui/combobox";
 
 const STORE_ID = 'store_main';
@@ -158,7 +157,7 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                     <FormMessage />
                   </FormItem>
                 )}/>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <FormField control={form.control} name="status" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</FormLabel>
@@ -190,7 +189,6 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                     <ReadOnlyField label="Status" value={getValues('status')} />
                     <ReadOnlyField label="Estimated Cost" value={`₹${getValues('estimatedCost')?.toLocaleString()}`} />
                 </div>
-                {repair?.createdAt && <ReadOnlyField label="Created On" value={format(new Date(repair.createdAt), 'PPP')} />}
               </div>
             )}
           </form>

@@ -25,11 +25,11 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, AlertCircle, MapPin, Truck, Search } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, AlertCircle, MapPin, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useMemo, useEffect, useState, useCallback } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
@@ -37,7 +37,6 @@ import { collection, query, orderBy } from "firebase/firestore";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -91,7 +90,7 @@ interface SaleDialogProps {
   onSuccess: (sale: Sale) => void;
 }
 
-export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: SaleDialogProps) {
+export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogProps) {
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
@@ -131,7 +130,6 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
 
   const sortedProducts = useMemo(() => allProducts?.sort((a, b) => a.name.localeCompare(b.name)), [allProducts]);
   const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
-  const sortedCouriers = useMemo(() => couriers?.sort((a, b) => a.name.localeCompare(b.name)), [couriers]);
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(formSchema),
@@ -610,15 +608,12 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
             </div>
 
             {validationErrors.length > 0 && (
-                <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Submission Blocked</AlertTitle>
-                    <AlertDescription>
-                        <ul className="list-disc list-inside mt-2 text-xs">
-                            {validationErrors.map((err, i) => <li key={i}>{err}</li>)}
-                        </ul>
-                    </AlertDescription>
-                </Alert>
+                <div className="p-4 rounded-lg bg-destructive/10 border border-destructive text-destructive space-y-2">
+                    <p className="text-sm font-bold flex items-center gap-2"><AlertCircle className="h-4 w-4" /> Please fix errors before saving:</p>
+                    <ul className="list-disc list-inside text-xs">
+                        {validationErrors.map((err, i) => <li key={i}>{err}</li>)}
+                    </ul>
+                </div>
             )}
           </form>
         </Form>

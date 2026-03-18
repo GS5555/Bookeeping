@@ -25,19 +25,16 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Truck, Upload } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useMemo, useEffect, useState, useCallback, useRef } from "react";
-import { Textarea } from "@/components/ui/textarea";
+import { useMemo, useEffect, useState } from "react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import * as XLSX from 'xlsx';
-import { exportToExcel } from "@/lib/actions";
 import { Combobox } from "@/components/ui/combobox";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
@@ -45,8 +42,8 @@ const STORE_ID = 'store_main';
 
 const poItemSchema = z.object({
     productId: z.string().min(1, "Product is required."),
-    quantity: z.coerce.number().min(1, "Quantity must be at least 1."),
-    unitCost: z.coerce.number().min(0, "Unit cost cannot be negative."),
+    quantity: z.coerce.number().min(1, "Quantity must be at least 1.").default(1),
+    unitCost: z.coerce.number().min(0, "Unit cost cannot be negative.").default(0),
     hsnCode: z.string(),
     gstRate: z.number(),
     imageUrl: z.string().optional(),
@@ -78,16 +75,12 @@ interface PODialogProps {
 
 export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogProps) {
   const firestore = useFirestore();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const vendorsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'vendors'), orderBy('name')) : null, [firestore]);
   const { data: vendors } = useCollection<Vendor>(vendorsRef);
 
   const productsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'products'), orderBy('name')) : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
-
-  const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
-  const { data: stores } = useCollection<Store>(storesRef);
 
   const couriersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'couriers'), orderBy('name')) : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersRef);
@@ -103,7 +96,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
       purchaseType: "GST",
       orderDate: new Date(),
       expectedDeliveryDate: new Date(new Date().setDate(new Date().getDate() + 7)),
-      items: [],
+      items: [{ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 }],
       paymentMethod: 'Other',
       paymentStatus: 'Unpaid',
       comments: '',
@@ -114,17 +107,16 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     },
   });
 
-  const { fields, append, remove, replace } = useFieldArray({ control: form.control, name: "items" });
+  const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
   const { setValue, reset, watch } = form;
 
   const watchedItems = watch("items") || [];
-  const watchedVendorId = watch("vendorId");
   const watchedPurchaseType = watch("purchaseType");
 
   useEffect(() => {
     if (open) {
         reset();
-        append({ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 } as any);
+        append({ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 });
     }
   }, [open, reset, append]);
 
@@ -145,7 +137,13 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     const vendor = vendors?.find(v => v.id === data.vendorId);
     if (!vendor) return;
 
-    const poItems = data.items.map(item => {
+    const validItems = data.items.filter(i => i.productId && i.productId !== "");
+    if (validItems.length === 0) {
+        toast({ title: "Validation Error", description: "At least one product must be selected.", variant: "destructive" });
+        return;
+    }
+
+    const poItems = validItems.map(item => {
         const product = products?.find(p => p.id === item.productId);
         return {
             productId: item.productId,
@@ -228,7 +226,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             <div className="space-y-4">
                 <div className="flex items-center justify-between border-b pb-2">
                     <FormLabel className="text-lg font-black uppercase tracking-tight">Line Items</FormLabel>
-                    <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 } as any)}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>
                 </div>
                 {fields.map((field, index) => (
                     <Card key={field.id} className="border-2 shadow-sm overflow-hidden bg-accent/5">
@@ -242,8 +240,8 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                     <FormItem>
                                         <FormControl>
                                             <Combobox
-                                                options={sortedProducts?.map(p => ({ value: p.id, label: p.name })) || []}
-                                                value={f.value}
+                                                options={sortedProducts?.map(p => ({ value: p.id, label: `${p.name} (${p.sku})` })) || []}
+                                                value={f.value || ""}
                                                 onChange={(val) => {
                                                     f.onChange(val);
                                                     const p = products?.find(prod => prod.id === val);
@@ -251,6 +249,9 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                                         setValue(`items.${index}.unitCost`, p.purchasePrice);
                                                         setValue(`items.${index}.hsnCode`, p.hsnCode);
                                                         setValue(`items.${index}.gstRate`, p.gstRate);
+                                                    }
+                                                    if (index === watchedItems.length - 1) {
+                                                        append({ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 });
                                                     }
                                                 }}
                                                 placeholder="Select Product"

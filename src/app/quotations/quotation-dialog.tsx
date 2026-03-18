@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Quotation, Product, Customer, Company } from "@/lib/types";
+import { Quotation, Product, Customer } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -22,17 +22,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, PlusCircle, Trash2, Edit } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMemo, useEffect, useState } from "react";
-import { Textarea } from "@/components/ui/textarea";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, doc } from "firebase/firestore";
-import { Separator } from "@/components/ui/separator";
+import { collection, query, orderBy } from "firebase/firestore";
 import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -194,7 +189,7 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
                         <CardContent className="p-4 grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-3 items-end">
                             {isEditing ? (
                                 <FormField control={control} name={`items.${index}.productId`} render={({ field: f }) => (
-                                    <FormItem><FormControl><Combobox options={sortedProducts?.map(p => ({ value: p.id, label: p.name })) || []} value={f.value} onChange={(v) => { f.onChange(v); const p = products?.find(prod => prod.id === v); if (p) { setValue(`items.${index}.productName`, p.name); setValue(`items.${index}.unitPrice`, p.sellingPrice); setValue(`items.${index}.hsnCode`, p.hsnCode); setValue(`items.${index}.gstRate`, p.gstRate); }}} placeholder="Select Product" searchPlaceholder="Type name..." notFoundText="No product found." /></FormControl></FormItem>
+                                    <FormItem><FormControl><Combobox options={sortedProducts?.map(p => ({ value: p.id, label: p.name })) || []} value={f.value || ""} onChange={(v) => { f.onChange(v); const p = products?.find(prod => prod.id === v); if (p) { setValue(`items.${index}.productName`, p.name); setValue(`items.${index}.unitPrice`, p.sellingPrice); setValue(`items.${index}.hsnCode`, p.hsnCode); setValue(`items.${index}.gstRate`, p.gstRate); }}} placeholder="Select Product" searchPlaceholder="Type name..." notFoundText="No product found." /></FormControl></FormItem>
                                 )}/>
                             ) : <ReadOnlyField label="Product" value={getValues(`items.${index}.productName`)} />}
                             {isEditing ? <FormField control={control} name={`items.${index}.quantity`} render={({ field: f }) => <FormItem><FormControl><Input type="number" {...f} className="h-10"/></FormControl></FormItem>} /> : <ReadOnlyField label="Qty" value={getValues(`items.${index}.quantity`)} />}

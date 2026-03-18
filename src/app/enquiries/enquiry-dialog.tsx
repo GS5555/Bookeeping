@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Enquiry, EnquiryFollowUp, Customer, Product, EnquiryStatus, FollowUpType, User } from "@/lib/types";
+import { Enquiry, Customer, Product, EnquiryStatus } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -27,16 +27,12 @@ import { useMemo, useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
-import { Separator } from "@/components/ui/separator";
-import { DataTable } from "@/components/data-table";
-import { followUpColumns } from "./columns";
-import { Label } from "@/components/ui/label";
 import { PlusCircle, Trash2, Edit } from "lucide-react";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
-import { toast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
+import { Label } from "@/components/ui/label";
 
 const STORE_ID = 'store_main';
 
@@ -188,7 +184,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                                           <FormControl>
                                               <Combobox
                                                   options={sortedProducts?.map(p => ({ value: p.id, label: p.name })) || []}
-                                                  value={f.value}
+                                                  value={f.value || ""}
                                                   onChange={(val) => { f.onChange(val); const p = products?.find(prod => prod.id === val); if(p) setValue(`items.${index}.productName`, p.name); }}
                                                   placeholder="Select Product"
                                                   searchPlaceholder="Type name..."
