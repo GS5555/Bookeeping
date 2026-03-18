@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -26,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Truck, Package } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -282,6 +280,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                     {product && (
                                         <div className="flex gap-1 flex-wrap">
                                             <Badge className="text-[9px] font-black h-5 bg-blue-100 text-blue-700 border-blue-200 uppercase">SKU: {product.sku}</Badge>
+                                            <Badge className="text-[9px] font-black h-5 bg-green-100 text-green-700 border-green-200 uppercase">GST: {product.gstRate}%</Badge>
                                             <Badge className={cn("text-[9px] font-black h-5 uppercase", currentStock < 10 ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")}>
                                                 Stock: {currentStock}
                                             </Badge>

@@ -27,7 +27,7 @@ import { useMemo, useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
-import { PlusCircle, Trash2, Edit, Package } from "lucide-react";
+import { PlusCircle, Trash2, Edit } from "lucide-react";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -227,8 +227,9 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                                 <div className="flex items-center gap-3">
                                     <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Item #{index + 1}</span>
                                     {product && (
-                                        <div className="flex gap-1">
+                                        <div className="flex gap-1 flex-wrap">
                                             <Badge className="text-[9px] font-black h-5 bg-blue-100 text-blue-700 border-blue-200 uppercase">SKU: {product.sku}</Badge>
+                                            <Badge className="text-[9px] font-black h-5 bg-green-100 text-green-700 border-green-200 uppercase">GST: {product.gstRate}%</Badge>
                                             <Badge className={cn("text-[9px] font-black h-5 uppercase", currentStock < 10 ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")}>
                                                 Stock: {currentStock}
                                             </Badge>

@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Search, MapPin, Truck, Check, ChevronsUpDown } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, MapPin, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -33,14 +33,13 @@ import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
 
 const STORE_ID = 'store_main';
@@ -350,8 +349,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                              <div className="flex items-center gap-3">
                                 <span className="text-[10px] font-black uppercase text-muted-foreground">Item #{index + 1}</span>
                                 {product && (
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-1 flex-wrap">
                                         <Badge className="text-[9px] font-black h-5 bg-blue-100 text-blue-700 border-blue-200 uppercase">SKU: {product.sku}</Badge>
+                                        <Badge className="text-[9px] font-black h-5 bg-green-100 text-green-700 border-green-200 uppercase">GST: {product.gstRate}%</Badge>
                                         {category && <Badge className="text-[9px] font-black h-5 bg-purple-100 text-purple-700 border-purple-200 uppercase">CAT: {category.name}</Badge>}
                                         {subCategory && <Badge className="text-[9px] font-black h-5 bg-orange-100 text-orange-700 border-orange-200 uppercase">SUB: {subCategory.name}</Badge>}
                                     </div>

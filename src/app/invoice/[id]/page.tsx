@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -149,6 +148,7 @@ export default function InvoicePage() {
                                 <th className="py-4 text-left pl-4 w-12 text-gray-400">#</th>
                                 <th className="py-4 text-left">Description</th>
                                 {isGstSale && <th className="py-4 text-left w-24">HSN</th>}
+                                <th className="py-4 text-right w-20">GST %</th>
                                 <th className="py-4 text-right w-20">Qty</th>
                                 <th className="py-4 text-right w-32">Rate</th>
                                 <th className="py-4 text-right pr-4 w-36">Total</th>
@@ -163,6 +163,7 @@ export default function InvoicePage() {
                                         <p className="text-[10px] text-gray-500 uppercase">{item.brandName || 'N/A'}</p>
                                     </td>
                                     {isGstSale && <td className="py-5 font-mono text-xs">{item.hsnCode || '-'}</td>}
+                                    <td className="py-5 text-right font-medium">{item.gstRate}%</td>
                                     <td className="py-5 text-right font-black">{item.quantity}</td>
                                     <td className="py-5 text-right">{formatCurrency(item.unitPrice)}</td>
                                     <td className="py-5 text-right pr-4 font-black text-gray-900">{formatCurrency(item.totalPrice)}</td>

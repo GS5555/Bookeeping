@@ -1,4 +1,3 @@
-
 'use client';
 
 import jsPDF from 'jspdf';
@@ -87,13 +86,13 @@ const generateInvoiceDoc = (doc: jsPDF, sale: Sale, customers: Customer[], compa
 
     const isGstSale = sale.saleType === 'GST';
     const head = isGstSale 
-        ? [['Sr.', 'Description', 'HSN', 'Qty', 'Rate', 'Total']] 
+        ? [['Sr.', 'Description', 'HSN', 'GST %', 'Qty', 'Rate', 'Total']] 
         : [['Sr.', 'Description', 'Qty', 'Rate', 'Total']];
     
     const body = sale.items.map((item, index) => {
         const desc = `${item.productName}${item.brandName ? ` (${item.brandName})` : ''}`;
         return isGstSale 
-        ? [String(index + 1), desc, String(item.hsnCode || ''), String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalPrice)]
+        ? [String(index + 1), desc, String(item.hsnCode || ''), `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalPrice)]
         : [String(index + 1), desc, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalPrice)]
     });
 
@@ -123,8 +122,14 @@ const generateInvoiceDoc = (doc: jsPDF, sale: Sale, customers: Customer[], compa
     (doc as any).autoTable({
         startY: lastY, head, body, theme: 'grid',
         headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255] },
-        columnStyles: { 0: { cellWidth: 10 }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } },
-        foot: summaryData.map(row => ([{ ...row[0], colSpan: isGstSale ? 5 : 4 }, row[1]])),
+        columnStyles: { 
+            0: { cellWidth: 10 }, 
+            3: { halign: 'right', cellWidth: 20 }, 
+            4: { halign: 'right', cellWidth: 20 }, 
+            5: { halign: 'right', cellWidth: 30 }, 
+            6: { halign: 'right', cellWidth: 35 } 
+        },
+        foot: summaryData.map(row => ([{ ...row[0], colSpan: isGstSale ? 6 : 4 }, row[1]])),
         footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
     });
 
@@ -161,14 +166,19 @@ const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor
         lastY = addAddressBlock(doc, 'Vendor:', po.vendorName, vendor.addresses[0], { email: vendor.email, phone: vendor.phone, gst: vendor.gstNumber }, 14, 65);
     }
 
-    const head = [['Sr.', 'Description', 'Qty', 'Unit Cost', 'Total']];
-    const body = po.items.map((item, i) => [String(i+1), item.productName, String(item.quantity), formatCurrency(item.unitCost), formatCurrency(item.totalCost)]);
+    const head = [['Sr.', 'Description', 'HSN', 'GST %', 'Qty', 'Unit Cost', 'Total']];
+    const body = po.items.map((item, i) => [String(i+1), item.productName, item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitCost), formatCurrency(item.totalCost)]);
 
     (doc as any).autoTable({
         startY: lastY + 10, head, body, theme: 'grid',
         headStyles: { fillColor: [40, 40, 40] },
-        columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
-        foot: [[{ content: 'Total Amount', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(po.totalAmount), styles: { halign: 'right', fontStyle: 'bold' } }]],
+        columnStyles: { 
+            3: { halign: 'right' }, 
+            4: { halign: 'right' }, 
+            5: { halign: 'right' }, 
+            6: { halign: 'right' } 
+        },
+        foot: [[{ content: 'Total Amount', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(po.totalAmount), styles: { halign: 'right', fontStyle: 'bold' } }]],
         footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
     });
 
@@ -193,14 +203,14 @@ const generateQuotationDoc = (doc: jsPDF, quotation: Quotation, customers: Custo
         lastY = addAddressBlock(doc, 'Proposal for:', quotation.customerName, quotation.billingAddress, { email: customer.email, phone: customer.phone }, 14, 65);
     }
 
-    const head = [['Description', 'Qty', 'Price', 'GST %', 'Total']];
-    const body = quotation.items.map(item => [item.productName, String(item.quantity), formatCurrency(item.unitPrice), `${item.gstRate}%`, formatCurrency(item.totalPrice)]);
+    const head = [['Description', 'HSN', 'GST %', 'Qty', 'Price', 'Total']];
+    const body = quotation.items.map(item => [item.productName, item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalPrice)]);
 
     (doc as any).autoTable({
         startY: lastY + 10, head, body, theme: 'grid',
         headStyles: { fillColor: [40, 40, 40] },
-        columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
-        foot: [[{ content: 'Grand Total', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(quotation.totalAmount), styles: { halign: 'right', fontStyle: 'bold' } }]],
+        columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } },
+        foot: [[{ content: 'Grand Total', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(quotation.totalAmount), styles: { halign: 'right', fontStyle: 'bold' } }]],
         footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
     });
 
@@ -227,11 +237,12 @@ const generateEnquiryDoc = (doc: jsPDF, enquiry: Enquiry, companyDetails: Compan
     doc.setFont('helvetica', 'normal').text(enquiryLines, 14, 80);
 
     if (enquiry.items && enquiry.items.length > 0) {
-        const head = [['Product Interested', 'Quantity', 'Approx. Value']];
-        const body = enquiry.items.map(item => [item.productName, String(item.quantity), formatCurrency(item.unitPrice)]);
+        const head = [['Product Interested', 'GST %', 'Quantity', 'Approx. Value']];
+        const body = enquiry.items.map(item => [item.productName, `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice)]);
         (doc as any).autoTable({
             startY: doc.getTextDimensions(enquiryLines).h + 85, head, body, theme: 'grid',
-            headStyles: { fillColor: [100, 100, 100] }
+            headStyles: { fillColor: [100, 100, 100] },
+            columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } }
         });
     }
 
@@ -281,7 +292,6 @@ export const exportToExcel = (data: any[], fileName: string) => {
 
 export const downloadReturnSlip = (saleReturn: SaleReturn, customers: Customer[], stores: Store[], companyDetails: Company) => {
     const doc = new jsPDF();
-    // Implementation would follow the same pattern
     doc.text(`Return Slip ${saleReturn.returnSequence}`, 14, 20);
     doc.save(`return-${saleReturn.returnSequence}.pdf`);
 };
@@ -293,7 +303,6 @@ export const downloadGenericReportPdf = (title: string, headers: string[][], dat
   doc.save(`${fileName}.pdf`);
 };
 
-// ... (Keep existing share functions) ...
 export const generateShareText = (docType: string, number: string, name: string, companyName: string, link: string) => {
     return `Hi ${name},\n\nPlease find your ${docType} #${number} from ${companyName} here:\n${link}\n\nThank you!`;
 }

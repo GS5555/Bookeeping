@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -132,6 +131,7 @@ function PurchaseOrderContent() {
                                 <th className="py-4 text-left pl-4 w-12 text-gray-400">#</th>
                                 <th className="py-4 text-left">Description</th>
                                 <th className="py-4 text-left w-24">HSN</th>
+                                <th className="py-4 text-right w-20">GST %</th>
                                 <th className="py-4 text-right w-20">Qty</th>
                                 <th className="py-4 text-right w-32">Unit Cost</th>
                                 <th className="py-4 text-right pr-4 w-36">Total</th>
@@ -146,6 +146,7 @@ function PurchaseOrderContent() {
                                         <p className="text-[10px] text-gray-500 uppercase">{item.hsnCode || 'N/A'}</p>
                                     </td>
                                     <td className="py-5 font-mono text-xs">{item.hsnCode || '-'}</td>
+                                    <td className="py-5 text-right font-medium">{item.gstRate}%</td>
                                     <td className="py-5 text-right font-black">{item.quantity}</td>
                                     <td className="py-5 text-right">{formatCurrency(item.unitCost)}</td>
                                     <td className="py-5 text-right pr-4 font-black text-gray-900">{formatCurrency(item.totalCost)}</td>
