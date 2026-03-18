@@ -13,11 +13,8 @@ import { numberToWordsInr } from '@/lib/utils';
 // =================================================================================
 
 const formatCurrency = (amount: number): string => {
-    if (typeof amount !== 'number') return 'Rs. 0.00';
-    const fixedAmount = amount.toFixed(2);
-    const parts = fixedAmount.split('.');
-    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    return `Rs. ${parts.join('.')}`;
+    if (typeof amount !== 'number') return '₹0.00';
+    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 const addCompanyHeader = (doc: jsPDF, companyDetails: Company) => {
@@ -116,7 +113,10 @@ const generateInvoiceDoc = (doc: jsPDF, sale: Sale, customers: Customer[], compa
 
     const roundedTotal = Math.round(sale.totalAmount);
     const roundOff = roundedTotal - sale.totalAmount;
-    if (roundOff !== 0) summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: formatCurrency(roundOff), styles: footerStyles }]);
+    
+    if (roundOff !== 0) {
+        summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: formatCurrency(roundOff), styles: footerStyles }]);
+    }
     
     summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(roundedTotal), styles: totalFooterStyles }]);
 
@@ -171,19 +171,39 @@ const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor
     const head = [['Sr.', 'Description', 'SKU', 'HSN', 'GST %', 'Qty', 'Unit Cost', 'Total']];
     const body = po.items.map((item, i) => [String(i+1), item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitCost), formatCurrency(item.totalCost)]);
 
+    const footerStyles = { halign: 'right' as const };
+    const totalFooterStyles = { ...footerStyles, fontStyle: 'bold' as const, fontSize: 11 };
+
+    const roundedTotal = Math.round(po.totalAmount);
+    const roundOff = roundedTotal - po.totalAmount;
+
+    const summaryData = [
+        [{ content: 'Subtotal', styles: footerStyles }, { content: formatCurrency(po.subTotal), styles: footerStyles }],
+        [{ content: 'GST Amount', styles: footerStyles }, { content: formatCurrency(po.gstAmount), styles: footerStyles }],
+    ];
+
+    if (roundOff !== 0) {
+        summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: formatCurrency(roundOff), styles: footerStyles }]);
+    }
+    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(roundedTotal), styles: totalFooterStyles }]);
+
     (doc as any).autoTable({
         startY: lastY + 10, head, body, theme: 'grid',
         headStyles: { fillColor: [40, 40, 40] },
         columnStyles: { 
+            0: { cellWidth: 10 },
             2: { cellWidth: 30 },
             4: { halign: 'right' }, 
             5: { halign: 'right' }, 
             6: { halign: 'right' }, 
             7: { halign: 'right' } 
         },
-        foot: [[{ content: 'Total Amount', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(po.totalAmount), styles: { halign: 'right', fontStyle: 'bold' } }]],
+        foot: summaryData.map(row => ([{ ...row[0], colSpan: 7 }, row[1]])),
         footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
     });
+
+    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(roundedTotal)}`, 14, finalY);
 
     return doc;
 }
@@ -219,7 +239,7 @@ const generateQuotationDoc = (doc: jsPDF, quotation: Quotation, customers: Custo
             5: { halign: 'right' }, 
             6: { halign: 'right' } 
         },
-        foot: [[{ content: 'Grand Total', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(quotation.totalAmount), styles: { halign: 'right', fontStyle: 'bold' } }]],
+        foot: [[{ content: 'Grand Total', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(Math.round(quotation.totalAmount)), styles: { halign: 'right', fontStyle: 'bold' } }]],
         footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
     });
 
