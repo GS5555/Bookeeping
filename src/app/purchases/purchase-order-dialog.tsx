@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,7 +15,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { PurchaseOrder, Product, Vendor, Courier, InventoryItem } from "@/lib/types";
+import { PurchaseOrder, Product, Vendor, Courier, InventoryItem, Category, SubCategory } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -86,6 +87,12 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
 
   const couriersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'couriers'), orderBy('name')) : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersRef);
+
+  const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
+  const { data: categories } = useCollection<Category>(categoriesRef);
+
+  const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
+  const { data: subCategories } = useCollection<SubCategory>(subCategoriesRef);
 
   const sortedVendors = useMemo(() => [...(vendors || [])].sort((a, b) => a.name.localeCompare(b.name)), [vendors]);
   const sortedProducts = useMemo(() => [...(products || [])].sort((a, b) => a.name.localeCompare(b.name)), [products]);
@@ -264,18 +271,22 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     const product = products?.find(p => p.id === selectedProdId);
                     const stockItem = inventory?.find(i => i.productId === selectedProdId);
                     const currentStock = stockItem?.stockBatches?.reduce((sum, b) => sum + b.quantity, 0) || 0;
+                    const category = categories?.find(c => c.id === product?.category);
+                    const subCategory = subCategories?.find(sc => sc.id === product?.subCategory);
 
                     return (
                         <Card key={field.id} className={cn("border-2 shadow-sm overflow-visible", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
                             <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 flex-wrap">
                                     <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
                                     {product && (
-                                        <div className="flex gap-1">
+                                        <div className="flex gap-1 flex-wrap">
                                             <Badge className="text-[9px] font-black h-5 bg-blue-100 text-blue-700 border-blue-200 uppercase">SKU: {product.sku}</Badge>
                                             <Badge className={cn("text-[9px] font-black h-5 uppercase", currentStock < 10 ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")}>
                                                 Stock: {currentStock}
                                             </Badge>
+                                            {category && <Badge className="text-[9px] font-black h-5 bg-purple-100 text-purple-700 border-purple-200 uppercase">CAT: {category.name}</Badge>}
+                                            {subCategory && <Badge className="text-[9px] font-black h-5 bg-orange-100 text-orange-700 border-orange-200 uppercase">SUB: {subCategory.name}</Badge>}
                                         </div>
                                     )}
                                 </div>

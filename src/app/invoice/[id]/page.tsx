@@ -12,14 +12,10 @@ import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { downloadInvoice } from '@/lib/actions';
 import { useIsMounted } from '@/hooks/use-is-mounted';
-import { Skeleton } from '@/components/ui/skeleton';
 
 const formatCurrency = (amount: number): string => {
     if (typeof amount !== 'number') return '₹0.00';
-    const fixedAmount = amount.toFixed(2);
-    const parts = fixedAmount.split('.');
-    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    return `₹${parts.join('.')}`;
+    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 const AddressBlock = ({ label, name, address, contact }: { label: string, name: string, address: Address, contact: {email?: string, phone?: string, gst?: string}}) => (
@@ -33,7 +29,7 @@ const AddressBlock = ({ label, name, address, contact }: { label: string, name: 
             <div className="mt-2 text-xs text-gray-600 font-medium">
                 {contact.email && <p>Email: {contact.email}</p>}
                 {contact.phone && <p>Phone: {contact.phone}</p>}
-                {contact.gst && <p className="font-black text-gray-900 mt-1">GSTIN: {contact.gst}</p>}
+                {contact.gst && <p className="font-black text-gray-900 mt-1 uppercase">GSTIN: {contact.gst}</p>}
             </div>
         </div>
     </div>
@@ -93,8 +89,8 @@ export default function InvoicePage() {
                 </div>
             </div>
 
-            <div className="bg-white text-black p-6 sm:p-12 border border-gray-200 shadow-none rounded-none overflow-x-auto w-full max-w-5xl" id="printable-invoice">
-                <div className="flex flex-col md:flex-row justify-between items-start gap-8 border-b-4 border-gray-900 pb-8 mb-10 min-w-[700px]">
+            <div className="bg-white text-black p-6 sm:p-12 border border-gray-200 shadow-none rounded-none w-full max-w-5xl" id="printable-invoice">
+                <div className="flex flex-col md:flex-row justify-between items-start gap-8 border-b-4 border-gray-900 pb-8 mb-10">
                     <div className="flex-1">
                         <h1 className="text-4xl font-black text-gray-900 mb-3 uppercase tracking-tight">{companyDetails.name}</h1>
                         <p className="text-sm text-gray-600 max-w-sm whitespace-pre-wrap leading-relaxed">{companyDetails.address}</p>
@@ -119,7 +115,7 @@ export default function InvoicePage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-16 mb-12 min-w-[700px]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-16 mb-12">
                     {customer && (
                         <AddressBlock 
                             label="BILLED TO" 
@@ -132,63 +128,55 @@ export default function InvoicePage() {
                             }} 
                         />
                     )}
-                    {sale.shippingAddress && sale.shippingAddress.id !== sale.billingAddress.id ? (
-                        <AddressBlock 
-                            label="SHIPPED TO" 
-                            name={customer?.name || ''} 
-                            address={sale.shippingAddress} 
-                            contact={{}} 
-                        />
-                    ) : (
-                        <div className="bg-gray-50 p-6 rounded-lg border border-dashed border-gray-200">
+                    <div className="bg-gray-50 p-6 rounded-lg border border-dashed border-gray-200">
+                        {sale.shippingAddress && sale.shippingAddress.id !== sale.billingAddress.id ? (
+                            <AddressBlock 
+                                label="SHIPPED TO" 
+                                name={customer?.name || ''} 
+                                address={sale.shippingAddress} 
+                                contact={{}} 
+                            />
+                        ) : (
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 text-center">Shipping same as billing</p>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
-                <table className="w-full mb-12 min-w-[700px]">
-                    <thead>
-                        <tr className="border-b-2 border-gray-900 text-[10px] font-black text-gray-900 uppercase tracking-widest bg-gray-50">
-                            <th className="py-4 text-left pl-4 w-12 text-gray-400">#</th>
-                            <th className="py-4 text-left">Product Description</th>
-                            {isGstSale && <th className="py-4 text-left w-24">HSN</th>}
-                            {isGstSale && <th className="py-4 text-right w-20">GST %</th>}
-                            <th className="py-4 text-right w-20">Qty</th>
-                            <th className="py-4 text-right w-32">Rate</th>
-                            <th className="py-4 text-right pr-4 w-36">Total Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {sale.items.map((item, index) => (
-                            <tr key={index} className="text-sm text-gray-800 hover:bg-gray-50/50 transition-colors">
-                                <td className="py-5 pl-4 text-gray-400 font-mono">{String(index + 1).padStart(2, '0')}</td>
-                                <td className="py-5">
-                                    <p className="font-bold text-gray-900 leading-tight mb-1">{item.productName}</p>
-                                    <div className="flex gap-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                                        <span>{item.brandName || 'N/A'}</span>
-                                        {item.handPreference && item.handPreference !== 'Normal' && (
-                                            <>
-                                                <span className="text-gray-300">|</span>
-                                                <span className="text-primary">{item.handPreference} Hand</span>
-                                            </>
-                                        )}
-                                    </div>
-                                </td>
-                                {isGstSale && <td className="py-5 font-mono text-xs">{item.hsnCode || '-'}</td>}
-                                {isGstSale && <td className="py-5 text-right font-medium">{item.gstRate}%</td>}
-                                <td className="py-5 text-right font-black">{item.quantity}</td>
-                                <td className="py-5 text-right">{formatCurrency(item.unitPrice)}</td>
-                                <td className="py-5 text-right pr-4 font-black text-gray-900">{formatCurrency(item.totalPrice)}</td>
+                <div className="overflow-x-auto">
+                    <table className="w-full mb-12 min-w-[600px]">
+                        <thead>
+                            <tr className="border-b-2 border-gray-900 text-[10px] font-black text-gray-900 uppercase tracking-widest bg-gray-50">
+                                <th className="py-4 text-left pl-4 w-12 text-gray-400">#</th>
+                                <th className="py-4 text-left">Description</th>
+                                {isGstSale && <th className="py-4 text-left w-24">HSN</th>}
+                                <th className="py-4 text-right w-20">Qty</th>
+                                <th className="py-4 text-right w-32">Rate</th>
+                                <th className="py-4 text-right pr-4 w-36">Total</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {sale.items.map((item, index) => (
+                                <tr key={index} className="text-sm text-gray-800 hover:bg-gray-50/50">
+                                    <td className="py-5 pl-4 text-gray-400 font-mono">{index + 1}</td>
+                                    <td className="py-5">
+                                        <p className="font-bold text-gray-900">{item.productName}</p>
+                                        <p className="text-[10px] text-gray-500 uppercase">{item.brandName || 'N/A'}</p>
+                                    </td>
+                                    {isGstSale && <td className="py-5 font-mono text-xs">{item.hsnCode || '-'}</td>}
+                                    <td className="py-5 text-right font-black">{item.quantity}</td>
+                                    <td className="py-5 text-right">{formatCurrency(item.unitPrice)}</td>
+                                    <td className="py-5 text-right pr-4 font-black text-gray-900">{formatCurrency(item.totalPrice)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
-                <div className="flex flex-col md:flex-row justify-between gap-16 border-t border-gray-100 pt-10 min-w-[700px]">
+                <div className="flex flex-col md:flex-row justify-between gap-16 border-t border-gray-100 pt-10">
                     <div className="flex-1 space-y-8">
                         <div>
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Amount in Words</p>
-                            <p className="text-sm font-bold italic text-gray-800 leading-relaxed bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <p className="text-sm font-bold italic text-gray-800 bg-gray-50 p-4 rounded-lg border">
                                 {numberToWordsInr(roundedTotal)}
                             </p>
                         </div>
@@ -202,44 +190,37 @@ export default function InvoicePage() {
                         )}
                     </div>
                     
-                    <div className="w-full md:w-80">
-                        <div className="space-y-3 px-4 py-6 bg-gray-50 rounded-xl border border-gray-100">
-                            <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                <span>Subtotal</span>
-                                <span className="text-gray-900">{formatCurrency(sale.subTotal)}</span>
-                            </div>
-                            
-                            {(sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0) > 0 && (
-                                <div className="flex justify-between text-xs font-bold text-red-600 uppercase tracking-widest">
-                                    <span>Total Discount</span>
-                                    <span>-{formatCurrency((sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0))}</span>
-                                </div>
-                            )}
-                            
-                            {isGstSale && (
-                                <div className="space-y-2 border-y border-gray-200 py-3 my-2">
-                                    {sale.cgstAmount > 0 && <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase"><span>CGST</span><span className="text-gray-700">{formatCurrency(sale.cgstAmount)}</span></div>}
-                                    {sale.sgstAmount > 0 && <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase"><span>SGST</span><span className="text-gray-700">{formatCurrency(sale.sgstAmount)}</span></div>}
-                                    {sale.igstAmount > 0 && <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase"><span>IGST</span><span className="text-gray-700">{formatCurrency(sale.igstAmount)}</span></div>}
-                                </div>
-                            )}
-                            
-                            {roundOffAmount !== 0 && (
-                                <div className="flex justify-between text-[10px] font-black text-gray-900 italic uppercase">
-                                    <span>ROUND OFF</span>
-                                    <span className="font-bold">{formatCurrency(roundOffAmount)}</span>
-                                </div>
-                            )}
-                            
-                            <div className="flex justify-between items-center pt-4 border-t-2 border-gray-900 mt-2">
-                                <span className="text-sm font-black text-gray-900 uppercase tracking-tighter">Net Payable</span>
-                                <span className="text-3xl font-black text-gray-900 tracking-tighter">{formatCurrency(roundedTotal)}</span>
-                            </div>
+                    <div className="w-full md:w-80 space-y-3 bg-gray-50 p-6 rounded-xl border">
+                        <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
+                            <span>Subtotal</span>
+                            <span className="text-gray-900">{formatCurrency(sale.subTotal)}</span>
                         </div>
-
-                        <div className="mt-12 text-center">
-                            <div className="h-20 border-b-2 border-gray-100 mb-3 mx-auto w-48 bg-gray-50/50 rounded-t-lg"></div>
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Authorized Signatory</p>
+                        
+                        {(sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0) > 0 && (
+                            <div className="flex justify-between text-xs font-bold text-red-600 uppercase tracking-widest">
+                                <span>Discount</span>
+                                <span>-{formatCurrency((sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0))}</span>
+                            </div>
+                        )}
+                        
+                        {isGstSale && (
+                            <div className="space-y-2 border-y border-gray-200 py-3 my-2">
+                                {sale.cgstAmount > 0 && <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase"><span>CGST</span><span>{formatCurrency(sale.cgstAmount)}</span></div>}
+                                {sale.sgstAmount > 0 && <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase"><span>SGST</span><span>{formatCurrency(sale.sgstAmount)}</span></div>}
+                                {sale.igstAmount > 0 && <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase"><span>IGST</span><span>{formatCurrency(sale.igstAmount)}</span></div>}
+                            </div>
+                        )}
+                        
+                        {roundOffAmount !== 0 && (
+                            <div className="flex justify-between text-[10px] font-black text-gray-900 italic uppercase">
+                                <span>ROUND OFF</span>
+                                <span>{formatCurrency(roundOffAmount)}</span>
+                            </div>
+                        )}
+                        
+                        <div className="flex justify-between items-center pt-4 border-t-2 border-gray-900 mt-2">
+                            <span className="text-sm font-black text-gray-900 uppercase">Grand Total</span>
+                            <span className="text-3xl font-black text-gray-900 tracking-tighter">{formatCurrency(roundedTotal)}</span>
                         </div>
                     </div>
                 </div>
@@ -247,23 +228,13 @@ export default function InvoicePage() {
 
             <style jsx global>{`
                 @media print {
-                    @page { 
-                        size: auto;
-                        margin: 0mm; 
-                    }
-                    body { 
-                        background: white !important; 
-                        margin: 0 !important; 
-                        padding: 0 !important; 
-                    }
-                    .print\:hidden { 
-                        display: none !important; 
-                    }
+                    @page { margin: 0; }
+                    body { background: white !important; margin: 0; padding: 0; }
+                    .print\:hidden { display: none !important; }
                     #printable-invoice { 
                         box-shadow: none !important; 
                         border: none !important; 
                         padding: 1.5cm !important; 
-                        margin: 0 !important;
                         width: 100% !important;
                         max-width: 100% !important;
                     }
