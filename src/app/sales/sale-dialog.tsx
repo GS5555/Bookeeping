@@ -275,7 +275,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                 <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50">
-                                            <span className="truncate">{field.value ? sortedCustomers?.find(c => c.id === field.value)?.name : "Search customers..."}</span>
+                                            <span className="truncate">{field.value ? sortedCustomers?.find(v => v.id === field.value)?.name : "Search customers..."}</span>
                                             <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                                         </Button>
                                     </PopoverTrigger>

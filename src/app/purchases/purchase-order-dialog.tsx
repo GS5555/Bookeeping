@@ -126,7 +126,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     let sub = 0;
     let gst = 0;
     watchedItems.forEach(item => {
-        const lineSub = (Number(item.quantity) || 0) * (Number(item.unitCost) || 0);
+        const lineSub = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
         sub += lineSub;
         if (watchedPurchaseType === 'GST') {
             gst += lineSub * ((Number(item.gstRate) || 0) / 100);
@@ -139,12 +139,12 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     const product = products?.find(p => p.id === productId);
     if (product) {
         setValue(`items.${index}.productId`, product.id);
-        setValue(`items.${index}.unitCost`, product.purchasePrice);
+        setValue(`items.${index}.unitPrice`, product.purchasePrice);
         setValue(`items.${index}.hsnCode`, product.hsnCode);
         setValue(`items.${index}.gstRate`, product.gstRate);
         
         if (index === watchedItems.length - 1) {
-            append({ productId: "", quantity: 1, unitCost: 0, hsnCode: '', gstRate: 0 });
+            append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 });
         }
     }
     setProductSearchOpen(prev => ({ ...prev, [index]: false }));
@@ -203,7 +203,11 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent 
+        className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden" 
+        onInteractOutside={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader className="p-6 pb-4 border-b">
           <DialogTitle>Create Purchase Order</DialogTitle>
           <DialogDescription>Fill in the details to place a new order with a vendor.</DialogDescription>
@@ -226,10 +230,15 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                     className="w-[--radix-popover-trigger-width] p-0" 
                                     align="start" 
                                     onOpenAutoFocus={(e) => e.preventDefault()}
+                                    onCloseAutoFocus={(e) => e.preventDefault()}
                                     onInteractOutside={(e) => e.preventDefault()}
                                 >
                                     <Command shouldFilter={true}>
-                                        <CommandInput placeholder="Type name..." autoFocus />
+                                        <CommandInput 
+                                            placeholder="Type name..." 
+                                            autoFocus 
+                                            onPointerDown={(e) => e.currentTarget.focus()}
+                                        />
                                         <CommandList>
                                             <CommandEmpty>No vendor found.</CommandEmpty>
                                             <CommandGroup>
@@ -286,10 +295,15 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                                 className="w-[--radix-popover-trigger-width] p-0" 
                                                 align="start" 
                                                 onOpenAutoFocus={(e) => e.preventDefault()}
+                                                onCloseAutoFocus={(e) => e.preventDefault()}
                                                 onInteractOutside={(e) => e.preventDefault()}
                                             >
                                                 <Command shouldFilter={true}>
-                                                    <CommandInput placeholder="Search Name or SKU..." autoFocus />
+                                                    <CommandInput 
+                                                        placeholder="Search Name or SKU..." 
+                                                        autoFocus 
+                                                        onPointerDown={(e) => e.currentTarget.focus()}
+                                                    />
                                                     <CommandList>
                                                         <CommandEmpty>No results.</CommandEmpty>
                                                         <CommandGroup>
