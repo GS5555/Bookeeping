@@ -22,8 +22,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CalendarIcon, PlusCircle, Trash2, Edit } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { PlusCircle, Trash2, Edit } from "lucide-react";
+import { addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMemo, useEffect, useState } from "react";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
@@ -32,16 +32,17 @@ import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
+import { toast } from "@/hooks/use-toast";
 
 const STORE_ID = 'store_main';
 
 const quotationItemSchema = z.object({
-    productId: z.string().min(1, "Product is required."),
-    productName: z.string(),
+    productId: z.string().optional(),
+    productName: z.string().optional(),
     quantity: z.coerce.number().min(1).default(1),
     unitPrice: z.coerce.number().min(0).default(0),
     totalPrice: z.number().default(0),
-    hsnCode: z.string(),
+    hsnCode: z.string().optional(),
     gstRate: z.number().default(0),
 });
 
@@ -123,9 +124,43 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
     }
   }, [open, quotation, reset]);
 
+  const handleProductSelect = (productId: string, index: number) => {
+    const product = products?.find(prod => prod.id === productId); 
+    if (!product) return;
+
+    // Consolidation logic
+    const existingIndex = watchedItems.findIndex((item, i) => item.productId === productId && i !== index);
+    
+    if (existingIndex > -1) {
+        const currentQty = Number(getValues(`items.${existingIndex}.quantity`)) || 0;
+        setValue(`items.${existingIndex}.quantity`, currentQty + (Number(getValues(`items.${index}.quantity`)) || 1));
+        remove(index);
+        toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
+    } else {
+        setValue(`items.${index}.productId`, product.id); 
+        setValue(`items.${index}.productName`, product.name); 
+        setValue(`items.${index}.unitPrice`, product.sellingPrice); 
+        setValue(`items.${index}.hsnCode`, product.hsnCode); 
+        setValue(`items.${index}.gstRate`, product.gstRate); 
+        
+        // Auto-append logic
+        if (index === fields.length - 1) {
+            append({ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 });
+        }
+    }
+  }
+
   const onSubmit = (data: QuotationFormValues) => {
     const customer = customers?.find(c => c.id === data.customerId);
-    const validItems = data.items.filter(i => i.productId && i.productId !== "");
+    
+    // Ignore empty line items
+    const validItems = data.items.filter(i => i.productId && i.productId !== "").map(item => ({
+        ...item,
+        productId: item.productId!,
+        productName: item.productName!,
+        hsnCode: item.hsnCode || '',
+        totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)
+    }));
     
     if (validItems.length === 0) {
         toast({ title: "Error", description: "Select at least one product.", variant: "destructive" });
@@ -208,17 +243,7 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
                                                 searchTerms: `${p.name} ${p.sku}`.toLowerCase()
                                             })) || []} 
                                             value={f.value || ""} 
-                                            onChange={(v) => { 
-                                                f.onChange(v); 
-                                                const p = products?.find(prod => prod.id === v); 
-                                                if (p) { 
-                                                    setValue(`items.${index}.productName`, p.name); 
-                                                    setValue(`items.${index}.unitPrice`, p.sellingPrice); 
-                                                    setValue(`items.${index}.hsnCode`, p.hsnCode); 
-                                                    setValue(`items.${index}.gstRate`, p.gstRate); 
-                                                    if (index === fields.length - 1) append({ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 });
-                                                }
-                                            }} 
+                                            onChange={(v) => handleProductSelect(v, index)} 
                                             placeholder="Select Product" 
                                             searchPlaceholder="Type name or SKU..." 
                                             notFoundText="No product found." 

@@ -25,28 +25,26 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Truck, Search, Check, ChevronsUpDown } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useMemo, useEffect, useState, useRef } from "react";
+import { useMemo, useEffect } from "react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Combobox } from "@/components/ui/combobox";
 
 const STORE_ID = 'store_main';
 
 const poItemSchema = z.object({
-    productId: z.string().min(1, "Product is required."),
+    productId: z.string().optional(),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1.").default(1),
     unitPrice: z.coerce.number().min(0, "Unit price cannot be negative.").default(0),
-    hsnCode: z.string(),
-    gstRate: z.number(),
-    imageUrl: z.string().optional(),
+    hsnCode: z.string().optional(),
+    gstRate: z.number().default(0),
 });
 
 const formSchema = z.object({
@@ -57,12 +55,11 @@ const formSchema = z.object({
   items: z.array(poItemSchema).min(1, "At least one item is required."),
   paymentMethod: z.enum(["NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Cash", "Other"]),
   paymentStatus: z.enum(["Paid", "Unpaid", "Partially Paid"]),
-  amountPaid: z.coerce.number().min(0).optional(),
   comments: z.string().optional(),
   courierCompany: z.string().optional(),
   trackingNumber: z.string().optional(),
   trackingLink: z.string().url({ message: "Please enter a valid URL." }).or(z.literal('')).optional(),
-  numberOfBoxes: z.coerce.number().int().min(1, "Number of boxes must be at least 1.").default(1),
+  numberOfBoxes: z.coerce.number().int().min(1).default(1),
 });
 
 type POFormValues = z.infer<typeof formSchema>;
@@ -95,7 +92,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
       vendorId: "",
       purchaseType: "GST",
       orderDate: new Date(),
-      expectedDeliveryDate: new Date(new Date().setDate(new Date().getDate() + 7)),
+      expectedDeliveryDate: addDays(new Date(), 7),
       items: [{ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 }],
       paymentMethod: 'Other',
       paymentStatus: 'Unpaid',
@@ -108,7 +105,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
-  const { setValue, reset, watch } = form;
+  const { setValue, reset, watch, getValues } = form;
 
   const watchedItems = watch("items") || [];
   const watchedPurchaseType = watch("purchaseType");
@@ -135,12 +132,23 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
 
   const handleProductSelect = (productId: string, index: number) => {
     const product = products?.find(p => p.id === productId);
-    if (product) {
+    if (!product) return;
+
+    // Consolidation logic: check if product exists in other rows
+    const existingIndex = watchedItems.findIndex((item, i) => item.productId === productId && i !== index);
+    
+    if (existingIndex > -1) {
+        const currentQty = Number(getValues(`items.${existingIndex}.quantity`)) || 0;
+        setValue(`items.${existingIndex}.quantity`, currentQty + (Number(getValues(`items.${index}.quantity`)) || 1));
+        remove(index);
+        toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
+    } else {
         setValue(`items.${index}.productId`, product.id);
         setValue(`items.${index}.unitPrice`, product.purchasePrice);
         setValue(`items.${index}.hsnCode`, product.hsnCode);
         setValue(`items.${index}.gstRate`, product.gstRate);
         
+        // Auto-append logic
         if (index === watchedItems.length - 1) {
             append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 });
         }
@@ -151,6 +159,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     const vendor = vendors?.find(v => v.id === data.vendorId);
     if (!vendor) return;
 
+    // Ignore empty line items
     const validItems = data.items.filter(i => i.productId && i.productId !== "");
     if (validItems.length === 0) {
         toast({ title: "Validation Error", description: "At least one product must be selected.", variant: "destructive" });
@@ -160,13 +169,13 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     const poItems = validItems.map(item => {
         const product = products?.find(p => p.id === item.productId);
         return {
-            productId: item.productId,
+            productId: item.productId!,
             productName: product?.name || 'Unknown Product',
             quantity: item.quantity,
             quantityReceived: 0,
             unitCost: item.unitPrice,
             totalCost: item.quantity * item.unitPrice,
-            hsnCode: item.hsnCode,
+            hsnCode: item.hsnCode || '',
             gstRate: item.gstRate,
         }
     });
@@ -245,7 +254,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>
                 </div>
                 {fields.map((field, index) => (
-                    <Card key={field.id} className="border-2 shadow-sm bg-accent/5">
+                    <Card key={field.id} className="border-2 shadow-sm bg-accent/5 overflow-visible">
                         <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
                             <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
                             <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
@@ -260,7 +269,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                                 label: `${p.name} (${p.sku})`,
                                                 searchTerms: `${p.name} ${p.sku}`.toLowerCase()
                                             })) || []}
-                                            value={f.value}
+                                            value={f.value || ''}
                                             onChange={(val) => handleProductSelect(val, index)}
                                             placeholder="Search products..."
                                             searchPlaceholder="Type name or SKU..."
@@ -284,10 +293,15 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                 <h4 className="font-bold text-xs uppercase tracking-widest text-primary flex items-center gap-2"><Truck className="h-4 w-4" /> Shipping & Logistics</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <FormField control={form.control} name="courierCompany" render={({ field }) => (
-                        <FormItem className="lg:col-span-2"><FormLabel className="text-[10px] font-bold uppercase">Courier</FormLabel><Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger className="h-9 border-muted-foreground/50 bg-background"><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent>{sortedCouriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent></Select></FormItem>
+                        <FormItem className="lg:col-span-2">
+                            <Select onValueChange={field.onChange} value={field.value || ''}>
+                                <FormControl><SelectTrigger className="h-9 border-muted-foreground/50 bg-background"><SelectValue placeholder="Select Courier" /></SelectTrigger></FormControl>
+                                <SelectContent>{sortedCouriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </FormItem>
                     )}/>
-                    <FormField control={form.control} name="trackingNumber" render={({ field }) => <FormItem><FormLabel className="text-[10px] font-bold uppercase">Tracking #</FormLabel><FormControl><Input {...field} className="h-9 border-muted-foreground/50 bg-background" /></FormControl></FormItem>} />
-                    <FormField control={form.control} name="numberOfBoxes" render={({ field }) => <FormItem><FormLabel className="text-[10px] font-bold uppercase">Boxes</FormLabel><FormControl><Input type="number" {...field} className="h-9 border-muted-foreground/50 bg-background" /></FormControl></FormItem>} />
+                    <FormField control={form.control} name="trackingNumber" render={({ field }) => <FormItem><FormControl><Input placeholder="Tracking #" {...field} className="h-9 border-muted-foreground/50 bg-background" /></FormControl></FormItem>} />
+                    <FormField control={form.control} name="numberOfBoxes" render={({ field }) => <FormItem><FormControl><Input type="number" {...field} className="h-9 border-muted-foreground/50 bg-background" /></FormControl></FormItem>} />
                 </div>
             </div>
 
