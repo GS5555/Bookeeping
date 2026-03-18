@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Search, Upload, FileText } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Search, Upload, FileText, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -82,7 +81,7 @@ interface PODialogProps {
 
 export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogProps) {
   const firestore = useFirestore();
-  const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
+  const [isVendorDialogOpen] = useState(false);
   const [itemFilters, setItemFilters] = useState<{ categoryId: string; subCategoryId: string; handPreference: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -426,27 +425,8 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     onSuccess(submittedPO);
   };
 
-  const handleNewVendorSuccess = async (vendor: Vendor) => {
-    if (!firestore) return;
-    try {
-        const vendorDocRef = doc(firestore, 'stores', STORE_ID, 'vendors', vendor.id);
-        await setDoc(vendorDocRef, vendor, { merge: true });
-        setIsVendorDialogOpen(false);
-        setValue('vendorId', vendor.id, { shouldValidate: true });
-        toast({ title: "Success!", description: `Vendor ${vendor.name} created and selected.` });
-    } catch (error) {
-        console.error("Error saving new vendor:", error);
-        toast({ title: "Error", description: "Could not save the new vendor.", variant: "destructive" });
-    }
-  };
-  
   return (
     <>
-    <VendorDialog
-        open={isVendorDialogOpen}
-        onOpenChange={setIsVendorDialogOpen}
-        onSuccess={handleNewVendorSuccess}
-    />
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader className="p-6 pb-4 border-b">
@@ -475,9 +455,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                     ))}
                                 </SelectContent>
                             </Select>
-                             <Button type="button" variant="outline" size="icon" onClick={() => setIsVendorDialogOpen(true)} className="shrink-0 h-10 w-10">
-                                <PlusCircle className="h-4 w-4" />
-                            </Button>
                         </div>
                         <FormMessage />
                         </FormItem>
