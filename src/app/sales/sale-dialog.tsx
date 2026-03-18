@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,14 +37,13 @@ import { collection, query, orderBy } from "firebase/firestore";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { Combobox } from "@/components/ui/combobox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
 const STORE_ID = 'store_main';
 
 const saleItemSchema = z.object({
-    productId: z.string().optional(),
+    productId: z.string().min(1, "Product is required."),
     brandId: z.string().optional(),
     handPreference: z.string().default('Normal'),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1.").default(1),
@@ -64,16 +62,7 @@ const formSchema = z.object({
   saleDate: z.date({ required_error: "Sale date is required." }),
   saleType: z.enum(["GST", "Cash"], { required_error: "Sale type is required." }),
   warrantyId: z.string().optional(),
-  items: z.array(saleItemSchema).superRefine((items, ctx) => {
-      const validItems = items.filter(i => i.productId && i.productId !== "");
-      if (validItems.length === 0) {
-          ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: "At least one product must be selected.",
-              path: [],
-          });
-      }
-  }),
+  items: z.array(saleItemSchema).min(1, "At least one product must be selected."),
   couponCode: z.string().optional(),
   manualDiscountPercentage: z.coerce.number().min(0).max(100).default(0),
   paymentMethod: z.enum(["NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Cash", "Other", "Sponsored", "Replacement"]),
@@ -229,7 +218,6 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
     const product = allProducts?.find(p => p.id === value);
     if (!product) return;
 
-    // Check for duplication
     const existingIndex = watchedItems.findIndex((item, i) => item.productId === value && i !== index);
 
     if (existingIndex > -1) {
@@ -310,30 +298,33 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle>{sale?.id ? "Edit Sale" : "New Sale"}</DialogTitle>
             <DialogDescription>Create a compliant TAX INVOICE or Retail Receipt.</DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
-          <form id="sale-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pt-4">
+          <form id="sale-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pt-2">
                 <FormField control={form.control} name="customerId" render={({ field }) => ( 
                   <FormItem>
                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                         Customer <span className="text-destructive font-black">*</span>
                     </FormLabel>
                     <div className="flex items-center gap-2">
-                      <Combobox
-                        options={customers?.map(c => ({ value: c.id, label: c.name })) || []}
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder="Search for a customer..."
-                        searchPlaceholder="Type name..."
-                        notFoundText="No customer found."
-                        className="h-10"
-                      />
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="h-10">
+                            <SelectValue placeholder="Select a customer" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {customers?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)} className="shrink-0 h-10 w-10"><PlusCircle className="h-4 w-4" /></Button>
                     </div>
                     <FormMessage />
@@ -400,11 +391,11 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                   
                   return (
                       <Card key={field.id} className={cn("border-2 shadow-sm overflow-hidden", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
-                          <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
-                              <div className="flex items-center gap-4">
+                          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-2 px-4 bg-muted/20 border-b gap-2">
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                                   <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
                                   {selectedProdId && (
-                                      <div className="flex flex-wrap gap-2">
+                                      <div className="flex flex-wrap gap-1">
                                           <Badge variant="outline" className="text-[10px] uppercase h-5">SKU: {product?.sku}</Badge>
                                           <Badge variant="outline" className="text-[10px] uppercase h-5">CAT: {category?.name}</Badge>
                                           {subCategory && <Badge variant="outline" className="text-[10px] uppercase h-5">SUB: {subCategory.name}</Badge>}
@@ -412,32 +403,35 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                                       </div>
                                   )}
                               </div>
-                              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
+                              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive self-end sm:self-center" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
                           </CardHeader>
                           <CardContent className="p-4">
-                              <div className="grid grid-cols-12 gap-3 items-end">
-                                  <div className="col-span-12 lg:col-span-5">
+                              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                                  <div className="col-span-1 sm:col-span-5">
                                       <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
                                           <FormItem>
-                                              <Combobox
-                                                options={allProducts?.map(p => ({ value: p.id, label: `${p.name} (${p.sku})` })) || []}
-                                                value={f.value || ""}
-                                                onChange={(val) => handleProductSelect(val, index)}
-                                                placeholder="Select a product..."
-                                                searchPlaceholder="Type name or SKU..."
-                                                notFoundText="No product found."
-                                                className="h-10"
-                                              />
+                                              <Select onValueChange={(val) => handleProductSelect(val, index)} value={f.value}>
+                                                <FormControl>
+                                                  <SelectTrigger className="h-10">
+                                                    <SelectValue placeholder="Select a product" />
+                                                  </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                  {allProducts?.map(p => (
+                                                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
                                           </FormItem>
                                       )} />
                                   </div>
-                                  <div className="col-span-6 lg:col-span-2">
+                                  <div className="col-span-1 sm:col-span-2">
                                       <FormField control={form.control} name={`items.${index}.handPreference`} render={({ field: f }) => ( <FormItem><Select onValueChange={f.onChange} value={f.value}><FormControl><SelectTrigger className="h-10"><SelectValue /></SelectTrigger></FormControl><SelectContent>{handPreferences?.map(hp => <SelectItem key={hp.id} value={hp.name}>{hp.name}</SelectItem>)}</SelectContent></Select></FormItem> )} />
                                   </div>
-                                  <div className="col-span-3 lg:col-span-2">
+                                  <div className="col-span-1 sm:col-span-2">
                                       <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => ( <FormItem><FormControl><Input type="number" {...f} className="h-10" /></FormControl></FormItem> )} />
                                   </div>
-                                  <div className="col-span-3 lg:col-span-3">
+                                  <div className="col-span-1 sm:col-span-3">
                                       <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: f }) => ( <FormItem><FormControl><Input type="number" {...f} className="h-10 font-black" /></FormControl></FormItem> )} />
                                   </div>
                               </div>
@@ -447,7 +441,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
               })}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/50 p-6 rounded-xl border">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/50 p-4 sm:p-6 rounded-xl border">
                 <div className="space-y-4">
                     <h4 className="font-bold text-xs uppercase tracking-widest text-muted-foreground">Discounts & Method</h4>
                     <div className="grid grid-cols-2 gap-4">
@@ -469,7 +463,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                 </div>
             </div>
 
-            <div className="rounded-2xl border-2 border-primary/20 p-8 bg-primary/5 shadow-inner space-y-3">
+            <div className="rounded-2xl border-2 border-primary/20 p-6 sm:p-8 bg-primary/5 shadow-inner space-y-3">
                 <div className="flex justify-between text-sm"><span>Subtotal</span><span className="font-bold">₹{totals.subTotal.toLocaleString()}</span></div>
                 { totals.totalDiscount > 0 && <div className="flex justify-between text-sm text-destructive"><span>Discount</span><span className="font-bold">-₹{totals.totalDiscount.toLocaleString()}</span></div>}
                 { watchedSaleType === 'GST' && (
@@ -479,8 +473,8 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                     </div>
                 )}
                 <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
-                    <span className="text-2xl font-black tracking-tighter uppercase">Net Payable</span>
-                    <span className="text-4xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
+                    <span className="text-xl sm:text-2xl font-black tracking-tighter uppercase">Net Payable</span>
+                    <span className="text-3xl sm:text-4xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
                 </div>
             </div>
 
@@ -498,7 +492,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
           </form>
         </Form>
         
-        <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t bg-muted/10">
+        <DialogFooter className="flex flex-col sm:flex-row gap-2 p-4 sm:p-6 pt-4 border-t bg-muted/10">
             <Button type="submit" form="sale-form" className="w-full sm:w-auto order-1 sm:order-2">Save Invoice</Button>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
         </DialogFooter>

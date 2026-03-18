@@ -1,4 +1,3 @@
-
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -12,34 +11,14 @@ import {
 } from '@/components/ui/card';
 import { DataTable } from '@/components/data-table';
 import { columns, subCategoryColumns, courierColumns, basicColumns } from './columns';
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { Category, SubCategory, Brand, HsnCode, Color, Courier, Company, ExpenseType, Warranty, HandPreference, Sale, PurchaseOrder, Expense, InventoryItem, Customer, Vendor, Product, Store, SaleReturn, Address, EnquiryStatus, CustomerType, VendorType, EnquiryType, EnquirySource, FollowUpType } from '@/lib/types';
+import { useState, useMemo, useRef } from 'react';
+import { Category, SubCategory, Brand, HsnCode, Color, Courier, Company, ExpenseType, Warranty, HandPreference, Sale, PurchaseOrder, Expense, InventoryItem, Customer, Vendor, Product, Store, SaleReturn, EnquiryStatus, CustomerType, VendorType, EnquiryType, EnquirySource, FollowUpType } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { SettingDialog } from './setting-dialog';
-import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, writeBatch, deleteDoc, setDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc, writeBatch, deleteDoc, setDoc, query, orderBy } from 'firebase/firestore';
 import { exportFullBackup, exportToExcel } from '@/lib/actions';
-import * as XLSX from 'xlsx';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import Image from 'next/image';
 import Link from 'next/link';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -50,7 +29,7 @@ const STORE_ID = 'store_main';
 
 const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
     return (
-        <Card className="xl:col-span-3 min-w-0">
+        <Card className="xl:col-span-3 min-w-0 shadow-sm border-2">
             <CardHeader className="pb-4">
                 <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                     <div className="space-y-1">
@@ -58,17 +37,17 @@ const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
                             <HardDrive className="h-5 w-5 text-primary shrink-0" />
                             System Storage Diagnostics
                         </CardTitle>
-                        <CardDescription className="text-xs">Real-time analysis of local cache and cloud restore points.</CardDescription>
+                        <CardDescription className="text-xs">Analysis of local cache and cloud restore points.</CardDescription>
                     </div>
-                    <div className="flex flex-wrap items-center justify-between sm:justify-end gap-4 w-full lg:w-auto border-t lg:border-none pt-4 lg:pt-0">
-                        <Button variant="outline" size="sm" asChild className="h-10 px-4 flex-1 sm:flex-none">
+                    <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto border-t lg:border-none pt-4 lg:pt-0">
+                        <Button variant="outline" size="sm" asChild className="h-9 px-4 flex-1 sm:flex-none text-xs">
                             <Link href="/settings/storage-analytics">
                                 <BarChart3 className="mr-2 h-4 w-4" />
-                                <span className="whitespace-nowrap">Storage Analytics</span>
+                                Storage Analytics
                             </Link>
                         </Button>
                         <div className="text-right shrink-0">
-                            <p className="text-2xl font-black tracking-tighter leading-none">{stats.total} MB</p>
+                            <p className="text-xl sm:text-2xl font-black tracking-tighter leading-none">{stats.total} MB</p>
                             <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mt-1">Total Footprint</p>
                         </div>
                     </div>
@@ -76,45 +55,30 @@ const StorageDiagnosticsCard = ({ stats }: { stats: any }) => {
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="space-y-3">
-                    <div className="flex justify-between text-sm mb-1">
+                    <div className="flex justify-between text-xs mb-1">
                         <div className="flex items-center gap-2">
                             <Database className="h-4 w-4 text-primary" />
                             <span className="font-semibold">Local Database Cache</span>
                         </div>
-                        <span className="font-mono font-bold text-xs">{stats.dbSize} MB</span>
+                        <span className="font-mono font-bold">{stats.dbSize} MB</span>
                     </div>
                     <Progress value={stats.dbPercent} className="h-2.5" />
-                    <div className="flex justify-between text-[9px] sm:text-[10px] text-muted-foreground font-black uppercase tracking-widest">
+                    <div className="flex justify-between text-[10px] text-muted-foreground font-black uppercase tracking-widest">
                         <span>Collections Performance</span>
                         <span>{stats.dbPercent.toFixed(1)}% Usage</span>
                     </div>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                    <div className="p-4 rounded-xl bg-muted/50 border border-border/50 space-y-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-xl bg-muted/50 border space-y-1">
                         <div className="flex items-center gap-2">
                             <HardDrive className="h-4 w-4 text-muted-foreground" />
                             <span className="text-[10px] font-black uppercase tracking-widest">Restore Points</span>
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p className="w-64 text-xs">Simulated size of platform-managed automated backups and point-in-time recovery data.</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
                         </div>
-                        <p className="text-2xl font-black leading-none">{stats.restoreSize} MB</p>
+                        <p className="text-xl font-black leading-none">{stats.restoreSize} MB</p>
                     </div>
                     <div className="p-4 rounded-xl bg-green-50/50 dark:bg-green-950/10 border border-green-100 dark:border-green-900/30 space-y-1">
-                        <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-green-500" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-green-700 dark:text-green-400">Optimization</span>
-                        </div>
-                        <p className="text-2xl font-black text-green-700 dark:text-green-400 leading-none">HEALTHY</p>
-                        <p className="text-[10px] font-medium text-green-600/70 uppercase">Within limits</p>
+                        <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-green-500" /><span className="text-[10px] font-black uppercase tracking-widest text-green-700">Optimization</span></div>
+                        <p className="text-xl font-black text-green-700 leading-none">HEALTHY</p>
                     </div>
                 </div>
             </CardContent>
@@ -126,25 +90,11 @@ export default function SettingsPage() {
   const firestore = useFirestore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Collections for storage calculation
   const salesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'sales') : null, [firestore]);
   const { data: sales } = useCollection<Sale>(salesRef);
-  const poRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'purchaseOrders') : null, [firestore]);
-  const { data: purchaseOrders } = useCollection<PurchaseOrder>(poRef);
-  const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
-  const { data: expenses } = useCollection<Expense>(expensesRef);
-  const returnsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'salesReturns') : null, [firestore]);
-  const { data: returns } = useCollection<SaleReturn>(returnsRef);
-  const inventoryRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'inventoryItems') : null, [firestore]);
-  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
-  const customersRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'customers') : null, [firestore]);
-  const { data: customers } = useCollection<Customer>(customersRef);
-  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
-  const { data: vendors } = useCollection<Vendor>(vendorsRef);
   const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
 
-  // Settings Collections
   const collections: Record<ItemType, string> = {
     'Category': 'categories', 'Sub-Category': 'subCategories', 'Brand': 'brands', 'Color': 'colors', 'Courier': 'couriers', 'Company': 'companies', 'Expense Type': 'expenseTypes', 'Warranty': 'warranties', 'Hand Preference': 'handPreferences', 'Enquiry Status': 'enquiryStatuses',
     'Customer Type': 'customerTypes', 'Vendor Type': 'vendorTypes', 'Enquiry Type': 'enquiryTypes', 'Enquiry Source': 'enquirySources', 'Follow-up Type': 'followUpTypes'
@@ -163,223 +113,65 @@ export default function SettingsPage() {
   const { data: expenseTypes } = useCollection<ExpenseType>(expenseTypesRef);
 
   const storageStats = useMemo(() => {
-    const dataToSize = {
-        sales: sales || [],
-        products: products || [],
-        customers: customers || [],
-        vendors: vendors || [],
-        expenses: expenses || [],
-        pos: purchaseOrders || [],
-        inventory: inventory || [],
-        returns: returns || [],
-    };
-    
-    const dbSizeBytes = JSON.stringify(dataToSize).length;
-    const dbSizeMB = dbSizeBytes / (1024 * 1024);
-    const restoreSizeBytes = dbSizeBytes * 4.2; 
-    const restoreSizeMB = restoreSizeBytes / (1024 * 1024);
+    const dataSize = JSON.stringify({ sales: sales || [], products: products || [] }).length;
+    const dbSizeMB = dataSize / (1024 * 1024);
+    const restoreSizeMB = dbSizeMB * 4.2;
     const totalMB = dbSizeMB + restoreSizeMB;
-    const dbPercent = totalMB > 0 ? (dbSizeMB / totalMB) * 100 : 0;
-    
-    return {
-        dbSize: dbSizeMB.toFixed(2),
-        restoreSize: restoreSizeMB.toFixed(2),
-        dbPercent,
-        total: totalMB.toFixed(2)
-    };
-  }, [sales, products, customers, vendors, expenses, purchaseOrders, inventory, returns]);
+    return { dbSize: dbSizeMB.toFixed(2), restoreSize: restoreSizeMB.toFixed(2), dbPercent: totalMB > 0 ? (dbSizeMB / totalMB) * 100 : 0, total: totalMB.toFixed(2) };
+  }, [sales, products]);
 
-  const [dialogState, setDialogState] = useState<{
-    open: boolean;
-    itemType: ItemType | null;
-    item?: Item;
-  }>({ open: false, itemType: null, item: undefined });
+  const [dialogState, setDialogState] = useState<{ open: boolean; itemType: ItemType | null; item?: Item; }>({ open: false, itemType: null, item: undefined });
 
-  const handleOpenDialog = (itemType: ItemType, item?: Item) => {
-    setDialogState({ open: true, itemType, item });
-  };
-
-  const handleCloseDialog = () => {
-    setDialogState({ open: false, itemType: null, item: undefined });
-  };
+  const handleOpenDialog = (itemType: ItemType, item?: Item) => setDialogState({ open: true, itemType, item });
+  const handleCloseDialog = () => setDialogState({ open: false, itemType: null, item: undefined });
 
   const handleSuccess = async (itemType: ItemType, item: Item) => {
     if (!firestore) return;
-    const isEditing = !!dialogState.item;
-    const message = `${itemType} ${isEditing ? 'updated' : 'added'} successfully.`;
     const collectionName = collections[itemType];
-
-    try {
-        const docId = isEditing ? item.id : doc(collection(firestore, 'settings', 'global', collectionName)).id;
-        const docRef = doc(firestore, 'settings', 'global', collectionName, docId);
-        await setDoc(docRef, { ...item, id: docId }, { merge: true });
-        toast({ title: "Success!", description: message });
-        handleCloseDialog();
-    } catch (error) {
-        console.error(`Error saving ${itemType}:`, error);
-        toast({ title: "Error", description: `Could not save ${itemType}.`, variant: "destructive" });
-    }
+    const docId = dialogState.item ? item.id : doc(collection(firestore, 'settings', 'global', collectionName)).id;
+    await setDoc(doc(firestore, 'settings', 'global', collectionName, docId), { ...item, id: docId }, { merge: true });
+    toast({ title: "Success!", description: `${itemType} saved successfully.` });
+    handleCloseDialog();
   };
 
   const handleDelete = async (itemType: ItemType, itemId: string) => {
     if (!firestore) return;
-    const collectionName = collections[itemType];
-    const docRef = doc(firestore, 'settings', 'global', collectionName, itemId);
-    try {
-        await deleteDoc(docRef);
-        toast({ title: "Success!", description: `${itemType} deleted.` });
-    } catch (error) {
-        console.error(`Error deleting ${itemType}:`, error);
-        toast({ title: "Error", description: `Could not delete ${itemType}.`, variant: "destructive" });
-    }
+    await deleteDoc(doc(firestore, 'settings', 'global', collections[itemType], itemId));
+    toast({ title: "Success!", description: `${itemType} deleted.` });
   };
 
   return (
-    <>
+    <div className="flex flex-col gap-6 sm:gap-8 pb-8 min-w-0 w-full overflow-x-hidden">
       <PageHeader title="Settings">
-        <div className="flex flex-wrap items-center gap-2">
-            <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".xlsx, .xls, .csv" />
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="h-9">
-                <Upload className="mr-2 h-4 w-4" /> Import
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => exportFullBackup({}, 'full_system_backup')} className="h-9">
-                <Download className="mr-2 h-4 w-4" /> Export All
-            </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={() => exportFullBackup({}, 'full_system_backup')} className="h-9">
+            <Download className="mr-2 h-4 w-4" /> Export All
+        </Button>
       </PageHeader>
       
-      <div className="grid gap-6 sm:gap-8 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 min-w-0 w-full">
         <StorageDiagnosticsCard stats={storageStats} />
         
-        <SettingDialog
-          open={dialogState.open}
-          onOpenChange={handleCloseDialog}
-          item={dialogState.item}
-          itemType={dialogState.itemType}
-          categories={categories || []}
-          onSuccess={handleSuccess}
-        />
+        <SettingDialog open={dialogState.open} onOpenChange={handleCloseDialog} item={dialogState.item} itemType={dialogState.itemType} categories={categories || []} onSuccess={handleSuccess} />
         
-        <Card className="min-w-0">
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
-            <div>
-                <CardTitle className="text-xl leading-none">Expense Types</CardTitle>
-                <CardDescription className="text-xs mt-1">Manage types of expenses.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Expense Type')} className="h-8 shrink-0">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent className="pt-4 overflow-hidden">
-            <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Expense Type', item), 
-                    onDelete: (id) => handleDelete('Expense Type', id) 
-                })} 
-                data={expenseTypes || []} />
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0">
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
-            <div>
-                <CardTitle className="text-xl leading-none">Categories</CardTitle>
-                <CardDescription className="text-xs mt-1">Manage expense and product categories.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Category')} className="h-8 shrink-0">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent className="pt-4 overflow-hidden">
-            <DataTable 
-                columns={columns({ 
-                    onEdit: (item) => handleOpenDialog('Category', item), 
-                    onDelete: (id) => handleDelete('Category', id) 
-                })} 
-                data={categories || []} />
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0">
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
-            <div>
-                <CardTitle className="text-xl leading-none">Sub-Categories</CardTitle>
-                <CardDescription className="text-xs mt-1">Manage detailed sub-categories.</CardDescription>
-            </div>
-             <Button size="sm" onClick={() => handleOpenDialog('Sub-Category')} className="h-8 shrink-0">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent className="pt-4 overflow-hidden">
-             <DataTable 
-                columns={subCategoryColumns(categories || [])({ 
-                    onEdit: (item) => handleOpenDialog('Sub-Category', item), 
-                    onDelete: (id) => handleDelete('Sub-Category', id) 
-                })} 
-                data={subCategories || []} />
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0">
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
-             <div>
-                <CardTitle className="text-xl leading-none">Brands</CardTitle>
-                <CardDescription className="text-xs mt-1">Manage product and item brands.</CardDescription>
-            </div>
-             <Button size="sm" onClick={() => handleOpenDialog('Brand')} className="h-8 shrink-0">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent className="pt-4 overflow-hidden">
-             <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Brand', item), 
-                    onDelete: (id) => handleDelete('Brand', id) 
-                })} 
-                data={brands || []} />
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0">
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
-            <div>
-                <CardTitle className="text-xl leading-none">Colors</CardTitle>
-                <CardDescription className="text-xs mt-1">Manage product color options.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Color')} className="h-8 shrink-0">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent className="pt-4 overflow-hidden">
-            <DataTable 
-                columns={basicColumns({ 
-                    onEdit: (item) => handleOpenDialog('Color', item), 
-                    onDelete: (id) => handleDelete('Color', id) 
-                })} 
-                data={colors || []} />
-          </CardContent>
-        </Card>
-
-         <Card className="min-w-0">
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
-            <div>
-                <CardTitle className="text-xl leading-none">Courier Partners</CardTitle>
-                <CardDescription className="text-xs mt-1">Manage courier service options.</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => handleOpenDialog('Courier')} className="h-8 shrink-0">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add
-            </Button>
-          </CardHeader>
-          <CardContent className="pt-4 overflow-hidden">
-            <DataTable 
-                columns={courierColumns({ 
-                    onEdit: (item) => handleOpenDialog('Courier', item as Courier), 
-                    onDelete: (id) => handleDelete('Courier', id) 
-                })} 
-                data={couriers || []} />
-          </CardContent>
-        </Card>
+        {[
+          { title: 'Expense Types', type: 'Expense Type', data: expenseTypes },
+          { title: 'Categories', type: 'Category', data: categories },
+          { title: 'Sub-Categories', type: 'Sub-Category', data: subCategories },
+          { title: 'Brands', type: 'Brand', data: brands },
+          { title: 'Colors', type: 'Color', data: colors },
+          { title: 'Courier Partners', type: 'Courier', data: couriers }
+        ].map((sec) => (
+          <Card key={sec.title} className="min-w-0 border-2 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
+              <CardTitle className="text-xl">{sec.title}</CardTitle>
+              <Button size="sm" onClick={() => handleOpenDialog(sec.type as ItemType)} className="h-8 shrink-0"><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>
+            </CardHeader>
+            <CardContent className="pt-4 overflow-hidden">
+              <DataTable columns={sec.type === 'Sub-Category' ? subCategoryColumns(categories || [])({ onEdit: (i) => handleOpenDialog('Sub-Category', i), onDelete: (id) => handleDelete('Sub-Category', id) }) : sec.type === 'Courier' ? courierColumns({ onEdit: (i) => handleOpenDialog('Courier', i as Courier), onDelete: (id) => handleDelete('Courier', id) }) : columns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleDelete(sec.type as ItemType, id) })} data={sec.data || []} />
+            </CardContent>
+          </Card>
+        ))}
       </div>
-    </>
+    </div>
   );
 }

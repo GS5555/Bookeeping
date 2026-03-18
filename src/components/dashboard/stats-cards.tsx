@@ -46,11 +46,11 @@ export function StatsCards({ stats }: StatsCardsProps) {
     }, [isMounted, stats]);
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 w-full">
       {formattedStats.map((stat, index) => {
         const colorClasses = cardColorClasses[index % cardColorClasses.length];
         return (
-            <Card key={stat.title} className={cn(colorClasses.bg, colorClasses.border)}>
+            <Card key={stat.title} className={cn("min-w-0 w-full", colorClasses.bg, colorClasses.border)}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className={cn("text-sm font-medium", colorClasses.text)}>
                   {stat.title}
@@ -58,9 +58,9 @@ export function StatsCards({ stats }: StatsCardsProps) {
                 <stat.icon className={cn("h-4 w-4", colorClasses.text)} />
               </CardHeader>
               <CardContent className={cn(colorClasses.text)}>
-                <div className="text-2xl font-bold">{stat.value}</div>
+                <div className="text-2xl font-bold truncate">{stat.value}</div>
                 {stat.description && (
-                    <p className={cn("text-xs opacity-80", colorClasses.text)}>
+                    <p className={cn("text-xs opacity-80 truncate", colorClasses.text)}>
                         {stat.description}
                     </p>
                 )}

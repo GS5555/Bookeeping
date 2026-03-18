@@ -1,5 +1,4 @@
-
-"use client";
+'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -139,26 +138,16 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   });
 
   const { control, handleSubmit, watch, reset, setValue, getValues } = form;
-  const watchedCustomerId = watch("customerId");
-  const watchedStatus = watch("status");
   const watchedItems = watch("items") || [];
   const watchedSaleType = watch("saleType");
   
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "items",
-  });
+  const { fields, append, remove } = useFieldArray({ control, name: "items" });
   
   const handleAppendItem = () => {
     append({ productId: "", productName: "", brandId: "", categoryId: "", quantity: 1, unitPrice: 0, gstRate: 0, totalPrice: 0 });
     setItemFilters(prev => [...prev, { brandId: 'all', categoryId: 'all', subCategoryId: 'all' }]);
   };
   
-  const handleRemoveItem = (index: number) => {
-    remove(index);
-    setItemFilters(prev => prev.filter((_, i) => i !== index));
-  };
-
   const totals = useMemo(() => {
     let sub = 0;
     let gst = 0;
@@ -184,15 +173,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
             setItemFilters(enquiry.items?.map(item => ({ brandId: item.brandId || 'all', categoryId: item.categoryId || 'all', subCategoryId: item.subCategoryId || 'all' })) || []);
         } else {
             setIsEditing(true);
-            reset({
-                customerId: "",
-                enquiry: "",
-                status: "New",
-                convertedToId: "",
-                followUps: [],
-                items: [],
-                saleType: 'GST',
-            });
+            reset({ customerId: "", enquiry: "", status: "New", convertedToId: "", followUps: [], items: [], saleType: 'GST' });
             setItemFilters([]);
         }
         setNewFollowUpNote("");
@@ -238,33 +219,6 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
     onSuccess(submittedEnquiry);
   };
   
-  const handleNewCustomerSuccess = async (customer: Customer) => {
-    if (!firestore) return;
-    try {
-        const docRef = doc(firestore, 'stores', STORE_ID, 'customers', customer.id);
-        await setDoc(docRef, customer, { merge: true });
-        setIsCustomerDialogOpen(false);
-        setValue('customerId', customer.id, { shouldValidate: true });
-        toast({ title: "Success!", description: `Customer ${customer.name} created.` });
-    } catch(err) {
-        toast({ title: "Error", description: "Could not create new customer.", variant: "destructive" });
-    }
-  };
-
-  const handleNewQuotationSuccess = async (quotation: Quotation) => {
-    if (!firestore || !currentUser) return;
-    try {
-        const quotationDocRef = doc(firestore, 'stores', STORE_ID, 'quotations', quotation.id);
-        const finalQuotation: Quotation = { ...quotation, createdBy: currentUser.id };
-        await setDoc(quotationDocRef, finalQuotation, { merge: true });
-        setIsQuotationDialogOpen(false);
-        setValue('convertedToId', `quotation_${quotation.id}`, { shouldValidate: true });
-        toast({ title: 'Success!', description: `Quotation #${quotation.quotationNumber} created and linked.` });
-    } catch (error) {
-        toast({ title: 'Error', description: 'Could not save quotation.', variant: "destructive" });
-    }
-  };
-
   const enquiryAsQuotation = useMemo(() => {
     const formValues = getValues();
     const customer = customers?.find(c => c.id === formValues.customerId);
@@ -292,41 +246,26 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   }, [getValues, customers, products]);
 
   const dialogTitle = enquiry?.id ? `Edit Enquiry #${enquiry.enquiryNumber}` : "Add New Enquiry";
-  const dialogDescription = enquiry?.id 
-    ? `Enquiry from ${enquiry.customerName} • Created by ${enquiry.createdByName}` 
-    : "Log a new customer enquiry.";
 
   return (
     <>
-      <CustomerDialog 
-        open={isCustomerDialogOpen} 
-        onOpenChange={setIsCustomerDialogOpen} 
-        onSuccess={handleNewCustomerSuccess} 
-      />
-      <QuotationDialog
-        open={isQuotationDialogOpen}
-        onOpenChange={setIsQuotationDialogOpen}
-        onSuccess={handleNewQuotationSuccess}
-        quotation={enquiryAsQuotation}
-        onConvertToSale={() => {}}
-      />
+      <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
+      <QuotationDialog open={isQuotationDialogOpen} onOpenChange={setIsQuotationDialogOpen} onSuccess={() => {}} quotation={enquiryAsQuotation} onConvertToSale={() => {}} />
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
-          <DialogHeader className="p-6 pb-4 border-b">
-            <div className="flex justify-between items-center pr-6">
-                <div>
-                    <DialogTitle>{dialogTitle}</DialogTitle>
-                    <DialogDescription>{dialogDescription}</DialogDescription>
-                </div>
-                 {enquiry?.id && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-                    <Button onClick={() => setIsEditing(true)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit
-                    </Button>
-                )}
+          <DialogHeader className="p-6 pb-4 border-b flex flex-row items-center justify-between">
+            <div className="flex-1">
+                <DialogTitle>{dialogTitle}</DialogTitle>
+                <DialogDescription className="line-clamp-1">{enquiry?.id ? `Enquiry from ${enquiry.customerName}` : "Log a new customer enquiry."}</DialogDescription>
             </div>
+            {enquiry?.id && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
+                <Button onClick={() => setIsEditing(true)} size="sm">
+                    <Edit className="mr-2 h-4 w-4" /> Edit
+                </Button>
+            )}
           </DialogHeader>
           <Form {...form}>
-            <form id="enquiry-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-6 space-y-4">
+            <form id="enquiry-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
               {isEditing ? (
                 <FormField
                   control={control}
@@ -336,18 +275,10 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                       <FormLabel>Customer</FormLabel>
                       <div className="flex items-center gap-2">
                         <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a customer" />
-                                </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                {customers?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                            </SelectContent>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
+                            <SelectContent>{customers?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                         </Select>
-                        <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)}>
-                            <PlusCircle className="h-4 w-4" />
-                        </Button>
+                        <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)}><PlusCircle className="h-4 w-4" /></Button>
                       </div>
                       <FormMessage />
                     </FormItem>
@@ -359,14 +290,14 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {isEditing ? (
                     <FormField control={control} name="enquiryTypeId" render={({ field }) => (
-                      <FormItem><FormLabel>Type of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an enquiry type" /></SelectTrigger></FormControl><SelectContent>{enquiryTypes?.sort((a,b)=>a.name.localeCompare(b.name)).map(type => (<SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Type of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an enquiry type" /></SelectTrigger></FormControl><SelectContent>{enquiryTypes?.map(type => (<SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
                     )}/>
                   ) : (
                     <ReadOnlyField label="Type of Enquiry" value={enquiryTypes?.find(t => t.id === getValues('enquiryTypeId'))?.name} />
                   )}
                   {isEditing ? (
                     <FormField control={control} name="sourceId" render={({ field }) => (
-                        <FormItem><FormLabel>Source of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a source" /></SelectTrigger></FormControl><SelectContent>{enquirySources?.sort((a,b)=>a.name.localeCompare(b.name)).map(source => ( <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem> ))}</SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Source of Enquiry</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a source" /></SelectTrigger></FormControl><SelectContent>{enquirySources?.map(source => ( <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem> ))}</SelectContent></Select><FormMessage /></FormItem>
                     )}/>
                   ) : (
                     <ReadOnlyField label="Source of Enquiry" value={enquirySources?.find(s => s.id === getValues('sourceId'))?.name} />
@@ -376,7 +307,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                   <FormItem>
                     <FormLabel>Enquiry Details</FormLabel>
                     {isEditing ? (
-                        <FormControl><Textarea placeholder="e.g., Customer asked about bulk pricing..." {...field} /></FormControl>
+                        <FormControl><Textarea placeholder="Details..." {...field} /></FormControl>
                     ) : (
                         <div className="text-sm p-3 border rounded-md bg-muted min-h-24 whitespace-pre-wrap">{field.value || 'No details provided.'}</div>
                     )}
@@ -384,175 +315,75 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                   </FormItem>
                 )}
               />
-              <FormField
-                  control={form.control}
-                  name="saleType"
-                  render={({ field }) => (
-                      <FormItem className="space-y-3">
-                      <FormLabel>Potential Sale Type</FormLabel>
-                       {isEditing ? (
-                          <FormControl>
-                              <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
-                                  <FormItem className="flex items-center space-x-3 space-y-0">
-                                      <FormControl><RadioGroupItem value="GST" /></FormControl>
-                                      <FormLabel className="font-normal">GST</FormLabel>
-                                  </FormItem>
-                                  <FormItem className="flex items-center space-x-3 space-y-0">
-                                      <FormControl><RadioGroupItem value="Cash" /></FormControl>
-                                      <FormLabel className="font-normal">Cash</FormLabel>
-                                  </FormItem>
-                              </RadioGroup>
-                          </FormControl>
-                       ) : (
-                           <div className="text-sm p-3 border rounded-md bg-muted">{field.value || 'Not specified'}</div>
-                       )}
-                      <FormMessage />
-                      </FormItem>
-                  )}
-              />
               
               <Separator />
               <div className="space-y-4">
-                  <FormLabel>Interested Products (Optional)</FormLabel>
-                  {fields.map((field, index) => {
-                      const currentFilters = itemFilters[index] || { brandId: 'all', categoryId: 'all', subCategoryId: 'all' };
-                      const filteredSubCategories = subCategories?.filter(sc => currentFilters.categoryId === 'all' || sc.categoryId === currentFilters.categoryId).sort((a,b) => a.name.localeCompare(b.name)) || [];
-                      const filteredProducts = products?.filter(p => 
-                          (currentFilters.brandId === 'all' || p.brand === currentFilters.brandId) &&
-                          (currentFilters.categoryId === 'all' || p.category === currentFilters.categoryId) &&
-                          (currentFilters.subCategoryId === 'all' || p.subCategory === currentFilters.subCategoryId)
-                      ).sort((a, b) => a.name.localeCompare(b.name)) || [];
-
-                      return (
-                          <div key={field.id} className="space-y-3 border p-3 rounded-lg relative">
-                              {isEditing && <div className="flex justify-end sm:absolute sm:top-2 sm:right-2">
-                                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveItem(index)}>
-                                      <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                              </div>}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                  <Select value={currentFilters.brandId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], brandId: value }; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={!isEditing}>
-                                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Brand" /></SelectTrigger>
-                                    <SelectContent><SelectItem value="all">All Brands</SelectItem>{brands?.sort((a,b)=>a.name.localeCompare(b.name)).map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
-                                  </Select>
-                                  <Select value={currentFilters.categoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], categoryId: value, subCategoryId: 'all' }; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={!isEditing}>
-                                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
-                                      <SelectContent><SelectItem value="all">All Categories</SelectItem>{categories?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                                  </Select>
-                                  <Select value={currentFilters.subCategoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index].subCategoryId = value; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={filteredSubCategories.length === 0 || !isEditing}>
-                                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Sub-Category" /></SelectTrigger>
-                                      <SelectContent><SelectItem value="all">All Sub-Categories</SelectItem>{filteredSubCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}</SelectContent>
-                                  </Select>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start pt-2">
+                  <FormLabel className="text-base font-bold">Interested Products</FormLabel>
+                  {fields.map((field, index) => (
+                      <div key={field.id} className="space-y-3 border p-3 rounded-lg relative bg-accent/5">
+                          {isEditing && <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>}
+                          <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start pt-2">
                                 <FormField control={control} name={`items.${index}.productId`} render={({ field: formField }) => (
-                                      <FormItem><FormLabel className="sr-only">Product</FormLabel>
-                                        <Select onValueChange={(value) => {
+                                      <FormItem><Select onValueChange={(value) => {
                                               formField.onChange(value);
                                               const product = products?.find(p => p.id === value);
                                               if (product) {
                                                   setValue(`items.${index}.productName`, product.name);
-                                                  setValue(`items.${index}.brandId`, product.brand);
-                                                  setValue(`items.${index}.categoryId`, product.category);
-                                                  setValue(`items.${index}.subCategoryId`, product.subCategory);
                                                   setValue(`items.${index}.unitPrice`, product.finalPrice || product.sellingPrice);
                                                   setValue(`items.${index}.gstRate`, product.gstRate);
                                                   const qty = getValues(`items.${index}.quantity`) || 1;
                                                   setValue(`items.${index}.totalPrice`, (product.finalPrice || product.sellingPrice) * qty);
                                               }
                                           }} value={formField.value} disabled={!isEditing}>
-                                            <FormControl><SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl>
-                                            <SelectContent>{filteredProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                                        </Select>
-                                      <FormMessage /></FormItem>
+                                            <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl>
+                                            <SelectContent>{products?.sort((a,b)=>a.name.localeCompare(b.name)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                                        </Select></FormItem>
                                   )}/>
                                   <FormField control={control} name={`items.${index}.quantity`} render={({ field }) => (
-                                      <FormItem><FormLabel className="sr-only">Quantity</FormLabel><FormControl><Input type="number" placeholder="Qty" {...field} disabled={!isEditing} onChange={(e) => {field.onChange(e); const p = products?.find(p => p.id === getValues(`items.${index}.productId`)); if(p) setValue(`items.${index}.totalPrice`, (p.finalPrice || p.sellingPrice) * Number(e.target.value))}} /></FormControl><FormMessage /></FormItem>
+                                      <FormItem><FormControl><Input type="number" placeholder="Qty" {...field} disabled={!isEditing} className="h-10" /></FormControl></FormItem>
                                   )}/>
                                   <FormField control={control} name={`items.${index}.unitPrice`} render={({ field }) => (
-                                      <FormItem><FormLabel className="sr-only">Unit Price</FormLabel><FormControl><Input type="number" placeholder="Unit Price" {...field} disabled={!isEditing} onChange={(e) => {field.onChange(e); const qty = getValues(`items.${index}.quantity`); setValue(`items.${index}.totalPrice`, Number(e.target.value) * qty)}} /></FormControl><FormMessage /></FormItem>
+                                      <FormItem><FormControl><Input type="number" placeholder="Price" {...field} disabled={!isEditing} className="h-10 font-bold" /></FormControl></FormItem>
                                   )}/>
                             </div>
-                          </div>
-                      );
-                  })}
-                  {isEditing && <Button type="button" variant="outline" size="sm" onClick={handleAppendItem}>
-                      <PlusCircle className="mr-2 h-4 w-4" /> Add Product
-                  </Button>}
+                      </div>
+                  ))}
+                  {isEditing && <Button type="button" variant="outline" size="sm" onClick={handleAppendItem}><PlusCircle className="mr-2 h-4 w-4" /> Add Product</Button>}
               </div>
               
-              {totals.totalAmount > 0 && (
-                  <div className="space-y-2 rounded-lg border p-4 bg-muted/30">
-                      <h4 className="font-medium text-xs uppercase tracking-widest text-muted-foreground">Enquiry Value</h4>
-                      <div className="flex justify-between text-sm text-muted-foreground"><span>Subtotal</span><span>₹{totals.subTotal.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div>
-                      {watchedSaleType === 'GST' && (
-                          <div className="flex justify-between text-sm text-muted-foreground"><span>GST</span><span>₹{totals.gstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div>
-                      )}
-                      <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span>Total</span><span>₹{totals.totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div>
-                  </div>
-              )}
+              <div className="space-y-2 rounded-lg border p-4 bg-muted/30">
+                  <div className="flex justify-between text-sm"><span>Subtotal</span><span>₹{totals.subTotal.toLocaleString()}</span></div>
+                  <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span>Total</span><span>₹{totals.totalAmount.toLocaleString()}</span></div>
+              </div>
               
               <Separator />
-              <FormField
-                control={control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={!isEditing}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                          {enquiryStatuses?.sort((a,b)=>a.name.localeCompare(b.name)).map(status => (
-                              <SelectItem key={status.id} value={status.name}>{status.name}</SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={control} name="status" render={({ field }) => (
+                  <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger></FormControl><SelectContent>{enquiryStatuses?.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select></FormItem>
+              )}/>
               
               <div className="space-y-4 pt-4">
-                  <Separator />
-                  <h3 className="text-lg font-medium">Follow-ups ({getValues("followUps")?.length || 0})</h3>
-                  <div className="rounded-md border max-h-48 overflow-y-auto">
-                      <DataTable columns={followUpColumns({ users: usersData || [] })} data={getValues("followUps") || []} />
-                  </div>
+                  <h3 className="text-lg font-medium">Follow-ups</h3>
                   <div className="space-y-4 p-4 border rounded-lg bg-muted/10">
-                      <Label htmlFor="new-follow-up">Add Follow-up</Label>
-                      <Textarea id="new-follow-up" value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="e.g., Called customer..." />
+                      <Textarea value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="Add a follow-up note..." className="h-20" />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <Select value={newFollowUpType} onValueChange={setNewFollowUpType}>
-                              <SelectTrigger><SelectValue placeholder="Select Follow-up Type" /></SelectTrigger>
-                              <SelectContent>
-                                {followUpTypes?.sort((a,b)=>a.name.localeCompare(b.name)).map(type => <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>)}
-                              </SelectContent>
+                              <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
+                              <SelectContent>{followUpTypes?.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
                           </Select>
-                          <Select value={nextAction} onValueChange={setNextAction}>
-                              <SelectTrigger><SelectValue placeholder="Select Next Action" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Call Back">Call Back</SelectItem>
-                                <SelectItem value="Send Email">Send Email</SelectItem>
-                                <SelectItem value="Schedule Meeting">Schedule Meeting</SelectItem>
-                                <SelectItem value="No Action">No Action</SelectItem>
-                              </SelectContent>
-                          </Select>
+                          <Button type="button" size="sm" onClick={handleAddFollowUp}>Add Note</Button>
                       </div>
-                      <Button type="button" size="sm" onClick={handleAddFollowUp}>Add Note</Button>
                   </div>
               </div>
             </form>
           </Form>
           
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t">
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t bg-muted/5">
                 {isEditing ? (
-                    <Button type="submit" form="enquiry-form" className="w-full sm:w-auto order-1 sm:order-2">Save Changes</Button>
+                    <Button type="submit" form="enquiry-form" className="w-full sm:w-auto">Save Changes</Button>
                 ) : (
-                    enquiry?.id && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-                        <Button type="button" onClick={handleSubmit(onSubmit)} className="w-full sm:w-auto order-1 sm:order-2">Save Follow-up</Button>
-                    )
+                    <Button type="button" onClick={handleSubmit(onSubmit)} className="w-full sm:w-auto">Save Interaction</Button>
                 )}
-                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">Cancel</Button>
             </DialogFooter>
         </DialogContent>
       </Dialog>

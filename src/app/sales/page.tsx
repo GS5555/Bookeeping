@@ -1,20 +1,13 @@
-
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { Calculator, CircleDollarSign, PlusCircle, Undo2, BarChart3, AlertCircle, Users, ReceiptText } from 'lucide-react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { CircleDollarSign, PlusCircle, Undo2, BarChart3, ReceiptText } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from '@/components/data-table';
 import { salesColumns } from './columns';
 import { useState, useMemo } from 'react';
-import { Sale, SaleReturn, Customer, Product, Company, User, Category, Payment } from '@/lib/types';
+import { Sale, SaleReturn, Customer, Product, Company, User, Payment } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
 import { format, addDays, startOfMonth, endOfMonth, isWithinInterval, subMonths } from 'date-fns';
@@ -37,38 +30,24 @@ import { PaymentDialog } from './payment-dialog';
 
 const STORE_ID = 'store_main';
 
-type ComparisonType = 'month' | 'quarter' | 'year';
-
 export default function SalesPage() {
   const firestore = useFirestore();
   const { isShareDialogOpen, shareDialogData, openShareDialog, closeShareDialog } = useShareDialog();
   const { currentUser } = useCurrentUser();
 
-  const [comparisonPeriod, setComparisonPeriod] = useState<ComparisonType>('month');
   const [selectedHistoryCustomer, setSelectedHistoryCustomer] = useState<string>('');
   const [selectedPendingCustomer, setSelectedPendingCustomer] = useState<string>('');
 
-  const salesCollectionRef = useMemoFirebase(() => {
-      if (!firestore) return null;
-      return query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc'));
-  }, [firestore]);
-  const { data: salesData } = useCollection<Sale>(salesCollectionRef);
-
-  const returnsCollectionRef = useMemoFirebase(() => {
-      if (!firestore) return null;
-      return query(collection(firestore, 'stores', STORE_ID, 'salesReturns'), orderBy('returnDate', 'desc'));
-  }, [firestore]);
-  const { data: returnsData } = useCollection<SaleReturn>(returnsCollectionRef);
-  
-  const customersCollectionRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
-  const { data: customersData } = useCollection<Customer>(customersCollectionRef);
-
+  const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc')) : null, [firestore]);
+  const { data: salesData } = useCollection<Sale>(salesRef);
+  const returnsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'salesReturns'), orderBy('returnDate', 'desc')) : null, [firestore]);
+  const { data: returnsData } = useCollection<SaleReturn>(returnsRef);
+  const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
+  const { data: customersData } = useCollection<Customer>(customersRef);
   const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
   const { data: productsData } = useCollection<Product>(productsRef);
-
   const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
   const { data: companyDetails } = useDoc<Company>(companyDocRef);
-  
   const usersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
   const { data: usersData } = useCollection<User>(usersRef);
 
@@ -84,291 +63,91 @@ export default function SalesPage() {
   const safeProducts = productsData || [];
   const safeUsers = usersData || [];
 
-  const handlePaymentSuccess = async (payment: Payment) => {
-    if (!firestore) return;
-    try {
-        const batch = writeBatch(firestore);
-        const payRef = doc(firestore, 'stores', STORE_ID, 'customers', payment.customerId, 'payments', payment.id);
-        batch.set(payRef, payment);
-
-        const salesRef = collection(firestore, 'stores', STORE_ID, 'sales');
-        const q = query(
-            salesRef, 
-            where('customerId', '==', payment.customerId),
-            where('invoiceStatus', 'in', ['Unpaid', 'Partially Paid']),
-            orderBy('saleDate', 'asc')
-        );
-        
-        const snapshot = await getDocs(q);
-        let remainingPayment = payment.amount;
-
-        for (const saleDoc of snapshot.docs) {
-            if (remainingPayment <= 0) break;
-
-            const saleData = saleDoc.data() as Sale;
-            const currentPaid = saleData.amountPaid || 0;
-            const total = saleData.totalAmount;
-            const needed = total - currentPaid;
-
-            const saleRef = doc(firestore, 'stores', STORE_ID, 'sales', saleDoc.id);
-
-            if (remainingPayment >= needed) {
-                batch.update(saleRef, { amountPaid: total, balanceAmount: 0, invoiceStatus: 'Paid' });
-                remainingPayment -= needed;
-            } else {
-                const newPaid = currentPaid + remainingPayment;
-                batch.update(saleRef, { amountPaid: newPaid, balanceAmount: total - newPaid, invoiceStatus: 'Partially Paid' });
-                remainingPayment = 0;
-            }
-        }
-
-        await batch.commit();
-        setIsPaymentDialogOpen(false);
-        toast({ title: "Payment Recorded", description: `Applied to pending invoices.` });
-    } catch (error) {
-        console.error(error);
-        toast({ title: "Error", description: "Failed to process payment settlement.", variant: "destructive" });
-    }
-  }
-
   const handleSaleSuccess = async (sale: Sale) => {
     if (!firestore || !currentUser) return;
     try {
         await runTransaction(firestore, async (transaction) => {
             const companyRef = doc(firestore, 'settings', 'global', 'companies', 'main_company');
             const companyDoc = await transaction.get(companyRef);
-            
-            let companyData;
-            if (!companyDoc.exists()) {
-                companyData = {
-                    id: 'main_company',
-                    name: 'Cricket Store',
-                    shortName: 'CS',
-                    invoicePrefix: 'INV',
-                    lastInvoiceNumber: 0,
-                    lastBillNumber: 0,
-                };
-                transaction.set(companyRef, companyData);
-            } else {
-                companyData = companyDoc.data();
-            }
-            
+            let companyData = companyDoc.exists() ? companyDoc.data() : { lastInvoiceNumber: 0, lastBillNumber: 0 };
             const isGst = sale.saleType === 'GST';
             const numberField = isGst ? 'lastInvoiceNumber' : 'lastBillNumber';
-            const prefix = isGst ? (companyData.invoicePrefix || 'INV') : 'BILL';
-            const lastNumber = companyData[numberField] || 0;
-            const newNumber = lastNumber + 1;
-            const invoiceSequence = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
-            
+            const prefix = isGst ? 'INV' : 'BILL';
+            const newNumber = (companyData[numberField] || 0) + 1;
+            const seq = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
             const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
-            const finalSaleData: Sale = {
-                ...sale,
-                id: saleDocRef.id,
-                invoiceSequence,
-                dueDate: addDays(new Date(sale.saleDate), 30).toISOString(),
-                createdBy: currentUser.id,
-                createdByName: currentUser.displayName,
-            } as Sale;
-
-            transaction.set(saleDocRef, finalSaleData);
+            transaction.set(saleDocRef, { ...sale, id: saleDocRef.id, invoiceSequence: seq, createdBy: currentUser.id, createdByName: currentUser.displayName });
             transaction.update(companyRef, { [numberField]: newNumber });
         });
-        toast({ title: "Success!", description: `Invoice created successfully!` });
+        toast({ title: "Invoice Created" });
         setIsSaleDialogOpen(false);
-    } catch (error) {
-        console.error("Sale creation failed:", error);
-        toast({ title: "Error", description: (error as Error).message || "Failed to create sale.", variant: "destructive" });
-    }
-  }
-
-  const handleDelete = async (saleId: string) => {
-    if (!firestore) return;
-    try {
-      await deleteDoc(doc(firestore, 'stores', STORE_ID, 'sales', saleId));
-      toast({ title: "Sale Deleted" });
-    } catch (error) {
-       console.error(error);
-       toast({ title: "Error", variant: "destructive" });
-    }
-  }
+    } catch (e) { toast({ title: "Error", variant: "destructive" }); }
+  };
 
   const summaryData: SummaryCardData[] = useMemo(() => {
-    const totalRevenue = safeSales.reduce((acc, sale) => acc + sale.totalAmount, 0);
-    const totalRefunds = safeReturns.reduce((acc, saleReturn) => acc + saleReturn.totalRefundAmount, 0);
-    const averageSale = safeSales.length > 0 ? totalRevenue / safeSales.length : 0;
-    
+    const rev = safeSales.reduce((a, s) => a + s.totalAmount, 0);
+    const ret = safeReturns.reduce((a, r) => a + r.totalRefundAmount, 0);
     return [
-        { title: "Total Revenue", value: isMounted ? `₹${totalRevenue.toLocaleString('en-IN')}` : '₹...', icon: CircleDollarSign },
-        { title: "Total Returns", value: isMounted ? `₹${totalRefunds.toLocaleString('en-IN')}` : '₹...', icon: Undo2 },
-        { title: "Net Revenue", value: isMounted ? `₹${(totalRevenue - totalRefunds).toLocaleString('en-IN')}` : '₹...', icon: CircleDollarSign },
-        { title: "Average Sale", value: isMounted ? `₹${averageSale.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹...', icon: Calculator },
+        { title: "Total Revenue", value: isMounted ? `₹${rev.toLocaleString('en-IN')}` : '...', icon: CircleDollarSign },
+        { title: "Total Returns", value: isMounted ? `₹${ret.toLocaleString('en-IN')}` : '...', icon: Undo2 },
+        { title: "Net Revenue", value: isMounted ? `₹${(rev - ret).toLocaleString('en-IN')}` : '...', icon: CircleDollarSign },
+        { title: "Avg Sale", value: isMounted ? `₹${(safeSales.length ? rev/safeSales.length : 0).toLocaleString('en-IN', {maximumFractionDigits:0})}` : '...', icon: ReceiptText },
     ];
   }, [safeSales, safeReturns, isMounted]);
 
-  const comparisonChartData = useMemo(() => {
+  const comparisonData = useMemo(() => {
     const now = new Date();
-    const currentStart = startOfMonth(now);
-    const prevStart = startOfMonth(subMonths(now, 1));
-    const prevEnd = endOfMonth(subMonths(now, 1));
-
-    const currentTotal = safeSales.filter(s => new Date(s.saleDate) >= currentStart).reduce((acc, s) => acc + s.totalAmount, 0);
-    const prevTotal = safeSales.filter(s => isWithinInterval(new Date(s.saleDate), { start: prevStart, end: prevEnd })).reduce((acc, s) => acc + s.totalAmount, 0);
-
-    return [ { name: format(prevStart, 'MMMM'), total: prevTotal }, { name: format(currentStart, 'MMMM'), total: currentTotal } ];
+    const cur = safeSales.filter(s => new Date(s.saleDate) >= startOfMonth(now)).reduce((a,s) => a + s.totalAmount, 0);
+    const prev = safeSales.filter(s => isWithinInterval(new Date(s.saleDate), { start: startOfMonth(subMonths(now, 1)), end: endOfMonth(subMonths(now, 1)) })).reduce((a,s) => a + s.totalAmount, 0);
+    return [ { name: format(subMonths(now, 1), 'MMM'), total: prev }, { name: format(now, 'MMM'), total: cur } ];
   }, [safeSales]);
 
-  const customersWithPending = useMemo(() => {
-    const pendingIds = new Set(safeSales.filter(s => s.invoiceStatus !== 'Paid').map(s => s.customerId));
-    return safeCustomers.filter(c => pendingIds.has(c.id));
-  }, [safeSales, safeCustomers]);
-
-  const customersForFinancials = useMemo(() => {
-    if (!selectedPendingCustomer || selectedPendingCustomer === 'all') return customersWithPending;
-    return customersWithPending.filter(c => c.id === selectedPendingCustomer);
-  }, [customersWithPending, selectedPendingCustomer]);
-
-  const chartConfigBase: ChartConfig = { total: { label: 'Amount', color: 'hsl(var(--chart-1))' } };
-
   return (
-    <div className="flex flex-col gap-6 sm:gap-8 pb-8 min-w-0">
+    <div className="flex flex-col gap-6 sm:gap-8 pb-8 min-w-0 w-full overflow-x-hidden">
       <PageHeader title="Sales & Returns">
-        <Button variant="outline" size="sm" onClick={() => setIsPaymentDialogOpen(true)} className="h-9 px-3">
-          <ReceiptText className="mr-2 h-4 w-4" />
-          <span className="hidden sm:inline">Receive Payment</span>
-          <span className="sm:hidden">Pay</span>
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setIsReturnDialogOpen(true)} className="h-9 px-3">
-          <Undo2 className="mr-2 h-4 w-4" />
-          <span className="hidden sm:inline">New Return</span>
-          <span className="sm:hidden">Return</span>
-        </Button>
-        <Button size="sm" onClick={() => { setEditingSale(undefined); setIsSaleDialogOpen(true); }} className="h-9 px-3">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          <span className="hidden sm:inline">New Sale</span>
-          <span className="sm:hidden">Sale</span>
-        </Button>
+        <Button variant="outline" size="sm" onClick={() => setIsPaymentDialogOpen(true)}><ReceiptText className="mr-2 h-4 w-4" /> Pay</Button>
+        <Button variant="outline" size="sm" onClick={() => setIsReturnDialogOpen(true)}><Undo2 className="mr-2 h-4 w-4" /> Return</Button>
+        <Button size="sm" onClick={() => setIsSaleDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> New Sale</Button>
       </PageHeader>
       
       <ShareDialog open={isShareDialogOpen} onOpenChange={closeShareDialog} shareData={shareDialogData} />
       <PageSummary cards={summaryData} />
 
-      <div className="grid grid-cols-1 gap-6 sm:gap-8">
-          <Card className="min-w-0">
-              <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-4 border-b">
-                  <div className="space-y-1">
-                      <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                        <BarChart3 className="h-5 w-5 text-primary" /> Performance Delta
-                      </CardTitle>
-                      <CardDescription className="text-xs">Comparative performance vs previous period.</CardDescription>
-                  </div>
-                  <Select value={comparisonPeriod} onValueChange={(v) => setComparisonPeriod(v as ComparisonType)}>
-                      <SelectTrigger className="w-full sm:w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="month">Month-over-Month</SelectItem>
-                        <SelectItem value="quarter">Quarter-over-Quarter</SelectItem>
-                        <SelectItem value="year">Year-over-Year</SelectItem>
-                      </SelectContent>
-                  </Select>
-              </CardHeader>
-              <CardContent className="pt-6">
-                  <div className="h-[300px] w-full">
-                    <GenericChart title="" description="" data={comparisonChartData} dataKeyX="name" dataKeysY={['total']} chartConfig={chartConfigBase} chartType="bar" categorical={true} yAxisFormatter={(v) => `₹${v.toLocaleString()}`} />
-                  </div>
+      <div className="grid grid-cols-1 gap-6 sm:gap-8 min-w-0 w-full">
+          <Card className="min-w-0 border-2 shadow-sm">
+              <CardHeader className="border-b pb-4"><CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="h-5 w-5 text-primary" /> Monthly Delta</CardTitle></CardHeader>
+              <CardContent className="pt-6 min-w-0 h-[300px]">
+                  <GenericChart title="" description="" data={comparisonData} dataKeyX="name" dataKeysY={['total']} chartConfig={{total:{label:'Amount', color:'hsl(var(--chart-1))'}}} chartType="bar" categorical={true} yAxisFormatter={(v) => `₹${v.toLocaleString()}`} />
               </CardContent>
           </Card>
 
-          <Tabs defaultValue="gst" className="w-full">
-              <Card className="min-w-0 overflow-hidden">
-                  <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
-                      <div className="space-y-1">
-                          <CardTitle className="text-lg sm:text-xl">Transaction Registry</CardTitle>
-                          <CardDescription className="text-xs">Registry of all finalized transactions.</CardDescription>
-                      </div>
-                      <TabsList className="grid grid-cols-3 w-full sm:w-[300px] h-10">
-                          <TabsTrigger value="gst" className="text-xs uppercase font-bold">GST</TabsTrigger>
-                          <TabsTrigger value="cash" className="text-xs uppercase font-bold">Cash</TabsTrigger>
-                          <TabsTrigger value="returns" className="text-xs uppercase font-bold">Returns</TabsTrigger>
-                      </TabsList>
+          <Tabs defaultValue="gst" className="w-full min-w-0">
+              <Card className="min-w-0 border-2 shadow-sm">
+                  <CardHeader className="flex flex-col sm:flex-row items-center justify-between border-b pb-2 sm:pb-0">
+                      <CardTitle className="text-xl">Registry</CardTitle>
+                      <TabsList className="grid grid-cols-3 w-full sm:w-[240px] h-9 mb-2 sm:mb-0"><TabsTrigger value="gst" className="text-[10px] font-bold">GST</TabsTrigger><TabsTrigger value="cash" className="text-[10px] font-bold">CASH</TabsTrigger><TabsTrigger value="returns" className="text-[10px] font-bold">RET</TabsTrigger></TabsList>
                   </CardHeader>
-                  <CardContent className="pt-6 overflow-x-auto">
-                      <TabsContent value="gst" className="m-0">
-                          <DataTable columns={salesColumns({ onDelete: handleDelete, onEdit: (s) => { setEditingSale(s); setIsSaleDialogOpen(true); }, products: safeProducts, customers: safeCustomers, users: safeUsers, onShare: (sale) => openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text: generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails?.name || 'our store', `${window.location.origin}/invoice/${sale.id}`)}) })} data={safeSales.filter(sale => sale.saleType === 'GST')} />
-                      </TabsContent>
-                      <TabsContent value="cash" className="m-0">
-                          <DataTable columns={salesColumns({ onDelete: handleDelete, onEdit: (s) => { setEditingSale(s); setIsSaleDialogOpen(true); }, products: safeProducts, customers: safeCustomers, users: safeUsers, onShare: (sale) => openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text: generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails?.name || 'our store', `${window.location.origin}/invoice/${sale.id}`)}) })} data={safeSales.filter(sale => sale.saleType === 'Cash')} />
-                      </TabsContent>
-                      <TabsContent value="returns" className="m-0">
-                          <DataTable columns={returnColumns({customers: safeCustomers, stores: []})} data={safeReturns} />
-                      </TabsContent>
+                  <CardContent className="pt-4 min-w-0 overflow-x-auto">
+                      <TabsContent value="gst" className="m-0"><DataTable columns={salesColumns({ onDelete: (id) => deleteDoc(doc(firestore!, 'stores', STORE_ID, 'sales', id)), onEdit: (s) => { setEditingSale(s); setIsSaleDialogOpen(true); }, products: safeProducts, customers: safeCustomers, users: safeUsers })} data={safeSales.filter(s => s.saleType === 'GST')} /></TabsContent>
+                      <TabsContent value="cash" className="m-0"><DataTable columns={salesColumns({ onDelete: (id) => deleteDoc(doc(firestore!, 'stores', STORE_ID, 'sales', id)), onEdit: (s) => { setEditingSale(s); setIsSaleDialogOpen(true); }, products: safeProducts, customers: safeCustomers, users: safeUsers })} data={safeSales.filter(s => s.saleType === 'Cash')} /></TabsContent>
+                      <TabsContent value="returns" className="m-0"><DataTable columns={returnColumns({customers: safeCustomers, stores: []})} data={safeReturns} /></TabsContent>
                   </CardContent>
               </Card>
           </Tabs>
 
-          <Card className="min-w-0 overflow-hidden">
-              <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-                  <div className="space-y-1">
-                      <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                        <Users className="h-5 w-5 text-primary" /> Customer Sale History
-                      </CardTitle>
-                      <CardDescription className="text-xs">View all transactions for a specific client profile.</CardDescription>
-                  </div>
-                  <div className="w-full max-w-sm">
-                      <Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}>
-                          <SelectTrigger className="h-10 text-xs">
-                              <SelectValue placeholder="Select customer..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                              {safeCustomers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                          </SelectContent>
-                      </Select>
-                  </div>
-              </CardHeader>
-              <CardContent className="pt-6 overflow-x-auto">
-                  {selectedHistoryCustomer ? (
-                      <DataTable columns={salesColumns({ onDelete: handleDelete, onEdit: (s) => { setEditingSale(s); setIsSaleDialogOpen(true); }, products: safeProducts, customers: safeCustomers, users: safeUsers })} data={safeSales.filter(s => s.customerId === selectedHistoryCustomer)} />
-                  ) : (
-                      <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border-2 border-dashed">
-                          <p className="text-sm">Select a customer above to generate history.</p>
-                      </div>
-                  )}
-              </CardContent>
-          </Card>
-
           <CustomerLedger sales={safeSales} returns={safeReturns} customers={safeCustomers} />
-
-          <Card className="flex flex-col min-w-0 overflow-hidden">
-              <CardHeader className="border-b pb-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="space-y-1">
-                          <CardTitle className="text-lg sm:text-xl">
-                            <AlertCircle className="inline h-5 w-5 mr-2 text-destructive align-text-bottom" /> Pending Invoices
-                          </CardTitle>
-                          <CardDescription className="text-xs">Accounts receivable requiring attention.</CardDescription>
-                      </div>
-                      <div className="w-full max-w-xs">
-                          <Select value={selectedPendingCustomer} onValueChange={setSelectedPendingCustomer}>
-                              <SelectTrigger className="h-10 text-xs">
-                                  <SelectValue placeholder="Filter debtors..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                  <SelectItem value="all">All Debtors</SelectItem>
-                                  {customersWithPending.map(c => (
-                                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                  ))}
-                              </SelectContent>
-                          </Select>
-                      </div>
-                  </div>
-              </CardHeader>
-              <CardContent className="pt-6 flex-1 overflow-x-auto">
-                  <CustomerFinancials sales={safeSales} customers={customersForFinancials} companyDetails={companyDetails || null} />
+          
+          <Card className="min-w-0 border-2 shadow-sm">
+              <CardHeader className="border-b pb-4"><CardTitle>Accounts Receivable</CardTitle></CardHeader>
+              <CardContent className="pt-6 min-w-0 overflow-x-auto">
+                  <CustomerFinancials sales={safeSales} customers={safeCustomers} companyDetails={companyDetails || null} />
               </CardContent>
           </Card>
       </div>
 
       <SaleDialog open={isSaleDialogOpen} onOpenChange={setIsSaleDialogOpen} sale={editingSale} onSuccess={handleSaleSuccess} />
       <ReturnDialog open={isReturnDialogOpen} onOpenChange={setIsReturnDialogOpen} onSuccess={(r) => { firestore && setDoc(doc(collection(firestore, 'stores', STORE_ID, 'salesReturns')), r).then(() => setIsReturnDialogOpen(false)) }} />
-      <PaymentDialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen} onSuccess={handlePaymentSuccess} />
+      <PaymentDialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen} onSuccess={() => setIsPaymentDialogOpen(false)} />
     </div>
   );
 }

@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -48,13 +47,9 @@ export function DataTable<TData, TValue>({
   initialPageSize = 10,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  )
-   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({})
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
-
 
   const table = useReactTable({
     data,
@@ -63,14 +58,12 @@ export function DataTable<TData, TValue>({
     getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
-     onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     initialState: {
-        pagination: {
-            pageSize: initialPageSize,
-        },
+        pagination: { pageSize: initialPageSize },
     },
     state: {
       sorting,
@@ -80,124 +73,46 @@ export function DataTable<TData, TValue>({
     },
   })
 
-  const handleDelete = () => {
-    if (onDeleteSelected) {
-        const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
-        onDeleteSelected(selectedRows);
-        table.resetRowSelection();
-    }
-  }
-
-  const handleBulkAction = (action: 'email' | 'print' | 'download' | 'share') => {
-    if (onBulkAction) {
-      const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
-      onBulkAction(action, selectedRows);
-      table.resetRowSelection();
-    }
-  }
-  
-  const handleActivate = () => {
-    if (onActivateSelected) {
-      const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
-      onActivateSelected(selectedRows);
-      table.resetRowSelection();
-    }
-  }
-  
-  const handleDeactivate = () => {
-    if (onDeactivateSelected) {
-      const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
-      onDeactivateSelected(selectedRows);
-      table.resetRowSelection();
-    }
-  }
-
   const hasRowsSelected = table.getFilteredSelectedRowModel().rows.length > 0;
 
   return (
-    <div className="w-full">
+    <div className="w-full flex flex-col min-w-0">
       <div className="flex flex-wrap items-center gap-2 py-4">
           {hasRowsSelected && onBulkAction && (
               <>
-                  <Button variant="outline" size="sm" onClick={() => handleBulkAction('share')}>
-                      <Share className="mr-2 h-4 w-4" />
-                      Share ({table.getFilteredSelectedRowModel().rows.length})
+                  <Button variant="outline" size="sm" onClick={() => onBulkAction('share', table.getFilteredSelectedRowModel().rows.map(r => r.original))}>
+                      <Share className="mr-2 h-4 w-4" /> Share
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleBulkAction('email')}>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Email ({table.getFilteredSelectedRowModel().rows.length})
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleBulkAction('print')}>
-                      <Printer className="mr-2 h-4 w-4" />
-                      Print ({table.getFilteredSelectedRowModel().rows.length})
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleBulkAction('download')}>
-                      <FileDown className="mr-2 h-4 w-4" />
-                      Download ({table.getFilteredSelectedRowModel().rows.length})
+                  <Button variant="outline" size="sm" onClick={() => onBulkAction('print', table.getFilteredSelectedRowModel().rows.map(r => r.original))}>
+                      <Printer className="mr-2 h-4 w-4" /> Print
                   </Button>
               </>
           )}
-           {hasRowsSelected && onActivateSelected && (
-              <Button variant="outline" size="sm" onClick={handleActivate}>
-                  <Power className="mr-2 h-4 w-4" />
-                  Activate ({table.getFilteredSelectedRowModel().rows.length})
-              </Button>
-          )}
-          {hasRowsSelected && onDeactivateSelected && (
-              <Button variant="outline" size="sm" onClick={handleDeactivate}>
-                  <PowerOff className="mr-2 h-4 w-4" />
-                  Deactivate ({table.getFilteredSelectedRowModel().rows.length})
-              </Button>
-          )}
           {hasRowsSelected && onDeleteSelected && (
-              <Button variant="destructive" size="sm" onClick={handleDelete}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete ({table.getFilteredSelectedRowModel().rows.length})
+              <Button variant="destructive" size="sm" onClick={() => { onDeleteSelected(table.getFilteredSelectedRowModel().rows.map(r => r.original)); table.resetRowSelection(); }}>
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete ({table.getFilteredSelectedRowModel().rows.length})
               </Button>
           )}
       </div>
-      <div className="w-full overflow-x-auto rounded-md border">
-        <Table className="min-w-max">
+      <div className="w-full overflow-x-auto rounded-md border bg-card">
+        <Table className="min-w-[600px] w-full">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : header.column.getCanSort() ? (
-                            <Button
-                                variant="ghost"
-                                onClick={() => header.column.toggleSorting(header.column.getIsSorted() === "asc")}
-                            >
-                                {flexRender(
-                                    header.column.columnDef.header,
-                                    header.getContext()
-                                )}
-                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                            </Button>
-                        ) : (
-                            flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                            )
-                        )}
-                    </TableHead>
-                  )
-                })}
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} className="whitespace-nowrap px-4">
+                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
               </TableRow>
             ))}
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
+                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="whitespace-nowrap px-4 py-2">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -205,59 +120,18 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No results.
-                </TableCell>
+                <TableCell colSpan={columns.length} className="h-24 text-center">No results.</TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-4">
-           <div className="text-sm text-muted-foreground flex-1 w-full md:w-auto text-center md:text-left">
-              {table.getFilteredSelectedRowModel().rows.length} of{" "}
-              {table.getFilteredRowModel().rows.length} row(s) selected.
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 min-w-0">
+          <div className="text-xs text-muted-foreground">{table.getFilteredSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected.</div>
+          <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Prev</Button>
+              <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Next</Button>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:justify-end">
-              <div className="flex items-center space-x-2">
-                  <p className="text-sm font-medium">Rows per page</p>
-                  <Select
-                      value={`${table.getState().pagination.pageSize}`}
-                      onValueChange={(value) => {
-                          table.setPageSize(Number(value));
-                      }}
-                  >
-                      <SelectTrigger className="h-8 w-[70px]">
-                      <SelectValue placeholder={table.getState().pagination.pageSize} />
-                      </SelectTrigger>
-                      <SelectContent side="top">
-                      {[10, 20, 50, 100, 250].map((pageSize) => (
-                          <SelectItem key={pageSize} value={`${pageSize}`}>
-                          {pageSize}
-                          </SelectItem>
-                      ))}
-                      </SelectContent>
-                  </Select>
-              </div>
-              <div className="flex items-center space-x-2">
-                  <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => table.previousPage()}
-                      disabled={!table.getCanPreviousPage()}
-                  >
-                      Previous
-                  </Button>
-                  <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => table.nextPage()}
-                      disabled={!table.getCanNextPage()}
-                  >
-                      Next
-                  </Button>
-              </div>
-        </div>
       </div>
     </div>
   )
