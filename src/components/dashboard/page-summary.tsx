@@ -31,20 +31,20 @@ const cardColorClasses = [
 
 export function PageSummary({ cards }: PageSummaryProps) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 md:gap-8 lg:grid-cols-5">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
       {cards.map((card, index) => {
           const colorClasses = cardColorClasses[index % cardColorClasses.length];
           return (
-            <Card key={card.title} className={cn(colorClasses.bg, colorClasses.border)}>
+            <Card key={card.title} className={cn("min-w-0", colorClasses.bg, colorClasses.border)}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className={cn("text-sm font-medium", colorClasses.text)}>
+                <CardTitle className={cn("text-xs sm:text-sm font-medium", colorClasses.text)}>
                   {card.title}
                 </CardTitle>
-                <card.icon className={cn("h-4 w-4", colorClasses.text)} />
+                <card.icon className={cn("h-4 w-4 shrink-0", colorClasses.text)} />
               </CardHeader>
               <CardContent className={cn(colorClasses.text)}>
-                <div className="text-2xl font-bold">{card.value}</div>
-                {card.description && <p className={cn("text-[10px] opacity-80 break-words", colorClasses.text)}>{card.description}</p>}
+                <div className="text-xl sm:text-2xl font-bold truncate">{card.value}</div>
+                {card.description && <p className={cn("text-[9px] sm:text-[10px] opacity-80 break-words", colorClasses.text)}>{card.description}</p>}
               </CardContent>
             </Card>
           )
