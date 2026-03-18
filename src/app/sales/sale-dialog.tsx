@@ -255,7 +255,11 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent 
+        className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden" 
+        onInteractOutside={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle>{sale?.id ? "Edit Sale" : "New Sale"}</DialogTitle>
             <DialogDescription>Create a compliant TAX INVOICE or Retail Receipt.</DialogDescription>
@@ -279,10 +283,15 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                         className="w-[--radix-popover-trigger-width] p-0" 
                                         align="start" 
                                         onOpenAutoFocus={(e) => e.preventDefault()}
+                                        onCloseAutoFocus={(e) => e.preventDefault()}
                                         onInteractOutside={(e) => e.preventDefault()}
                                     >
                                         <Command shouldFilter={true}>
-                                            <CommandInput placeholder="Type name..." autoFocus />
+                                            <CommandInput 
+                                                placeholder="Type name..." 
+                                                autoFocus 
+                                                onPointerDown={(e) => e.currentTarget.focus()}
+                                            />
                                             <CommandList>
                                                 <CommandEmpty>No customer found.</CommandEmpty>
                                                 <CommandGroup>
@@ -392,10 +401,15 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                                 className="w-[--radix-popover-trigger-width] p-0" 
                                                 align="start" 
                                                 onOpenAutoFocus={(e) => e.preventDefault()}
+                                                onCloseAutoFocus={(e) => e.preventDefault()}
                                                 onInteractOutside={(e) => e.preventDefault()}
                                               >
                                                   <Command shouldFilter={true}>
-                                                      <CommandInput placeholder="Search Name or SKU..." autoFocus />
+                                                      <CommandInput 
+                                                        placeholder="Search Name or SKU..." 
+                                                        autoFocus 
+                                                        onPointerDown={(e) => e.currentTarget.focus()}
+                                                      />
                                                       <CommandList>
                                                           <CommandEmpty>No results.</CommandEmpty>
                                                           <CommandGroup>
