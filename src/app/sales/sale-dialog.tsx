@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,11 +25,11 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, AlertCircle, MapPin, Truck } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, AlertCircle, MapPin, Truck, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useCallback } from "react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
@@ -43,6 +42,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Combobox } from "@/components/ui/combobox";
 
 const STORE_ID = 'store_main';
 
@@ -99,13 +99,13 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
   const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
   const { data: customers } = useCollection<Customer>(customersRef);
 
-  const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
+  const productsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'products'), orderBy('name')) : null, [firestore]);
   const { data: allProducts } = useCollection<Product>(productsRef);
 
   const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
   const { data: stores } = useCollection<Store>(storesRef);
 
-  const couriersRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'couriers') : null, [firestore]);
+  const couriersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'couriers'), orderBy('name')) : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersRef);
 
   const couponsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'coupons') : null, [firestore]);
@@ -114,7 +114,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
   const warrantiesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'warranties'), orderBy('name')) : null, [firestore]);
   const { data: warranties } = useCollection<Warranty>(warrantiesRef);
 
-  const handPreferencesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'handPreferences') : null, [firestore]);
+  const handPreferencesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'handPreferences'), orderBy('name')) : null, [firestore]);
   const { data: handPreferences } = useCollection<HandPreference>(handPreferencesRef);
 
   const inventoryRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'inventoryItems') : null, [firestore]);
@@ -260,7 +260,6 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
         setValue(`items.${index}.gstRate`, product.gstRate);
         setValue(`items.${index}.handPreference`, (product.handPreference && product.handPreference !== 'Blank') ? product.handPreference : 'Normal');
         
-        // Auto-add new row if this is the last row
         if (index === watchedItems.length - 1) {
             append({ productId: "", brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
         }
@@ -270,7 +269,6 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
   const handleFormSubmit = (data: SaleFormValues) => {
     if (!customers || !allProducts || !brands || !currentUser) return;
     
-    // Filter out empty rows
     const validItems = data.items.filter(i => i.productId && i.productId !== "").map(item => {
         const product = allProducts.find(p => p.id === item.productId);
         const brand = brands.find(b => b.id === item.brandId);
@@ -354,18 +352,16 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                             Customer <span className="text-destructive font-black">*</span>
                         </FormLabel>
                         <div className="flex items-center gap-2">
-                        <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                            <SelectTrigger className="h-10">
-                                <SelectValue placeholder="Select a customer" />
-                            </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                            {sortedCustomers?.map(c => (
-                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                            ))}
-                            </SelectContent>
-                        </Select>
+                        <FormControl>
+                            <Combobox
+                                options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="Select a customer"
+                                searchPlaceholder="Search customers..."
+                                notFoundText="No customer found."
+                            />
+                        </FormControl>
                         <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)} className="shrink-0 h-10 w-10"><PlusCircle className="h-4 w-4" /></Button>
                         </div>
                         <FormMessage />
@@ -506,18 +502,16 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                                   <div className="col-span-1 sm:col-span-5">
                                       <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
                                           <FormItem>
-                                              <Select onValueChange={(val) => handleProductSelect(val, index)} value={f.value}>
-                                                <FormControl>
-                                                  <SelectTrigger className="h-10">
-                                                    <SelectValue placeholder="Select a product" />
-                                                  </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                  {sortedProducts?.map(p => (
-                                                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
-                                                  ))}
-                                                </SelectContent>
-                                              </Select>
+                                              <FormControl>
+                                                  <Combobox
+                                                      options={sortedProducts?.map(p => ({ value: p.id, label: `${p.name} (${p.sku})` })) || []}
+                                                      value={f.value || ""}
+                                                      onChange={(val) => handleProductSelect(val, index)}
+                                                      placeholder="Select a product"
+                                                      searchPlaceholder="Search products..."
+                                                      notFoundText="No product found."
+                                                  />
+                                              </FormControl>
                                           </FormItem>
                                       )} />
                                   </div>
@@ -582,8 +576,8 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                 <div className="space-y-4">
                     <h4 className="font-bold text-xs uppercase tracking-widest text-muted-foreground">Discounts & Method</h4>
                     <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name="paymentMethod" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-bold uppercase">Mode</FormLabel><Select onValueChange={field.onChange} value={field.value}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Cash">Cash</SelectItem><SelectItem value="UPI">UPI</SelectItem><SelectItem value="Cheque">Cheque</SelectItem><SelectItem value="NEFT">NEFT</SelectItem></SelectContent></Select></FormItem>)} />
-                      <FormField control={form.control} name="invoiceStatus" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-bold uppercase">Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Paid">Paid</SelectItem><SelectItem value="Unpaid">Unpaid</SelectItem><SelectItem value="Partially Paid">Partial</SelectItem></SelectContent></Select></FormItem>)} />
+                      <FormField control={form.control} name="paymentMethod" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-bold uppercase">Mode</FormLabel><Select onValueChange={field.onChange} value={field.value}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Cash">Cash</SelectItem><SelectItem value="UPI">UPI</SelectItem><SelectItem value="Cheque">Cheque</SelectItem><SelectItem value="NEFT">NEFT</SelectItem></Select></FormItem>)} />
+                      <FormField control={form.control} name="invoiceStatus" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-bold uppercase">Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Paid">Paid</SelectItem><SelectItem value="Unpaid">Unpaid</SelectItem><SelectItem value="Partially Paid">Partial</SelectItem></Select></FormItem>)} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <FormField control={form.control} name="manualDiscountPercentage" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-bold uppercase">Disc. (%)</FormLabel><FormControl><Input type="number" {...field} className="h-8" /></FormControl></FormItem> )} />
@@ -611,7 +605,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                 )}
                 <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
                     <span className="text-xl sm:text-2xl font-black tracking-tighter uppercase">Net Payable</span>
-                    <span className="text-3xl sm:text-4xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
+                    <span className="text-3xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
                 </div>
             </div>
 
@@ -630,7 +624,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
         </Form>
         
         <DialogFooter className="flex flex-col sm:flex-row gap-2 p-4 sm:p-6 pt-4 border-t bg-muted/10">
-            <Button type="submit" form="sale-form" className="w-full sm:w-auto order-1 sm:order-2">Save Invoice</Button>
+            <Button type="submit" form="sale-form" className="w-full sm:w-auto order-1 sm:order-2 font-black uppercase tracking-widest">Save Invoice</Button>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
         </DialogFooter>
         <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />

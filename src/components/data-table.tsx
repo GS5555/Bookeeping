@@ -14,7 +14,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, Trash2, Mail, Printer, FileDown, Share, Power, PowerOff } from "lucide-react"
+import { Trash2, Share, Printer } from "lucide-react"
 
 import {
   Table,
@@ -25,25 +25,23 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   onDeleteSelected?: (selectedRows: TData[]) => void
   onBulkAction?: (action: 'email' | 'print' | 'download' | 'share', selectedRows: TData[]) => void
-  onActivateSelected?: (selectedRows: TData[]) => void;
-  onDeactivateSelected?: (selectedRows: TData[]) => void;
   initialPageSize?: number
 }
 
+/**
+ * Standardized data table with mobile-first constraints.
+ */
 export function DataTable<TData, TValue>({
   columns,
   data,
   onDeleteSelected,
   onBulkAction,
-  onActivateSelected,
-  onDeactivateSelected,
   initialPageSize = 10,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
@@ -94,13 +92,13 @@ export function DataTable<TData, TValue>({
               </Button>
           )}
       </div>
-      <div className="w-full overflow-x-auto rounded-md border bg-card">
+      <div className="w-full overflow-x-auto rounded-md border bg-card relative">
         <Table className="min-w-[600px] w-full border-collapse">
-          <TableHeader>
+          <TableHeader className="bg-muted/50">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="whitespace-nowrap px-4 bg-muted/50">
+                  <TableHead key={header.id} className="whitespace-nowrap px-4 py-3 font-black text-[10px] uppercase tracking-widest text-muted-foreground">
                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
@@ -110,9 +108,9 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"} className="hover:bg-muted/30 transition-colors">
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="px-4 py-2 border-b">
+                    <TableCell key={cell.id} className="px-4 py-3 border-b text-xs font-medium">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -120,17 +118,19 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">No results.</TableCell>
+                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground italic">No results found.</TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 min-w-0">
-          <div className="text-xs text-muted-foreground">{table.getFilteredSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected.</div>
+          <div className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">
+            {table.getFilteredSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected
+          </div>
           <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Prev</Button>
-              <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Next</Button>
+              <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} className="h-8 text-[10px] font-black uppercase">Prev</Button>
+              <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} className="h-8 text-[10px] font-black uppercase">Next</Button>
           </div>
       </div>
     </div>

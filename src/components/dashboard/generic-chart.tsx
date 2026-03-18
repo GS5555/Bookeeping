@@ -7,13 +7,13 @@ import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '
 export type ChartType = 'bar' | 'line' | 'area' | 'pie';
 
 interface GenericChartProps {
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
   data: any[];
   dataKeyX: string;
   dataKeysY: string[];
   chartConfig: ChartConfig;
-  chartType: ChartType;
+  chartType?: ChartType;
   yAxisFormatter?: (value: any) => string;
   categorical?: boolean;
 }
@@ -31,7 +31,17 @@ const CHART_COLORS = [
     'hsl(var(--chart-10))',
 ];
 
-export function GenericChart({ title, description, data, dataKeyX, dataKeysY, chartConfig, chartType, yAxisFormatter = (value) => value.toString(), categorical = false }: GenericChartProps) {
+export function GenericChart({ 
+    title, 
+    description, 
+    data, 
+    dataKeyX, 
+    dataKeysY, 
+    chartConfig, 
+    chartType = 'bar', 
+    yAxisFormatter = (value) => value.toString(), 
+    categorical = false 
+}: GenericChartProps) {
   
   const commonXAxis = (
     <XAxis 
@@ -47,11 +57,13 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
   );
 
   const renderChart = () => {
+    if (!data || data.length === 0) return <div className="flex items-center justify-center h-full text-muted-foreground italic text-xs">No data available</div>;
+
     switch (chartType) {
       case 'line':
         return (
           <LineChart data={data} margin={{ left: 12, right: 12, top: 12, bottom: data.length > 5 ? 30 : 12 }}>
-            <CartesianGrid vertical={false} />
+            <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
             {commonXAxis}
             <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={10} width={40} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
@@ -63,23 +75,15 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
       case 'area':
         return (
           <AreaChart data={data} margin={{ left: 12, right: 12, top: 12, bottom: data.length > 5 ? 30 : 12 }}>
-            <CartesianGrid vertical={false} />
+            <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
             {commonXAxis}
             <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={10} width={40} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
             {dataKeysY.map((key) => (
               <defs key={`def-${key}`}>
                   <linearGradient id={`fill${key}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop
-                          offset="5%"
-                          stopColor={`var(--color-${key})`}
-                          stopOpacity={0.8}
-                      />
-                      <stop
-                          offset="95%"
-                          stopColor={`var(--color-${key})`}
-                          stopOpacity={0.1}
-                      />
+                      <stop offset="5%" stopColor={`var(--color-${key})`} stopOpacity={0.8} />
+                      <stop offset="95%" stopColor={`var(--color-${key})`} stopOpacity={0.1} />
                   </linearGradient>
               </defs>
             ))}
@@ -89,48 +93,18 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
           </AreaChart>
         );
        case 'pie':
-        const RADIAN = Math.PI / 180;
-        const renderCustomizedLabel = ({ cx, cy, midAngle, outerRadius, percent, index, name, value }: any) => {
-            const radius = outerRadius * 1.2; 
-            const x = cx + radius * Math.cos(-midAngle * RADIAN);
-            const y = cy + radius * Math.sin(-midAngle * RADIAN);
-            const sin = Math.sin(-RADIAN * midAngle);
-            const cos = Math.cos(-RADIAN * midAngle);
-            const sx = cx + outerRadius * cos;
-            const sy = cy + outerRadius * sin;
-            const mx = cx + (outerRadius + 10) * cos;
-            const my = cy + (outerRadius + 10) * sin;
-            const ex = mx + (cos >= 0 ? 1 : -1) * 12;
-            const ey = my;
-            const textAnchor = cos >= 0 ? 'start' : 'end';
-            const percentage = (percent * 100).toFixed(0);
-            const sliceColor = CHART_COLORS[index % CHART_COLORS.length];
-
-            return (
-                <g>
-                    <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={sliceColor} fill="none" />
-                    <circle cx={ex} cy={ey} r={2} fill={sliceColor} stroke="none" />
-                    <text x={ex + (cos >= 0 ? 1 : -1) * 4} y={ey} textAnchor={textAnchor} fill={sliceColor} dy={4} fontSize={9}>
-                        {`${name} (${value})`}
-                    </text>
-                </g>
-            );
-        };
         return (
-          <PieChart margin={{ top: 20, right: 40, bottom: 20, left: 40 }}>
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent hideLabel={false} />}
-              />
+          <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel={false} />} />
               <Pie
                 data={data}
                 dataKey={dataKeysY[0]}
                 nameKey={dataKeyX}
                 cx="50%"
                 cy="50%"
-                outerRadius="60%"
-                labelLine={false}
-                label={renderCustomizedLabel}
+                outerRadius="70%"
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                labelLine={true}
               >
                  {data.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -142,7 +116,7 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
       default:
         return (
           <BarChart data={data} margin={{ left: 12, right: 12, top: 12, bottom: data.length > 5 ? 30 : 12 }}>
-            <CartesianGrid vertical={false} />
+            <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
             {commonXAxis}
             <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={10} width={40} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
@@ -174,13 +148,13 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
 
   return (
     <Card className="h-full flex flex-col min-w-0 w-full overflow-hidden border-2 shadow-sm">
-      <CardHeader className="flex flex-col sm:flex-row items-start justify-between pb-2 border-b">
-        <div>
-          <CardTitle className="text-lg sm:text-xl font-black uppercase tracking-tight">{title}</CardTitle>
-          <CardDescription className="text-xs">{description}</CardDescription>
+      <CardHeader className="flex flex-col sm:flex-row items-start justify-between pb-2 border-b gap-2">
+        <div className="min-w-0 flex-1">
+          <CardTitle className="text-base sm:text-lg font-black uppercase tracking-tight truncate">{title}</CardTitle>
+          <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground">{description}</CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 pt-6 px-2 sm:px-6">
+      <CardContent className="flex-1 pt-6 px-2 sm:px-6 overflow-hidden">
         {content}
       </CardContent>
     </Card>

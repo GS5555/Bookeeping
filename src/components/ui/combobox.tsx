@@ -50,7 +50,7 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between h-10 px-3", className)}
+          className={cn("w-full justify-between h-10 px-3 font-normal", className)}
           disabled={disabled}
         >
           <span className="truncate">
@@ -62,7 +62,7 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
+          <CommandList className="max-h-[300px] overflow-y-auto">
             <CommandEmpty>{notFoundText}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
