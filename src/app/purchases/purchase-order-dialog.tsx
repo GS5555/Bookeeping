@@ -36,6 +36,7 @@ import { collection, query, orderBy } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Combobox } from "@/components/ui/combobox";
 
 const STORE_ID = 'store_main';
 
@@ -74,10 +75,6 @@ interface PODialogProps {
 
 export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogProps) {
   const firestore = useFirestore();
-  const [productSearchOpen, setProductSearchOpen] = useState<{ [key: number]: boolean }>({});
-  const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
-  const vendorRef = useRef<HTMLDivElement>(null);
-  const productRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
   const vendorsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'vendors'), orderBy('name')) : null, [firestore]);
   const { data: vendors } = useCollection<Vendor>(vendorsRef);
@@ -123,23 +120,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     }
   }, [open, reset, append]);
 
-  // Click outside listener for inline results
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (vendorRef.current && !vendorRef.current.contains(event.target as Node)) {
-        setVendorSearchOpen(false);
-      }
-      Object.keys(productRefs.current).forEach(key => {
-        const index = parseInt(key);
-        if (productRefs.current[index] && !productRefs.current[index]!.contains(event.target as Node)) {
-          setProductSearchOpen(prev => ({ ...prev, [index]: false }));
-        }
-      });
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const { subTotal, totalAmount, gstAmount } = useMemo(() => {
     let sub = 0;
     let gst = 0;
@@ -165,7 +145,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 });
         }
     }
-    setProductSearchOpen(prev => ({ ...prev, [index]: false }));
   }
 
   const onSubmit = (data: POFormValues) => {
@@ -222,7 +201,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden" 
+        className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0" 
         onInteractOutside={(e) => e.preventDefault()}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
@@ -232,40 +211,18 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
         </DialogHeader>
         <Form {...form}>
           <form id="po-form" onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 overflow-visible">
                 <FormField control={form.control} name="vendorId" render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="overflow-visible">
                         <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Vendor <span className="text-destructive font-black">*</span></FormLabel>
-                        <FormControl>
-                            <div className="relative" ref={vendorRef}>
-                                <Button 
-                                    type="button"
-                                    variant="outline" 
-                                    className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50 bg-background"
-                                    onClick={() => setVendorSearchOpen(!vendorSearchOpen)}
-                                >
-                                    <span className="truncate">{field.value ? sortedVendors?.find(v => v.id === field.value)?.name : "Select a vendor"}</span>
-                                    <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
-                                </Button>
-                                {vendorSearchOpen && (
-                                    <div className="absolute top-full left-0 z-[100] w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-xl outline-none">
-                                        <Command shouldFilter={true}>
-                                            <CommandInput placeholder="Type name..." autoFocus onPointerDown={(e) => e.currentTarget.focus()} />
-                                            <CommandList className="max-h-[200px] overflow-y-auto overflow-x-hidden p-1">
-                                                <CommandEmpty className="py-6 text-center text-sm">No vendor found.</CommandEmpty>
-                                                <CommandGroup>
-                                                    {sortedVendors?.map(v => (
-                                                        <CommandItem key={v.id} value={v.name} onSelect={() => { field.onChange(v.id); setVendorSearchOpen(false); }} className="cursor-pointer">
-                                                            <span>{v.name}</span>
-                                                        </CommandItem>
-                                                    ))}
-                                                </CommandGroup>
-                                            </CommandList>
-                                        </Command>
-                                    </div>
-                                )}
-                            </div>
-                        </FormControl>
+                        <Combobox
+                            options={sortedVendors?.map(v => ({ value: v.id, label: v.name })) || []}
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="Select a vendor"
+                            searchPlaceholder="Type name..."
+                            notFoundText="No vendor found."
+                        />
                         <FormMessage />
                     </FormItem>
                 )}/>
@@ -288,43 +245,27 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>
                 </div>
                 {fields.map((field, index) => (
-                    <Card key={field.id} className="border-2 shadow-sm overflow-hidden bg-accent/5">
+                    <Card key={field.id} className="border-2 shadow-sm bg-accent/5">
                         <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
                             <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
                             <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
                         </CardHeader>
-                        <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                            <div className="sm:col-span-6">
+                        <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end overflow-visible">
+                            <div className="sm:col-span-6 overflow-visible">
                                 <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
-                                    <FormItem>
-                                        <div className="relative" ref={el => productRefs.current[index] = el}>
-                                            <Button 
-                                                type="button"
-                                                variant="outline" 
-                                                className="w-full justify-between h-10 font-normal border-muted-foreground/50 bg-background"
-                                                onClick={() => setProductSearchOpen(prev => ({ ...prev, [index]: !prev[index] }))}
-                                            >
-                                                <span className="truncate">{f.value ? products?.find(p => p.id === f.value)?.name : "Search products..."}</span>
-                                                <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
-                                            </Button>
-                                            {productSearchOpen[index] && (
-                                                <div className="absolute top-full left-0 z-[100] w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-xl outline-none">
-                                                    <Command shouldFilter={true}>
-                                                        <CommandInput placeholder="Search Name or SKU..." autoFocus onPointerDown={(e) => e.currentTarget.focus()} />
-                                                        <CommandList className="max-h-[200px] overflow-y-auto overflow-x-hidden p-1">
-                                                            <CommandEmpty className="py-6 text-center text-sm">No results.</CommandEmpty>
-                                                            <CommandGroup>
-                                                                {sortedProducts?.map(p => (
-                                                                    <CommandItem key={p.id} value={`${p.name} ${p.sku}`} onSelect={() => handleProductSelect(p.id, index)} className="cursor-pointer">
-                                                                        <div className="flex flex-col"><span className="font-bold">{p.name}</span><span className="text-[10px] opacity-70">SKU: {p.sku}</span></div>
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </div>
-                                            )}
-                                        </div>
+                                    <FormItem className="overflow-visible">
+                                        <Combobox
+                                            options={sortedProducts?.map(p => ({ 
+                                                value: p.id, 
+                                                label: `${p.name} (${p.sku})`,
+                                                searchTerms: `${p.name} ${p.sku}`.toLowerCase()
+                                            })) || []}
+                                            value={f.value}
+                                            onChange={(val) => handleProductSelect(val, index)}
+                                            placeholder="Search products..."
+                                            searchPlaceholder="Type name or SKU..."
+                                            notFoundText="No product found."
+                                        />
                                     </FormItem>
                                 )}/>
                             </div>

@@ -41,6 +41,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useMemo, useState, useRef } from "react";
+import { Combobox } from "@/components/ui/combobox";
 
 const STORE_ID = 'store_main';
 
@@ -91,11 +92,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
-  
-  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
-  const [productSearchOpen, setProductSearchOpen] = useState<{ [key: number]: boolean }>({});
-  const customerRef = useRef<HTMLDivElement>(null);
-  const productRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
   const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
   const { data: customers } = useCollection<Customer>(customersRef);
@@ -156,23 +152,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const customerAddresses = useMemo(() => selectedCustomer?.addresses || [], [selectedCustomer]);
   const primaryAddress = useMemo(() => customerAddresses.find(a => a.isPrimary) || customerAddresses[0], [customerAddresses]);
 
-  // Click outside listener for inline results
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (customerRef.current && !customerRef.current.contains(event.target as Node)) {
-        setCustomerSearchOpen(false);
-      }
-      Object.keys(productRefs.current).forEach(key => {
-        const index = parseInt(key);
-        if (productRefs.current[index] && !productRefs.current[index]!.contains(event.target as Node)) {
-          setProductSearchOpen(prev => ({ ...prev, [index]: false }));
-        }
-      });
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const totals = useMemo(() => {
     const subTotalVal = watchedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
     let couponDiscountValue = 0;
@@ -215,7 +194,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const product = allProducts?.find(p => p.id === productId);
     if (!product) return;
 
-    // Check if product already exists in a DIFFERENT row to consolidate
     const existingIndex = watchedItems.findIndex((item, i) => item.productId === productId && i !== index);
     
     if (existingIndex > -1) {
@@ -232,19 +210,15 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         setValue(`items.${index}.categoryId`, product.category);
         setValue(`items.${index}.subCategoryId`, product.subCategory || '');
         
-        // AUTO-APPEND: If this is the last row, add a new one
         if (index === fields.length - 1) {
             append({ productId: "", brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
         }
     }
-    
-    setProductSearchOpen(prev => ({ ...prev, [index]: false }));
   };
 
   const handleFormSubmit = (data: SaleFormValues) => {
     if (!customers || !allProducts || !brands || !currentUser) return;
 
-    // SMART SAVE: Filter out empty placeholder lines
     const validItems = data.items.filter(i => i.productId && i.productId !== "").map(item => {
         const product = allProducts.find(p => p.id === item.productId);
         const brand = brands.find(b => b.id === item.brandId);
@@ -282,7 +256,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden" 
+        className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0" 
         onInteractOutside={(e) => e.preventDefault()}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
@@ -298,41 +272,14 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                         <FormItem>
                             <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer *</FormLabel>
                             <div className="flex items-center gap-2">
-                                <div className="relative flex-1" ref={customerRef}>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50 bg-background"
-                                        onClick={() => setCustomerSearchOpen(!customerSearchOpen)}
-                                    >
-                                        <span className="truncate">{field.value ? sortedCustomers?.find(v => v.id === field.value)?.name : "Search customers..."}</span>
-                                        <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
-                                    </Button>
-                                    {customerSearchOpen && (
-                                        <div className="absolute top-full left-0 z-[100] w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-xl outline-none">
-                                            <Command shouldFilter={true}>
-                                                <CommandInput 
-                                                    placeholder="Type name..." 
-                                                    autoFocus 
-                                                    onPointerDown={(e) => e.currentTarget.focus()} 
-                                                />
-                                                <CommandList className="max-h-[200px] overflow-y-auto overflow-x-hidden p-1">
-                                                    <CommandEmpty className="py-6 text-center text-sm">No customer found.</CommandEmpty>
-                                                    <CommandGroup>
-                                                        {sortedCustomers?.map(c => (
-                                                            <CommandItem key={c.id} value={c.name} onSelect={() => { field.onChange(c.id); setCustomerSearchOpen(false); }} className="cursor-pointer">
-                                                                <div className="flex items-center justify-between w-full">
-                                                                    <span>{c.name}</span>
-                                                                    {c.gstNumber && <Badge variant="outline" className="text-[9px]">GST</Badge>}
-                                                                </div>
-                                                            </CommandItem>
-                                                        ))}
-                                                    </CommandGroup>
-                                                </CommandList>
-                                            </Command>
-                                        </div>
-                                    )}
-                                </div>
+                                <Combobox
+                                    options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    placeholder="Search customers..."
+                                    searchPlaceholder="Type name..."
+                                    notFoundText="No customer found."
+                                />
                                 <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)} className="shrink-0 h-10 w-10"><PlusCircle className="h-4 w-4" /></Button>
                             </div>
                         </FormItem>
@@ -412,42 +359,22 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                              </div>
                              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
                           </CardHeader>
-                          <CardContent className="p-4 grid grid-cols-12 gap-3 items-end">
-                              <div className="col-span-12 sm:col-span-6">
+                          <CardContent className="p-4 grid grid-cols-12 gap-3 items-end overflow-visible">
+                              <div className="col-span-12 sm:col-span-6 overflow-visible">
                                   <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
                                       <FormItem>
-                                          <div className="relative" ref={el => productRefs.current[index] = el}>
-                                              <Button
-                                                  type="button"
-                                                  variant="outline"
-                                                  className="w-full justify-between h-10 font-normal border-muted-foreground/50 bg-background"
-                                                  onClick={() => setProductSearchOpen(prev => ({ ...prev, [index]: !prev[index] }))}
-                                              >
-                                                  <span className="truncate">{f.value ? allProducts?.find(p => p.id === f.value)?.name : "Search products..."}</span>
-                                                  <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
-                                              </Button>
-                                              {productSearchOpen[index] && (
-                                                  <div className="absolute top-full left-0 z-[100] w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-xl outline-none">
-                                                      <Command shouldFilter={true}>
-                                                          <CommandInput 
-                                                            placeholder="Search Name or SKU..." 
-                                                            autoFocus 
-                                                            onPointerDown={(e) => e.currentTarget.focus()} 
-                                                          />
-                                                          <CommandList className="max-h-[200px] overflow-y-auto overflow-x-hidden p-1">
-                                                              <CommandEmpty className="py-6 text-center text-sm">No results.</CommandEmpty>
-                                                              <CommandGroup>
-                                                                  {sortedProducts?.map(p => (
-                                                                      <CommandItem key={p.id} value={`${p.name} ${p.sku}`} onSelect={() => handleProductSelect(p.id, index)} className="cursor-pointer">
-                                                                          <div className="flex flex-col"><span className="font-bold">{p.name}</span><span className="text-[10px] opacity-70">SKU: {p.sku}</span></div>
-                                                                      </CommandItem>
-                                                                  ))}
-                                                              </CommandGroup>
-                                                          </CommandList>
-                                                      </Command>
-                                                  </div>
-                                              )}
-                                          </div>
+                                          <Combobox
+                                              options={sortedProducts?.map(p => ({ 
+                                                  value: p.id, 
+                                                  label: `${p.name} (${p.sku})`,
+                                                  searchTerms: `${p.name} ${p.sku}`.toLowerCase()
+                                              })) || []}
+                                              value={f.value || ""}
+                                              onChange={(val) => handleProductSelect(val, index)}
+                                              placeholder="Search Name or SKU..."
+                                              searchPlaceholder="Type name or SKU..."
+                                              notFoundText="No results."
+                                          />
                                       </FormItem>
                                   )} />
                               </div>

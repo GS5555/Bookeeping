@@ -62,6 +62,7 @@ interface QuotationDialogProps {
   onOpenChange: (open: boolean) => void;
   quotation?: Partial<Quotation>;
   onSuccess: (quotation: Omit<Quotation, 'id' | 'quotationNumber'>) => void;
+  onConvertToSale?: (quotation: Quotation) => void;
 }
 
 const ReadOnlyField = ({ label, value }: { label: string, value: React.ReactNode }) => (
@@ -82,8 +83,8 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
   const productsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'products'), orderBy('name')) : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
 
-  const sortedProducts = useMemo(() => products?.sort((a, b) => a.name.localeCompare(b.name)), [products]);
-  const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
+  const sortedProducts = useMemo(() => [...(products || [])].sort((a, b) => a.name.localeCompare(b.name)), [products]);
+  const sortedCustomers = useMemo(() => [...(customers || [])].sort((a, b) => a.name.localeCompare(b.name)), [customers]);
 
   const form = useForm<QuotationFormValues>({
     resolver: zodResolver(formSchema),
@@ -124,11 +125,19 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
 
   const onSubmit = (data: QuotationFormValues) => {
     const customer = customers?.find(c => c.id === data.customerId);
+    const validItems = data.items.filter(i => i.productId && i.productId !== "");
+    
+    if (validItems.length === 0) {
+        toast({ title: "Error", description: "Select at least one product.", variant: "destructive" });
+        return;
+    }
+
     onSuccess({
       storeId: STORE_ID,
       customerName: customer?.name || 'Unknown',
       billingAddress: customer?.addresses.find(a => a.isPrimary) || ({} as any),
       ...data,
+      items: validItems as any,
       date: data.date.toISOString(),
       validUntil: data.validUntil.toISOString(),
       deliveryDate: data.deliveryDate.toISOString(),
@@ -140,7 +149,11 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent 
+        className="max-w-[95vw] sm:max-w-4xl max-h-[95vh] flex flex-col p-0" 
+        onInteractOutside={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader className="p-6 border-b">
           <div className="flex justify-between items-center pr-6">
             <div><DialogTitle>{quotation?.id ? "View Quotation" : "New Quotation"}</DialogTitle></div>
@@ -151,27 +164,25 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
         </DialogHeader>
         <Form {...form}>
           <form id="quotation-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 overflow-visible">
                 {isEditing ? (
                      <FormField control={control} name="customerId" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-[10px] font-black uppercase tracking-widest">Customer <span className="text-destructive">*</span></FormLabel>
-                            <FormControl>
-                                <Combobox
-                                    options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
-                                    value={field.value}
-                                    onChange={field.onChange}
-                                    placeholder="Select customer"
-                                    searchPlaceholder="Type name..."
-                                    notFoundText="No customer found."
-                                />
-                            </FormControl>
+                        <FormItem className="overflow-visible">
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer <span className="text-destructive">*</span></FormLabel>
+                            <Combobox
+                                options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="Select customer"
+                                searchPlaceholder="Type name..."
+                                notFoundText="No customer found."
+                            />
                         </FormItem>
                     )}/>
                 ) : <ReadOnlyField label="Customer" value={getValues('customerName')} />}
                 {isEditing ? (
                     <FormField control={control} name="status" render={({ field }) => (
-                        <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest">Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger className="h-10"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Sent">Sent</SelectItem><SelectItem value="Converted">Converted</SelectItem><SelectItem value="Expired">Expired</SelectItem></SelectContent></Select></FormItem>
+                        <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger className="h-10"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Sent">Sent</SelectItem><SelectItem value="Converted">Converted</SelectItem><SelectItem value="Expired">Expired</SelectItem></SelectContent></Select></FormItem>
                     )}/>
                  ) : <ReadOnlyField label="Status" value={getValues('status')} />}
             </div>
@@ -181,15 +192,38 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess }: Qu
                     {isEditing && <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>}
                 </div>
                 {fields.map((field, index) => (
-                    <Card key={field.id} className="border-2 shadow-sm bg-accent/5 overflow-hidden">
+                    <Card key={field.id} className="border-2 shadow-sm bg-accent/5 overflow-visible">
                         <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
-                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Item #{index + 1}</span>
+                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
                             {isEditing && <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>}
                         </CardHeader>
-                        <CardContent className="p-4 grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-3 items-end">
+                        <CardContent className="p-4 grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-3 items-end overflow-visible">
                             {isEditing ? (
                                 <FormField control={control} name={`items.${index}.productId`} render={({ field: f }) => (
-                                    <FormItem><FormControl><Combobox options={sortedProducts?.map(p => ({ value: p.id, label: p.name })) || []} value={f.value || ""} onChange={(v) => { f.onChange(v); const p = products?.find(prod => prod.id === v); if (p) { setValue(`items.${index}.productName`, p.name); setValue(`items.${index}.unitPrice`, p.sellingPrice); setValue(`items.${index}.hsnCode`, p.hsnCode); setValue(`items.${index}.gstRate`, p.gstRate); }}} placeholder="Select Product" searchPlaceholder="Type name..." notFoundText="No product found." /></FormControl></FormItem>
+                                    <FormItem className="overflow-visible">
+                                        <Combobox 
+                                            options={sortedProducts?.map(p => ({ 
+                                                value: p.id, 
+                                                label: `${p.name} (${p.sku})`,
+                                                searchTerms: `${p.name} ${p.sku}`.toLowerCase()
+                                            })) || []} 
+                                            value={f.value || ""} 
+                                            onChange={(v) => { 
+                                                f.onChange(v); 
+                                                const p = products?.find(prod => prod.id === v); 
+                                                if (p) { 
+                                                    setValue(`items.${index}.productName`, p.name); 
+                                                    setValue(`items.${index}.unitPrice`, p.sellingPrice); 
+                                                    setValue(`items.${index}.hsnCode`, p.hsnCode); 
+                                                    setValue(`items.${index}.gstRate`, p.gstRate); 
+                                                    if (index === fields.length - 1) append({ productId: "", productName: "", quantity: 1, unitPrice: 0, totalPrice: 0, hsnCode: "", gstRate: 0 });
+                                                }
+                                            }} 
+                                            placeholder="Select Product" 
+                                            searchPlaceholder="Type name or SKU..." 
+                                            notFoundText="No product found." 
+                                        />
+                                    </FormItem>
                                 )}/>
                             ) : <ReadOnlyField label="Product" value={getValues(`items.${index}.productName`)} />}
                             {isEditing ? <FormField control={control} name={`items.${index}.quantity`} render={({ field: f }) => <FormItem><FormControl><Input type="number" {...f} className="h-10"/></FormControl></FormItem>} /> : <ReadOnlyField label="Qty" value={getValues(`items.${index}.quantity`)} />}

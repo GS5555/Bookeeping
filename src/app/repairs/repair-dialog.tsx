@@ -29,8 +29,7 @@ import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Edit, Search } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Combobox } from "@/components/ui/combobox";
 
 const STORE_ID = 'store_main';
 
@@ -63,8 +62,6 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const [isEditing, setIsEditing] = useState(!repair);
-  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
-  const [productSearchOpen, setProductSearchOpen] = useState(false);
   
   const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
   const { data: customers } = useCollection<Customer>(customersRef);
@@ -106,7 +103,7 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="sm:max-w-lg max-h-[95vh] flex flex-col p-0 overflow-hidden" 
+        className="sm:max-w-lg max-h-[95vh] flex flex-col p-0" 
         onInteractOutside={(e) => e.preventDefault()}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
@@ -126,84 +123,34 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
             {isEditing ? (
               <>
                 <FormField control={form.control} name="customerId" render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="overflow-visible">
                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer <span className="text-destructive font-black">*</span></FormLabel>
-                    <FormControl>
-                        <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50">
-                                    <span className="truncate">{field.value ? sortedCustomers?.find(c => c.id === field.value)?.name : "Search customers..."}</span>
-                                    <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent 
-                                className="w-[--radix-popover-trigger-width] p-0" 
-                                align="start" 
-                                onOpenAutoFocus={(e) => e.preventDefault()}
-                                onCloseAutoFocus={(e) => e.preventDefault()}
-                                onInteractOutside={(e) => e.preventDefault()}
-                            >
-                                <Command shouldFilter={true}>
-                                    <CommandInput 
-                                        placeholder="Type name..." 
-                                        autoFocus 
-                                        onPointerDown={(e) => e.currentTarget.focus()}
-                                    />
-                                    <CommandList>
-                                        <CommandEmpty>No customer found.</CommandEmpty>
-                                        <CommandGroup>
-                                            {sortedCustomers?.map(c => (
-                                                <CommandItem key={c.id} value={c.name} onSelect={() => { setValue("customerId", c.id); setCustomerSearchOpen(false); }}>
-                                                    <span>{c.name}</span>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
-                    </FormControl>
+                    <Combobox
+                        options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Search customers..."
+                        searchPlaceholder="Type name..."
+                        notFoundText="No customer found."
+                    />
                     <FormMessage />
                   </FormItem>
                 )}/>
                 <FormField control={form.control} name="productId" render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="overflow-visible">
                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Product <span className="text-destructive font-black">*</span></FormLabel>
-                    <FormControl>
-                        <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" className="w-full justify-between h-10 px-3 font-normal border-muted-foreground/50">
-                                    <span className="truncate">{field.value ? sortedProducts?.find(p => p.id === field.value)?.name : "Search products..."}</span>
-                                    <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent 
-                                className="w-[--radix-popover-trigger-width] p-0" 
-                                align="start" 
-                                onOpenAutoFocus={(e) => e.preventDefault()}
-                                onCloseAutoFocus={(e) => e.preventDefault()}
-                                onInteractOutside={(e) => e.preventDefault()}
-                            >
-                                <Command shouldFilter={true}>
-                                    <CommandInput 
-                                        placeholder="Type name or SKU..." 
-                                        autoFocus 
-                                        onPointerDown={(e) => e.currentTarget.focus()}
-                                    />
-                                    <CommandList>
-                                        <CommandEmpty>No product found.</CommandEmpty>
-                                        <CommandGroup>
-                                            {sortedProducts?.map(p => (
-                                                <CommandItem key={p.id} value={`${p.name} ${p.sku}`} onSelect={() => { setValue("productId", p.id); setProductSearchOpen(false); }}>
-                                                    <div className="flex flex-col"><span className="font-bold">{p.name}</span><span className="text-[10px] opacity-70">SKU: {p.sku}</span></div>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
-                    </FormControl>
+                    <Combobox
+                        options={sortedProducts?.map(p => ({ 
+                            value: p.id, 
+                            label: `${p.name} (${p.sku})`,
+                            searchTerms: `${p.name} ${p.sku}`.toLowerCase()
+                        })) || []}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Search products..."
+                        searchPlaceholder="Type name or SKU..."
+                        notFoundText="No product found."
+                    />
                     <FormMessage />
                   </FormItem>
                 )}/>
