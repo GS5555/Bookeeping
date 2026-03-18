@@ -507,28 +507,29 @@ const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     ]);
 
   return (
-    <>
+    <div className="flex flex-col gap-6 sm:gap-8 pb-8 min-w-0 w-full overflow-x-hidden">
       <PageHeader title="Inventory">
         <input type="file" ref={fileInputRef} onChange={handleFileImport} style={{ display: 'none' }} accept=".xlsx, .xls, .csv" />
-        <Button variant="outline" onClick={handleImportClick} size="sm">
+        <Button variant="outline" onClick={handleImportClick} size="sm" className="h-9">
             <Upload className="mr-2 h-4 w-4" /> Import
         </Button>
-        <Button variant="outline" onClick={handleExport} size="sm">
+        <Button variant="outline" onClick={handleExport} size="sm" className="h-9">
             <Download className="mr-2 h-4 w-4" /> Export
         </Button>
-        <Button variant="outline" onClick={handleDownloadSample} size="sm">
+        <Button variant="outline" onClick={handleDownloadSample} size="sm" className="h-9">
             <FileText className="mr-2 h-4 w-4" /> Sample
         </Button>
-        <Button variant="outline" disabled>
+        <Button variant="outline" disabled size="sm" className="h-9">
           <Move className="mr-2 h-4 w-4" />
           Transfer Stock
         </Button>
-        <Button onClick={handleNewStockEntry}>
+        <Button onClick={handleNewStockEntry} size="sm" className="h-9">
           <PlusCircle className="mr-2 h-4 w-4" />
           New Stock Entry
         </Button>
       </PageHeader>
-      <div className="flex flex-col gap-8">
+      
+      <div className="flex flex-col gap-8 min-w-0 w-full">
         <PageSummary cards={summaryData} />
 
         <StockDialog
@@ -543,8 +544,8 @@ const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
             product={editingProduct}
             onSuccess={handleProductUpdateSuccess}
         />
-        <Card>
-          <CardHeader>
+        <Card className="min-w-0 border-2 shadow-sm">
+          <CardHeader className="pb-4">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div>
                   <CardTitle>Inventory Management</CardTitle>
@@ -562,16 +563,16 @@ const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
                     />
                 </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t mt-4">
                 <Select value={categoryFilter} onValueChange={(value) => {setCategoryFilter(value); setSubCategoryFilter('all');}}>
-                    <SelectTrigger><SelectValue placeholder="Filter by Category..." /></SelectTrigger>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Filter by Category..." /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All Categories</SelectItem>
                         {categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
                 <Select value={subCategoryFilter} onValueChange={setSubCategoryFilter} disabled={!categoryFilter || categoryFilter === 'all' || filteredSubCategories.length === 0}>
-                    <SelectTrigger><SelectValue placeholder="Filter by Sub-Category..." /></SelectTrigger>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Filter by Sub-Category..." /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All Sub-Categories</SelectItem>
                         {filteredSubCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}
@@ -579,7 +580,7 @@ const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
                 </Select>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0 overflow-hidden">
             <DataTable 
                 columns={columns({ onAdjustStock: handleAdjustStock, onViewHistory: handleViewHistory, onEditProduct: handleEditProduct })} 
                 data={inventoryDetails} 
@@ -589,8 +590,8 @@ const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         </Card>
 
         {lowStockInventory.length > 0 && (
-            <Card>
-              <CardHeader>
+            <Card className="min-w-0 border-2 shadow-sm border-destructive/20">
+              <CardHeader className="pb-4 border-b">
                 <CardTitle className="flex items-center gap-2 text-destructive">
                     <TriangleAlert />
                     Low Inventory Alerts
@@ -599,12 +600,12 @@ const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
                   These items are running low. Consider reordering soon.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-4 overflow-hidden">
                 <DataTable columns={columns({ onAdjustStock: handleAdjustStock, onViewHistory: handleViewHistory, onEditProduct: handleEditProduct })} data={lowStockInventory} />
               </CardContent>
             </Card>
         )}
       </div>
-    </>
+    </div>
   );
 }

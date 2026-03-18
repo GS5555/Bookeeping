@@ -30,7 +30,7 @@ const cardColorClasses = [
 
 export function PageSummary({ cards }: PageSummaryProps) {
   return (
-    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 w-full">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 w-full min-w-0">
       {cards.map((card, index) => {
           const colorClasses = cardColorClasses[index % cardColorClasses.length];
           return (
@@ -43,7 +43,14 @@ export function PageSummary({ cards }: PageSummaryProps) {
               </CardHeader>
               <CardContent className={cn(colorClasses.text)}>
                 <div className="text-xl sm:text-2xl font-bold truncate">{card.value}</div>
-                {card.description && <p className={cn("text-[9px] sm:text-[10px] opacity-80 break-words line-clamp-1", colorClasses.text)}>{card.description}</p>}
+                {card.description && (
+                  <p className={cn(
+                    "text-[9px] sm:text-[10px] opacity-80 break-words line-clamp-2", 
+                    colorClasses.text
+                  )}>
+                    {card.description}
+                  </p>
+                )}
               </CardContent>
             </Card>
           )

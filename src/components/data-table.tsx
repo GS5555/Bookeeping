@@ -76,7 +76,7 @@ export function DataTable<TData, TValue>({
   const hasRowsSelected = table.getFilteredSelectedRowModel().rows.length > 0;
 
   return (
-    <div className="w-full flex flex-col min-w-0">
+    <div className="w-full flex flex-col min-w-0 max-w-full overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 py-4">
           {hasRowsSelected && onBulkAction && (
               <>
@@ -95,12 +95,12 @@ export function DataTable<TData, TValue>({
           )}
       </div>
       <div className="w-full overflow-x-auto rounded-md border bg-card">
-        <Table className="min-w-[600px] w-full">
+        <Table className="min-w-[600px] w-full border-collapse">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="whitespace-nowrap px-4">
+                  <TableHead key={header.id} className="whitespace-nowrap px-4 bg-muted/50">
                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
@@ -112,7 +112,7 @@ export function DataTable<TData, TValue>({
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="whitespace-nowrap px-4 py-2">
+                    <TableCell key={cell.id} className="px-4 py-2 border-b">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
