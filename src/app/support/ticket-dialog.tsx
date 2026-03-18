@@ -27,8 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useMemo, useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, where } from "firebase/firestore";
-import { Combobox } from "@/components/ui/combobox";
+import { collection, query, orderBy } from "firebase/firestore";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Edit } from "lucide-react";
 import { format } from "date-fns";
@@ -69,19 +68,19 @@ export function TicketDialog({ open, onOpenChange, ticket, allTickets, onSuccess
   const { currentUser } = useCurrentUser();
   const [isEditing, setIsEditing] = useState(!ticket);
   
-  const customersRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'customers') : null, [firestore]);
+  const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
   const { data: customers } = useCollection<Customer>(customersRef);
 
   const salesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'sales') : null, [firestore]);
   const { data: sales } = useCollection<Sale>(salesRef);
   
-  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
+  const vendorsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'vendors'), orderBy('name')) : null, [firestore]);
   const { data: vendors } = useCollection<Vendor>(vendorsRef);
 
-  const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
+  const categoriesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'categories'), orderBy('name')) : null, [firestore]);
   const { data: categories } = useCollection<Category>(categoriesRef);
 
-  const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
+  const subCategoriesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'subCategories'), orderBy('name')) : null, [firestore]);
   const { data: subCategories } = useCollection<SubCategory>(subCategoriesRef);
 
   const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
@@ -159,44 +158,40 @@ export function TicketDialog({ open, onOpenChange, ticket, allTickets, onSuccess
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" onInteractOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
+      <DialogContent className="sm:max-w-lg max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
+        <DialogHeader className="p-6 pb-4 border-b">
            <div className="flex justify-between items-center pr-6">
             <div>
               <DialogTitle>{dialogTitle}</DialogTitle>
               <DialogDescription>{dialogDescription}</DialogDescription>
             </div>
             {ticket && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-              <Button onClick={() => setIsEditing(true)}>
+              <Button onClick={() => setIsEditing(true)} size="sm">
                 <Edit className="mr-2 h-4 w-4" /> Edit
               </Button>
             )}
           </div>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto px-2">
+          <form id="ticket-form" onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
             {isEditing ? (
               <>
                 <FormField control={control} name="customerId" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Customer</FormLabel>
-                     <Combobox
-                      options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Select a customer..."
-                      searchPlaceholder="Search customers..."
-                      notFoundText="No customer found."
-                    />
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer <span className="text-destructive font-black">*</span></FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
+                        <SelectContent>{sortedCustomers?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}/>
                 <FormField control={control} name="saleId" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Related Sale (Optional)</FormLabel>
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Related Sale (Optional)</FormLabel>
                      <Select onValueChange={field.onChange} value={field.value || ''} disabled={filteredSales.length === 0}>
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Select a sale" /></SelectTrigger>
+                        <SelectTrigger className="h-10"><SelectValue placeholder="Select a sale" /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {filteredSales.map(sale => <SelectItem key={sale.id} value={sale.id}>#{sale.invoiceSequence}</SelectItem>)}
@@ -207,38 +202,34 @@ export function TicketDialog({ open, onOpenChange, ticket, allTickets, onSuccess
                 )}/>
                 <FormField control={control} name="subject" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Subject</FormLabel>
-                    <FormControl><Input placeholder="e.g., Broken bat handle" {...field} /></FormControl>
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Subject <span className="text-destructive font-black">*</span></FormLabel>
+                    <FormControl><Input placeholder="e.g., Broken bat handle" {...field} className="h-10" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}/>
                 <FormField control={control} name="description" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl><Textarea placeholder="Provide a detailed description of the issue..." {...field} /></FormControl>
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Description <span className="text-destructive font-black">*</span></FormLabel>
+                    <FormControl><Textarea placeholder="Provide a detailed description of the issue..." {...field} className="min-h-24" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}/>
                 <FormField control={control} name="vendorId" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Assign to Vendor (Optional)</FormLabel>
-                    <Combobox
-                      options={sortedVendors?.map(v => ({ value: v.id, label: v.name })) || []}
-                      value={field.value || ''}
-                      onChange={field.onChange}
-                      placeholder="Select a vendor..."
-                      searchPlaceholder="Search vendors..."
-                      notFoundText="No vendor found."
-                    />
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Assign to Vendor (Optional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select a vendor" /></SelectTrigger></FormControl>
+                        <SelectContent>{sortedVendors?.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}</SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}/>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={control} name="categoryId" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Category (Optional)</FormLabel>
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Category</FormLabel>
                       <Select onValueChange={(value) => {field.onChange(value); form.setValue('subCategoryId', '')}} value={field.value}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger></FormControl>
+                        <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
                         <SelectContent>{sortedCategories?.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}</SelectContent>
                       </Select>
                       <FormMessage />
@@ -246,9 +237,9 @@ export function TicketDialog({ open, onOpenChange, ticket, allTickets, onSuccess
                   )}/>
                   <FormField control={control} name="subCategoryId" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Sub-Category (Optional)</FormLabel>
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sub-Category</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value} disabled={filteredSubCategories.length === 0}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="Select a sub-category" /></SelectTrigger></FormControl>
+                        <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select sub-category" /></SelectTrigger></FormControl>
                         <SelectContent>{filteredSubCategories.map(subCat => <SelectItem key={subCat.id} value={subCat.id}>{subCat.name}</SelectItem>)}</SelectContent>
                       </Select>
                       <FormMessage />
@@ -258,9 +249,9 @@ export function TicketDialog({ open, onOpenChange, ticket, allTickets, onSuccess
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={control} name="status" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Status</FormLabel>
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl>
+                        <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Status" /></SelectTrigger></FormControl>
                         <SelectContent><SelectItem value="Open">Open</SelectItem><SelectItem value="In Progress">In Progress</SelectItem><SelectItem value="Closed">Closed</SelectItem></SelectContent>
                       </Select>
                       <FormMessage />
@@ -268,9 +259,9 @@ export function TicketDialog({ open, onOpenChange, ticket, allTickets, onSuccess
                   )}/>
                   <FormField control={control} name="priority" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Priority</FormLabel>
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Priority</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="Select a priority" /></SelectTrigger></FormControl>
+                        <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Priority" /></SelectTrigger></FormControl>
                         <SelectContent><SelectItem value="Low">Low</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="High">High</SelectItem></SelectContent>
                       </Select>
                       <FormMessage />
@@ -279,7 +270,7 @@ export function TicketDialog({ open, onOpenChange, ticket, allTickets, onSuccess
                 </div>
               </>
             ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 pt-2">
                     <ReadOnlyField label="Customer" value={ticket?.customerName} />
                     <ReadOnlyField label="Related Sale" value={sales?.find(s => s.id === getValues('saleId'))?.invoiceSequence || 'N/A'} />
                     <ReadOnlyField label="Subject" value={getValues('subject')} />
@@ -296,12 +287,14 @@ export function TicketDialog({ open, onOpenChange, ticket, allTickets, onSuccess
                      <ReadOnlyField label="Created On" value={ticket?.createdAt ? format(new Date(ticket.createdAt), 'PPP') : 'N/A'} />
                 </div>
             )}
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-              {isEditing && <Button type="submit">Save Ticket</Button>}
-            </DialogFooter>
           </form>
         </Form>
+        <DialogFooter className="p-6 border-t bg-muted/5 flex flex-col sm:flex-row gap-2">
+            {isEditing ? (
+                <Button type="submit" form="ticket-form" className="w-full sm:w-auto order-1 sm:order-2 font-black uppercase tracking-widest">Save Ticket</Button>
+            ) : null}
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

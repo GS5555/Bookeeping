@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,8 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useMemo, useState, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection } from "firebase/firestore";
-import { Combobox } from "@/components/ui/combobox";
+import { collection, query, orderBy } from "firebase/firestore";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Edit } from "lucide-react";
 import { format } from "date-fns";
@@ -64,10 +64,10 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
   const { currentUser } = useCurrentUser();
   const [isEditing, setIsEditing] = useState(!repair);
   
-  const customersRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'customers') : null, [firestore]);
+  const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
   const { data: customers } = useCollection<Customer>(customersRef);
 
-  const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
+  const productsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'products'), orderBy('name')) : null, [firestore]);
   const { data: products } = useCollection<Product>(productsRef);
 
   const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
@@ -115,57 +115,49 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" onInteractOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
+      <DialogContent className="sm:max-w-lg max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
+        <DialogHeader className="p-6 pb-4 border-b">
           <div className="flex justify-between items-center pr-6">
             <div>
               <DialogTitle>{dialogTitle}</DialogTitle>
               <DialogDescription>{dialogDescription}</DialogDescription>
             </div>
             {repair && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-              <Button onClick={() => setIsEditing(true)}>
+              <Button onClick={() => setIsEditing(true)} size="sm">
                 <Edit className="mr-2 h-4 w-4" /> Edit
               </Button>
             )}
           </div>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto px-2">
+          <form id="repair-form" onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
             {isEditing ? (
               <>
                 <FormField control={form.control} name="customerId" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Customer</FormLabel>
-                     <Combobox
-                      options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Select a customer..."
-                      searchPlaceholder="Search customers..."
-                      notFoundText="No customer found."
-                    />
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer <span className="text-destructive font-black">*</span></FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
+                        <SelectContent>{sortedCustomers?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}/>
                 <FormField control={form.control} name="productId" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Product</FormLabel>
-                    <Combobox
-                      options={sortedProducts?.map(p => ({ value: p.id, label: p.name })) || []}
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Select a product..."
-                      searchPlaceholder="Search products..."
-                      notFoundText="No product found."
-                    />
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Product <span className="text-destructive font-black">*</span></FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select a product" /></SelectTrigger></FormControl>
+                        <SelectContent>{sortedProducts?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}/>
                 <FormField control={form.control} name="issueDescription" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Issue Description</FormLabel>
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Issue Description <span className="text-destructive font-black">*</span></FormLabel>
                     <FormControl>
-                      <Textarea placeholder="e.g., Handle is broken, needs replacement." {...field} />
+                      <Textarea placeholder="e.g., Handle is broken, needs replacement." {...field} className="min-h-24" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -173,10 +165,10 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={form.control} name="status" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Status</FormLabel>
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger>
+                          <SelectTrigger className="h-10"><SelectValue placeholder="Status" /></SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="Pending">Pending</SelectItem>
@@ -190,22 +182,22 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                   )}/>
                   <FormField control={form.control} name="estimatedCost" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Estimated Cost (₹)</FormLabel>
-                      <FormControl><Input type="number" {...field} /></FormControl>
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Estimated Cost (₹)</FormLabel>
+                      <FormControl><Input type="number" {...field} className="h-10" /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}/>
                 </div>
                  <FormField control={form.control} name="actualCost" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Actual Cost (₹)</FormLabel>
-                      <FormControl><Input type="number" {...field} /></FormControl>
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Actual Cost (₹)</FormLabel>
+                      <FormControl><Input type="number" {...field} className="h-10" /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}/>
               </>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 pt-2">
                 <ReadOnlyField label="Customer" value={customers?.find(c => c.id === getValues('customerId'))?.name} />
                 <ReadOnlyField label="Product" value={products?.find(p => p.id === getValues('productId'))?.name} />
                 <ReadOnlyField label="Issue Description" value={getValues('issueDescription')} />
@@ -218,12 +210,14 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                 <ReadOnlyField label="Completed On" value={repair?.completedAt ? format(new Date(repair.completedAt), 'PPP') : 'Not completed'} />
               </div>
             )}
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-              {isEditing && <Button type="submit">Save Repair Job</Button>}
-            </DialogFooter>
           </form>
         </Form>
+        <DialogFooter className="p-6 border-t bg-muted/5 flex flex-col sm:flex-row gap-2">
+            {isEditing ? (
+                <Button type="submit" form="repair-form" className="w-full sm:w-auto order-1 sm:order-2 font-black uppercase tracking-widest">Save Job</Button>
+            ) : null}
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

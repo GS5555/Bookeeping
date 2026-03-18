@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,7 +39,6 @@ import { VendorDialog } from "@/app/vendors/vendor-dialog";
 import { toast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Combobox } from "@/components/ui/combobox";
 import * as XLSX from 'xlsx';
 import { exportToExcel } from "@/lib/actions";
 
@@ -86,8 +84,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
   const firestore = useFirestore();
   const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
   const [itemFilters, setItemFilters] = useState<{ categoryId: string; subCategoryId: string; handPreference: string }[]>([]);
-  const [productSearchOpen, setProductSearchOpen] = useState(false);
-  const [productToAdd, setProductToAdd] = useState<Product | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
 
@@ -113,6 +109,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
   const { data: handPreferences } = useCollection<HandPreference>(handPreferencesRef);
   
   const sortedProducts = useMemo(() => products?.sort((a, b) => a.name.localeCompare(b.name)), [products]);
+  const sortedVendors = useMemo(() => vendors?.sort((a, b) => a.name.localeCompare(b.name)), [vendors]);
   const sortedCouriers = useMemo(() => couriers?.sort((a, b) => a.name.localeCompare(b.name)), [couriers]);
   const sortedCategories = useMemo(() => categories?.sort((a, b) => a.name.localeCompare(b.name)), [categories]);
   
@@ -305,29 +302,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     }
   }, [watchedCourierCompany, couriers, setValue]);
   
-  // This is the correct way to handle the product selection to avoid race conditions.
-  useEffect(() => {
-    if (productToAdd) {
-        append({
-            productId: productToAdd.id,
-            quantity: 1,
-            unitCost: productToAdd.purchasePrice,
-            color1: productToAdd.color1 || '',
-            color2: productToAdd.color2 || '',
-            hsnCode: productToAdd.hsnCode,
-            gstRate: productToAdd.gstRate,
-            imageUrl: productToAdd.imageUrl || '',
-        });
-        setItemFilters(prev => [...prev, {
-            categoryId: productToAdd.category,
-            subCategoryId: productToAdd.subCategory || 'all',
-            handPreference: productToAdd.handPreference || 'all',
-        }]);
-        toast({ title: "Product Added", description: `${productToAdd.name} added to purchase order.` });
-        setProductToAdd(null); // Reset the state to prevent re-triggering
-    }
-  }, [productToAdd, append, setValue]);
-
 
   const { subTotal, totalAmount, cgstAmount, sgstAmount, igstAmount, gstAmount } = useMemo(() => {
     if (!vendors || !stores) return { subTotal: 0, totalAmount: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, gstAmount: 0 };
@@ -474,30 +448,34 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
         onSuccess={handleNewVendorSuccess}
     />
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl" onInteractOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
+      <DialogContent className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
+        <DialogHeader className="p-6 pb-4 border-b">
           <DialogTitle>Create Purchase Order</DialogTitle>
           <DialogDescription>Fill in the details to create a new purchase order.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form id="po-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto px-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+          <form id="po-form" onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pt-2">
                 <FormField
                     control={form.control}
                     name="vendorId"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Vendor</FormLabel>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Vendor <span className="text-destructive font-black">*</span></FormLabel>
                         <div className="flex items-center gap-2">
-                            <Combobox
-                                options={vendors?.map(v => ({ value: v.id, label: v.name })) || []}
-                                value={field.value}
-                                onChange={field.onChange}
-                                placeholder="Select a vendor..."
-                                searchPlaceholder="Search vendors..."
-                                notFoundText="No vendor found."
-                            />
-                             <Button type="button" variant="outline" size="icon" onClick={() => setIsVendorDialogOpen(true)}>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                    <SelectTrigger className="h-10">
+                                        <SelectValue placeholder="Select a vendor" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {sortedVendors?.map(v => (
+                                        <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                             <Button type="button" variant="outline" size="icon" onClick={() => setIsVendorDialogOpen(true)} className="shrink-0 h-10 w-10">
                                 <PlusCircle className="h-4 w-4" />
                             </Button>
                         </div>
@@ -510,7 +488,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     name="purchaseType"
                     render={({ field }) => (
                         <FormItem className="space-y-3">
-                        <FormLabel>Purchase Type</FormLabel>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Purchase Type</FormLabel>
                         <FormControl>
                             <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
                                 <FormItem className="flex items-center space-x-3 space-y-0">
@@ -534,11 +512,11 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     name="orderDate"
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
-                            <FormLabel>Order Date</FormLabel>
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Order Date <span className="text-destructive font-black">*</span></FormLabel>
                             <Popover>
                                 <PopoverTrigger asChild>
                                 <FormControl>
-                                    <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}>
+                                    <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal h-10",!field.value && "text-muted-foreground")}>
                                     {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
                                     <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                     </Button>
@@ -557,11 +535,11 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     name="expectedDeliveryDate"
                     render={({ field }) => (
                          <FormItem className="flex flex-col">
-                            <FormLabel>Expected Delivery</FormLabel>
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Expected Delivery <span className="text-destructive font-black">*</span></FormLabel>
                             <Popover>
                                 <PopoverTrigger asChild>
                                 <FormControl>
-                                    <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}>
+                                    <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal h-10",!field.value && "text-muted-foreground")}>
                                     {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
                                     <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                     </Button>
@@ -578,80 +556,45 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             </div>
 
             <div className="space-y-4">
-                <div className="space-y-2">
-                    <FormLabel>Items</FormLabel>
+                <div className="flex items-center justify-between border-b pb-2">
+                    <FormLabel className="text-lg font-black uppercase tracking-tight">Line Items</FormLabel>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" className="w-full sm:w-auto justify-start">
-                                    <Search className="mr-2 h-4 w-4" />
-                                    Search to add a product...
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                <Command>
-                                    <CommandInput placeholder="Search product by name or SKU..." />
-                                    <CommandList>
-                                        <CommandEmpty>No products found.</CommandEmpty>
-                                        <CommandGroup>
-                                            {sortedProducts?.map(product => (
-                                                <CommandItem
-                                                    key={product.id}
-                                                    value={`${product.name} ${product.sku}`}
-                                                    onSelect={() => {
-                                                        setProductToAdd(product);
-                                                        setProductSearchOpen(false);
-                                                    }}
-                                                >
-                                                    {product.name}
-                                                    <span className="ml-auto text-xs text-muted-foreground">{product.sku}</span>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
-                        <Button type="button" variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleAppend}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Add Item Manually
+                        <Button type="button" variant="outline" size="sm" onClick={handleAppend}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                         </Button>
                         <Button type="button" variant="outline" size="sm" onClick={handleDownloadSample}>
-                            <FileText className="mr-2 h-4 w-4" /> Download Sample
+                            <FileText className="mr-2 h-4 w-4" /> Sample
                         </Button>
-                         <Button type="button" variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleImportClick}>
-                            <Upload className="mr-2 h-4 w-4" /> Import Items
+                         <Button type="button" variant="outline" size="sm" onClick={handleImportClick}>
+                            <Upload className="mr-2 h-4 w-4" /> Import
                         </Button>
                         <input type="file" ref={fileInputRef} onChange={handleFileImport} style={{ display: 'none' }} accept=".xlsx, .xls" />
                     </div>
-                    <FormMessage>{form.formState.errors.items?.message || form.formState.errors.items?.root?.message}</FormMessage>
                 </div>
-                <Separator/>
                 {fields.map((field, index) => {
                     const currentFilters = itemFilters[index] || { categoryId: 'all', subCategoryId: 'all', handPreference: 'all' };
-
                     const filteredSubCategories = subCategories?.filter(sc => currentFilters.categoryId === 'all' || sc.categoryId === currentFilters.categoryId).sort((a,b) => a.name.localeCompare(b.name)) || [];
-
                     const filteredProducts = products?.filter(p =>
                         (currentFilters.categoryId === 'all' || p.category === currentFilters.categoryId) &&
                         (currentFilters.subCategoryId === 'all' || p.subCategory === currentFilters.subCategoryId) &&
                         (currentFilters.handPreference === 'all' || p.handPreference === currentFilters.handPreference)
                     ).sort((a,b) => a.name.localeCompare(b.name)) || [];
 
-                    const colorText = [watchedItems[index]?.color1, watchedItems[index]?.color2].filter(Boolean).join(' / ');
-
                     return (
-                         <div key={field.id} className="space-y-3 border p-3 rounded-lg bg-accent/10">
-                           <div className="flex justify-end sm:hidden">
-                                <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemove(index)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                         <Card key={field.id} className="border-2 shadow-sm overflow-hidden bg-accent/5">
+                           <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
+                                <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
+                                <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemove(index)}>
+                                    <Trash2 className="h-4 w-4" />
                                 </Button>
-                           </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                           </CardHeader>
+                           <CardContent className="p-4 space-y-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                      <Select value={currentFilters.categoryId} onValueChange={(value) => {
                                         setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], categoryId: value, subCategoryId: 'all' }; return newFilters; });
                                         setValue(`items.${index}.productId`, '');
                                     }}>
-                                        <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="all">All Categories</SelectItem>
                                             {sortedCategories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -661,7 +604,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                         setItemFilters(prev => { const newFilters = [...prev]; newFilters[index].subCategoryId = value; return newFilters; });
                                         setValue(`items.${index}.productId`, '');
                                     }} disabled={!filteredSubCategories || filteredSubCategories.length === 0}>
-                                        <SelectTrigger><SelectValue placeholder="Sub-Category" /></SelectTrigger>
+                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Sub-Category" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="all">All Sub-Categories</SelectItem>
                                             {filteredSubCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}
@@ -671,36 +614,32 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                         setItemFilters(prev => { const newFilters = [...prev]; newFilters[index].handPreference = value; return newFilters; });
                                         setValue(`items.${index}.productId`, '');
                                     }}>
-                                        <SelectTrigger><SelectValue placeholder="Hand" /></SelectTrigger>
+                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Hand" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="all">All Preferences</SelectItem>
                                             {handPreferences?.map(hp => <SelectItem key={hp.id} value={hp.name}>{hp.name}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-[1fr,auto] gap-2 items-start">
-                                <div className="grid grid-cols-4 md:grid-cols-12 gap-x-2 gap-y-4 items-start">
-                                    <div className="col-span-4 md:col-span-6">
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
+                                    <div className="sm:col-span-6">
                                         <FormField
                                             control={form.control}
                                             name={`items.${index}.productId`}
                                             render={({ field: formField }) => (
                                                 <FormItem>
-                                                    <FormLabel className="sr-only">Product</FormLabel>
                                                     <Select onValueChange={(value) => {
                                                         formField.onChange(value);
                                                         const product = products?.find(p => p.id === value);
                                                         if (product) {
                                                             setValue(`items.${index}.unitCost`, product.purchasePrice);
-                                                            setValue(`items.${index}.color1`, product.color1);
-                                                            setValue(`items.${index}.color2`, product.color2);
                                                             setValue(`items.${index}.hsnCode`, product.hsnCode);
                                                             setValue(`items.${index}.gstRate`, product.gstRate);
                                                             setValue(`items.${index}.imageUrl`, product.imageUrl);
                                                         }
                                                     }} value={formField.value}>
                                                         <FormControl>
-                                                            <SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger>
+                                                            <SelectTrigger className="h-10"><SelectValue placeholder="Select Product" /></SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent>
                                                             {filteredProducts?.map(product => (
@@ -713,34 +652,25 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                             )}
                                         />
                                     </div>
-                                    <div className="col-span-4 md:col-span-2">
-                                        <p className="text-xs font-medium text-muted-foreground truncate">Color: {colorText || 'N/A'}</p>
-                                        <p className="text-xs font-medium text-muted-foreground">HSN: {watchedItems[index]?.hsnCode || 'N/A'}</p>
-                                        <p className="text-xs font-medium text-muted-foreground">GST: {watchedItems[index]?.gstRate || 0}%</p>
-                                    </div>
-                                    <div className="col-span-2 md:col-span-2">
+                                    <div className="sm:col-span-2">
                                         <FormField
                                             control={form.control}
                                             name={`items.${index}.quantity`}
-                                            render={({ field }) => <FormItem><FormLabel className="sr-only">Quantity</FormLabel><FormControl><Input type="number" placeholder="Qty" {...field} /></FormControl><FormMessage /></FormItem>}
+                                            render={({ field }) => <FormItem><FormControl><Input type="number" placeholder="Qty" {...field} className="h-10"/></FormControl><FormMessage /></FormItem>}
                                         />
                                     </div>
-                                    <div className="col-span-2 md:col-span-2">
+                                    <div className="sm:col-span-4">
                                         <FormField
                                             control={form.control}
                                             name={`items.${index}.unitCost`}
-                                            render={({ field }) => <FormItem><FormLabel className="sr-only">Unit Cost</FormLabel><FormControl><Input type="number" placeholder="Unit Cost" {...field} /></FormControl><FormMessage /></FormItem>}
+                                            render={({ field }) => <FormItem><FormControl><Input type="number" placeholder="Unit Cost" {...field} className="h-10 font-black"/></FormControl><FormMessage /></FormItem>}
                                         />
                                     </div>
                                 </div>
-                                <Button type="button" variant="ghost" size="icon" className="hidden sm:flex" onClick={() => handleRemove(index)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                            </div>
-                        </div>
+                           </CardContent>
+                        </Card>
                     )
                 })}
-                 
                  <FormMessage>{form.formState.errors.items?.message}</FormMessage>
             </div>
             
@@ -750,10 +680,10 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     name="paymentMethod"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Mode of Payment</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Mode of Payment</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-10">
                                 <SelectValue placeholder="Select a payment method" />
                             </SelectTrigger>
                             </FormControl>
@@ -776,10 +706,10 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     name="paymentStatus"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Payment Status</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment Status</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-10">
                                 <SelectValue placeholder="Select payment status" />
                             </SelectTrigger>
                             </FormControl>
@@ -796,26 +726,26 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             </div>
 
             {watchedPaymentStatus === 'Partially Paid' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
                 <FormField
                   control={form.control}
                   name="amountPaid"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Amount Paid</FormLabel>
+                      <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Amount Paid</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="e.g., 10000" {...field} />
+                        <Input type="number" placeholder="e.g., 10000" {...field} className="h-10" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <FormItem>
-                  <FormLabel>Balance Amount</FormLabel>
-                  <FormControl>
-                    <Input type="text" readOnly value={`₹${balanceAmount.toLocaleString('en-IN')}`} className="font-bold bg-muted" />
-                  </FormControl>
-                </FormItem>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Balance Amount</Label>
+                  <div className="h-10 flex items-center px-3 rounded-md bg-muted font-bold text-destructive">
+                    ₹{balanceAmount.toLocaleString('en-IN')}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -824,7 +754,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                 name="comments"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel>Comments / Special Instructions</FormLabel>
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Comments / Special Instructions</FormLabel>
                     <FormControl>
                         <Textarea
                         placeholder="e.g., Please use heavy duty packaging."
@@ -837,27 +767,29 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             />
 
             <Separator />
-            <div className="space-y-2">
-                <h4 className="font-medium text-sm">Shipping Details</h4>
+            <div className="space-y-4">
+                <h4 className="font-bold text-xs uppercase tracking-widest text-primary flex items-center gap-2">
+                    <Truck className="h-4 w-4" /> Shipping & Tracking
+                </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <FormField
                         control={form.control}
                         name="courierCompany"
                         render={({ field }) => (
                             <FormItem className="lg:col-span-2">
-                            <FormLabel>Courier Company</FormLabel>
-                            <FormControl>
-                                <Select onValueChange={field.onChange} value={field.value || ''}>
-                                    <SelectTrigger>
+                            <FormLabel className="text-[10px] font-bold uppercase">Courier Company</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value || ''}>
+                                <FormControl>
+                                    <SelectTrigger className="h-9">
                                         <SelectValue placeholder="Select a courier" />
                                     </SelectTrigger>
-                                    <SelectContent>
-                                        {sortedCouriers?.map(courier => (
-                                            <SelectItem key={courier.id} value={courier.name}>{courier.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </FormControl>
+                                </FormControl>
+                                <SelectContent>
+                                    {sortedCouriers?.map(courier => (
+                                        <SelectItem key={courier.id} value={courier.name}>{courier.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <FormMessage />
                             </FormItem>
                         )}
@@ -867,9 +799,9 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                         name="trackingNumber"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Tracking No.</FormLabel>
+                            <FormLabel className="text-[10px] font-bold uppercase">Tracking No.</FormLabel>
                             <FormControl>
-                                <Input placeholder="AWB Number" {...field} />
+                                <Input placeholder="AWB Number" {...field} className="h-9" />
                             </FormControl>
                             <FormMessage />
                             </FormItem>
@@ -880,9 +812,9 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                         name="numberOfBoxes"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>No. of Boxes</FormLabel>
+                            <FormLabel className="text-[10px] font-bold uppercase">No. of Boxes</FormLabel>
                             <FormControl>
-                                <Input type="number" {...field} />
+                                <Input type="number" {...field} className="h-9" />
                             </FormControl>
                             <FormMessage />
                             </FormItem>
@@ -894,9 +826,9 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     name="trackingLink"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Tracking Link</FormLabel>
+                        <FormLabel className="text-[10px] font-bold uppercase">Tracking Link</FormLabel>
                         <FormControl>
-                            <Input placeholder="https://..." {...field} />
+                            <Input placeholder="https://..." {...field} className="h-9" />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -904,22 +836,25 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                 />
             </div>
 
-            <div className="space-y-2 rounded-lg border p-4">
-                <h4 className="font-medium">Summary</h4>
-                <div className="flex justify-between"><span>Subtotal</span><span>₹{subTotal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+            <div className="space-y-2 rounded-lg border-2 border-primary/20 bg-primary/5 p-6 sm:p-8 shadow-inner">
+                <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-primary mb-4">Summary</h4>
+                <div className="flex justify-between text-sm"><span>Subtotal</span><span className="font-bold">₹{subTotal.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div>
                 { watchedPurchaseType === 'GST' && (
-                    <>
-                        { igstAmount > 0 && <div className="flex justify-between"><span>IGST</span><span>₹{igstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div> }
-                        { cgstAmount > 0 && <div className="flex justify-between"><span>CGST</span><span>₹{cgstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div> }
-                        { sgstAmount > 0 && <div className="flex justify-between"><span>SGST</span><span>₹{sgstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div> }
-                    </>
+                    <div className="space-y-1 border-y py-3 border-primary/10 my-2">
+                        { igstAmount > 0 && <div className="flex justify-between text-xs text-muted-foreground"><span>IGST</span><span>₹{igstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div> }
+                        { cgstAmount > 0 && <div className="flex justify-between text-xs text-muted-foreground"><span>CGST</span><span>₹{cgstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div> }
+                        { sgstAmount > 0 && <div className="flex justify-between text-xs text-muted-foreground"><span>SGST</span><span>₹{sgstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span></div> }
+                    </div>
                 )}
-                <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span>Total</span><span>₹{totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between items-center pt-2">
+                    <span className="text-xl font-black tracking-tighter uppercase">Total Amount</span>
+                    <span className="text-3xl font-black text-primary tracking-tighter">₹{totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span>
+                </div>
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit">Create PO</Button>
+            <DialogFooter className="p-0 border-t-0 bg-transparent flex flex-col sm:flex-row gap-2 pt-4">
+              <Button type="submit" className="w-full sm:w-auto order-1 sm:order-2 font-black uppercase tracking-widest">Create PO</Button>
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
             </DialogFooter>
           </form>
         </Form>

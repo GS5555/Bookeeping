@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,6 +41,7 @@ import { followUpColumns } from "@/app/enquiries/columns";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { toast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 const STORE_ID = 'store_main';
 
@@ -87,7 +89,7 @@ interface QuotationDialogProps {
 
 const ReadOnlyField = ({ label, value }: { label: string, value: React.ReactNode }) => (
     <div className="space-y-1">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
         <div className="text-sm p-2 border rounded-md bg-muted min-h-[40px] flex items-center">{value || <span className="text-muted-foreground/70">N/A</span>}</div>
     </div>
 );
@@ -119,6 +121,11 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
   const followUpTypesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'followUpTypes'), orderBy('name')) : null, [firestore]);
   const { data: followUpTypes } = useCollection<FollowUpType>(followUpTypesRef);
 
+  const sortedProducts = useMemo(() => products?.sort((a, b) => a.name.localeCompare(b.name)), [products]);
+  const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
+  const sortedCategories = useMemo(() => categories?.sort((a, b) => a.name.localeCompare(b.name)), [categories]);
+  const sortedBrands = useMemo(() => brands?.sort((a, b) => a.name.localeCompare(b.name)), [brands]);
+
   const [newFollowUpNote, setNewFollowUpNote] = useState("");
   const [newFollowUpType, setNewFollowUpType] = useState("");
   const [nextAction, setNextAction] = useState("");
@@ -138,14 +145,14 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
     name: "items",
   });
 
-  const watchedItems = watch("items");
+  const watchedItems = watch("items") || [];
 
   const totals = useMemo(() => {
     let subTotal = 0;
     let gstAmount = 0;
     watchedItems.forEach(item => {
-        subTotal += item.totalPrice;
-        gstAmount += item.totalPrice * (item.gstRate / 100);
+        subTotal += (Number(item.totalPrice) || 0);
+        gstAmount += (Number(item.totalPrice) || 0) * ((Number(item.gstRate) || 0) / 100);
     });
     return { subTotal, gstAmount, totalAmount: subTotal + gstAmount };
   }, [watchedItems]);
@@ -216,8 +223,8 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
                         productId: product.id,
                         productName: product.name,
                         quantity: quantity,
-                        unitPrice: product.sellingPrice,
-                        totalPrice: product.sellingPrice * quantity,
+                        unitPrice: product.finalPrice || product.sellingPrice,
+                        totalPrice: (product.finalPrice || product.sellingPrice) * quantity,
                         hsnCode: product.hsnCode,
                         gstRate: product.gstRate,
                         imageUrl: product.imageUrl || '',
@@ -293,10 +300,10 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
           <div className="flex justify-between items-center pr-6">
             <div>
               <DialogTitle>{quotation?.id ? "View Quotation" : "Create New Quotation"}</DialogTitle>
-              <DialogDescription>Create a formal proposal for a customer.</DialogDescription>
+              <DialogDescription>Formal proposal for customer review.</DialogDescription>
             </div>
             {quotation?.id && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-              <Button onClick={() => setIsEditing(true)}>
+              <Button onClick={() => setIsEditing(true)} size="sm">
                 <Edit className="mr-2 h-4 w-4" /> Edit
               </Button>
             )}
@@ -304,15 +311,15 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
         </DialogHeader>
         
         <Form {...form}>
-          <form id="quotation-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end pt-4">
+          <form id="quotation-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end pt-2">
                 {isEditing ? (
                      <FormField control={control} name="customerId" render={({ field }) => (
                         <FormItem className="lg:col-span-2">
-                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</FormLabel>
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer <span className="text-destructive font-black">*</span></FormLabel>
                             <Select onValueChange={field.onChange} value={field.value}>
                                 <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
-                                <SelectContent>{customers?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                                <SelectContent>{sortedCustomers?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                             </Select>
                             <FormMessage />
                         </FormItem>
@@ -324,14 +331,14 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
                 )}
                 {isEditing ? (
                     <FormField control={control} name="date" render={({ field }) => (
-                        <FormItem className="flex flex-col"><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/></PopoverContent></Popover><FormMessage /></FormItem>
+                        <FormItem className="flex flex-col"><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date <span className="text-destructive font-black">*</span></FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className="w-full pl-3 text-left font-normal h-10">{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/></PopoverContent></Popover><FormMessage /></FormItem>
                     )}/>
                 ) : (
-                    <ReadOnlyField label="Date" value={format(getValues('date'), "PPP")} />
+                    <ReadOnlyField label="Date" value={getValues('date') ? format(getValues('date'), "PPP") : 'N/A'} />
                 )}
                  {isEditing ? (
                     <FormField control={control} name="status" render={({ field }) => (
-                        <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Sent">Sent</SelectItem><SelectItem value="Converted">Converted</SelectItem><SelectItem value="Expired">Expired</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Status" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Sent">Sent</SelectItem><SelectItem value="Converted">Converted</SelectItem><SelectItem value="Expired">Expired</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                     )}/>
                  ) : (
                     <ReadOnlyField label="Status" value={getValues('status')} />
@@ -359,63 +366,66 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
                     ).sort((a, b) => a.name.localeCompare(b.name)) || [];
 
                     return (
-                        <div key={field.id} className="space-y-3 border p-3 rounded-lg relative bg-accent/5">
-                            {isEditing && <div className="flex justify-end absolute top-2 right-2">
-                                <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
-                           </div>}
-                          {isEditing ? (
-                           <>
-                           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                               <Select value={currentFilters.brandId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], brandId: value }; return newFilters; }); setValue(`items.${index}.productId`, ''); }}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Brand" /></SelectTrigger>
-                                  <SelectContent><SelectItem value="all">All Brands</SelectItem>{brands?.sort((a,b)=>a.name.localeCompare(b.name)).map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
-                                </Select>
-                                <Select value={currentFilters.categoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], categoryId: value, subCategoryId: 'all' }; return newFilters; }); setValue(`items.${index}.productId`, ''); }}>
-                                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
-                                    <SelectContent><SelectItem value="all">All Categories</SelectItem>{categories?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                                </Select>
-                                <Select value={currentFilters.subCategoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index].subCategoryId = value; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={!currentFilters.categoryId || currentFilters.categoryId === 'all'}>
-                                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Sub-Category" /></SelectTrigger>
-                                    <SelectContent><SelectItem value="all">All Sub-Categories</SelectItem>{filteredSubCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}</SelectContent>
-                                </Select>
-                           </div>
-                           <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start pt-2">
-                               <FormField control={control} name={`items.${index}.productId`} render={({ field: formField }) => (
-                                    <FormItem>
-                                      <Select onValueChange={(value) => {
-                                            formField.onChange(value);
-                                            const product = products?.find(p => p.id === value);
-                                            if (product) {
-                                                setValue(`items.${index}.productName`, product.name);
-                                                setValue(`items.${index}.unitPrice`, product.finalPrice || product.sellingPrice);
-                                                setValue(`items.${index}.hsnCode`, product.hsnCode);
-                                                setValue(`items.${index}.gstRate`, product.gstRate);
-                                                setValue(`items.${index}.imageUrl`, product.imageUrl);
-                                                const qty = getValues(`items.${index}.quantity`) || 1;
-                                                setValue(`items.${index}.totalPrice`, (product.finalPrice || product.sellingPrice) * qty);
-                                            }
-                                        }} value={formField.value}>
-                                            <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl>
-                                            <SelectContent>{filteredProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>)}</SelectContent>
-                                      </Select>
-                                    </FormItem>
-                                )}/>
-                                <FormField control={control} name={`items.${index}.quantity`} render={({ field }) => (
-                                    <FormItem><FormControl><Input type="number" placeholder="Qty" {...field} onChange={(e) => {field.onChange(e); const p = products?.find(p => p.id === getValues(`items.${index}.productId`)); if(p) setValue(`items.${index}.totalPrice`, (p.finalPrice || p.sellingPrice) * Number(e.target.value))}} className="h-10"/></FormControl></FormItem>
-                                )}/>
-                                 <FormField control={control} name={`items.${index}.unitPrice`} render={({ field }) => (
-                                    <FormItem><FormControl><Input type="number" placeholder="Price" {...field} onChange={(e) => {field.onChange(e); const qty = getValues(`items.${index}.quantity`); setValue(`items.${index}.totalPrice`, Number(e.target.value) * qty)}} className="h-10 font-bold"/></FormControl></FormItem>
-                                )}/>
-                           </div>
-                           </>
-                           ) : (
-                               <div className="flex justify-between items-center text-sm px-2">
-                                  <p className="font-bold flex-1">{field.productName}</p>
-                                  <p className="w-24 text-center">Qty: {field.quantity}</p>
-                                  <p className="w-32 text-right font-black">₹{field.totalPrice.toLocaleString()}</p>
+                        <Card key={field.id} className="border-2 shadow-sm bg-accent/5 overflow-hidden">
+                            <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
+                                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Item #{index + 1}</span>
+                                {isEditing && <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>}
+                            </CardHeader>
+                            <CardContent className="p-4 space-y-3">
+                              {isEditing ? (
+                               <>
+                               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                   <Select value={currentFilters.brandId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], brandId: value }; return newFilters; }); setValue(`items.${index}.productId`, ''); }}>
+                                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Brand" /></SelectTrigger>
+                                      <SelectContent><SelectItem value="all">All Brands</SelectItem>{sortedBrands?.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                    <Select value={currentFilters.categoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index] = { ...newFilters[index], categoryId: value, subCategoryId: 'all' }; return newFilters; }); setValue(`items.${index}.productId`, ''); }}>
+                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
+                                        <SelectContent><SelectItem value="all">All Categories</SelectItem>{sortedCategories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                    <Select value={currentFilters.subCategoryId} onValueChange={(value) => { setItemFilters(prev => { const newFilters = [...prev]; newFilters[index].subCategoryId = value; return newFilters; }); setValue(`items.${index}.productId`, ''); }} disabled={!currentFilters.categoryId || currentFilters.categoryId === 'all'}>
+                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Sub-Category" /></SelectTrigger>
+                                        <SelectContent><SelectItem value="all">All Sub-Categories</SelectItem>{filteredSubCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}</SelectContent>
+                                    </Select>
                                </div>
-                           )}
-                        </div>
+                               <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr,1fr] gap-2 items-start pt-2">
+                                   <FormField control={control} name={`items.${index}.productId`} render={({ field: formField }) => (
+                                        <FormItem>
+                                          <Select onValueChange={(value) => {
+                                                formField.onChange(value);
+                                                const product = products?.find(p => p.id === value);
+                                                if (product) {
+                                                    setValue(`items.${index}.productName`, product.name);
+                                                    setValue(`items.${index}.unitPrice`, product.finalPrice || product.sellingPrice);
+                                                    setValue(`items.${index}.hsnCode`, product.hsnCode);
+                                                    setValue(`items.${index}.gstRate`, product.gstRate);
+                                                    setValue(`items.${index}.imageUrl`, product.imageUrl);
+                                                    const qty = getValues(`items.${index}.quantity`) || 1;
+                                                    setValue(`items.${index}.totalPrice`, (product.finalPrice || product.sellingPrice) * qty);
+                                                }
+                                            }} value={formField.value}>
+                                                <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl>
+                                                <SelectContent>{filteredProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                                          </Select>
+                                        </FormItem>
+                                    )}/>
+                                    <FormField control={control} name={`items.${index}.quantity`} render={({ field }) => (
+                                        <FormItem><FormControl><Input type="number" placeholder="Qty" {...field} onChange={(e) => {field.onChange(e); const p = products?.find(p => p.id === getValues(`items.${index}.productId`)); if(p) setValue(`items.${index}.totalPrice`, (p.finalPrice || p.sellingPrice) * Number(e.target.value))}} className="h-10"/></FormControl></FormItem>
+                                    )}/>
+                                     <FormField control={control} name={`items.${index}.unitPrice`} render={({ field }) => (
+                                        <FormItem><FormControl><Input type="number" placeholder="Price" {...field} onChange={(e) => {field.onChange(e); const qty = getValues(`items.${index}.quantity`); setValue(`items.${index}.totalPrice`, Number(e.target.value) * qty)}} className="h-10 font-black"/></FormControl></FormItem>
+                                    )}/>
+                               </div>
+                               </>
+                               ) : (
+                                   <div className="flex justify-between items-center text-sm px-2">
+                                      <p className="font-bold flex-1">{field.productName}</p>
+                                      <p className="w-24 text-center">Qty: {field.quantity}</p>
+                                      <p className="w-32 text-right font-black">₹{field.totalPrice.toLocaleString()}</p>
+                                   </div>
+                               )}
+                            </CardContent>
+                        </Card>
                     );
                 })}
             </div>
@@ -434,24 +444,24 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {isEditing ? (
                     <FormField control={control} name="validUntil" render={({ field }) => (
-                        <FormItem className="flex flex-col"><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Valid Until</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className="w-full pl-3 text-left font-normal">{field.value ? format(field.value, "PPP") : <span>Expiry date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/></PopoverContent></Popover></FormItem>
+                        <FormItem className="flex flex-col"><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Valid Until <span className="text-destructive font-black">*</span></FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className="w-full pl-3 text-left font-normal h-10">{field.value ? format(field.value, "PPP") : <span>Expiry date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/></PopoverContent></Popover><FormMessage /></FormItem>
                     )}/>
                 ) : (
-                    <ReadOnlyField label="Valid Until" value={format(getValues('validUntil'), "PPP")} />
+                    <ReadOnlyField label="Valid Until" value={getValues('validUntil') ? format(getValues('validUntil'), "PPP") : 'N/A'} />
                 )}
                 {isEditing ? (
                     <FormField control={control} name="deliveryDate" render={({ field }) => (
-                        <FormItem className="flex flex-col"><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Est. Delivery Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className="w-full pl-3 text-left font-normal">{field.value ? format(field.value, "PPP") : <span>Delivery date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/></PopoverContent></Popover></FormItem>
+                        <FormItem className="flex flex-col"><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Est. Delivery Date <span className="text-destructive font-black">*</span></FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className="w-full pl-3 text-left font-normal h-10">{field.value ? format(field.value, "PPP") : <span>Delivery date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/></PopoverContent></Popover><FormMessage /></FormItem>
                     )}/>
                 ) : (
-                    <ReadOnlyField label="Est. Delivery Date" value={format(getValues('deliveryDate'), "PPP")} />
+                    <ReadOnlyField label="Est. Delivery Date" value={getValues('deliveryDate') ? format(getValues('deliveryDate'), "PPP") : 'N/A'} />
                 )}
             </div>
             
-            <div className="rounded-2xl border-2 border-primary/20 p-8 bg-primary/5 shadow-inner space-y-3">
+            <div className="rounded-2xl border-2 border-primary/20 p-6 sm:p-8 bg-primary/5 shadow-inner space-y-3">
                 <div className="flex justify-between text-sm"><span>Subtotal</span><span className="font-bold">₹{totals.subTotal.toLocaleString()}</span></div>
                 <div className="flex justify-between text-sm border-y py-2 border-primary/10"><span>Tax (GST)</span><span className="font-bold">₹{totals.gstAmount.toLocaleString()}</span></div>
-                <div className="flex justify-between items-center pt-2">
+                <div className="flex justify-between items-center pt-4">
                     <span className="text-2xl font-black tracking-tighter uppercase">Estimated Total</span>
                     <span className="text-4xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
                 </div>
@@ -464,35 +474,35 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
                     <DataTable columns={followUpColumns({ users: usersData || [] })} data={getValues("followUps") || []} />
                 </div>
                  <div className="space-y-4 p-4 border rounded-lg bg-muted/10">
-                    <Label className="text-[10px] font-bold uppercase">Add New Follow-up</Label>
-                    <Textarea value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="Notes..." />
+                    <Label className="text-[10px] font-bold uppercase tracking-widest">Add New Log Entry</Label>
+                    <Textarea value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="Interaction notes..." />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Select value={newFollowUpType} onValueChange={setNewFollowUpType}>
-                            <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
+                            <SelectTrigger className="h-10"><SelectValue placeholder="Type" /></SelectTrigger>
                             <SelectContent>{followUpTypes?.sort((a,b)=>a.name.localeCompare(b.name)).map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
                         </Select>
                         <Select value={nextAction} onValueChange={setNextAction}>
-                              <SelectTrigger><SelectValue placeholder="Next Action" /></SelectTrigger>
+                              <SelectTrigger className="h-10"><SelectValue placeholder="Next Action" /></SelectTrigger>
                               <SelectContent><SelectItem value="Call Back">Call Back</SelectItem><SelectItem value="Send Email">Send Email</SelectItem><SelectItem value="Meeting">Meeting</SelectItem><SelectItem value="None">None</SelectItem></SelectContent>
                           </Select>
                     </div>
-                    <Button type="button" size="sm" onClick={handleAddFollowUp}>Log Interaction</Button>
+                    <Button type="button" size="sm" onClick={handleAddFollowUp} className="h-10">Log Interaction</Button>
                 </div>
             </div>
           </form>
         </Form>
         
-        <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t">
+        <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t bg-muted/5">
             {quotation?.id && quotation.status !== 'Converted' && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
                 <Button type="button" variant="secondary" onClick={() => onConvertToSale(getValues() as Quotation)} className="w-full sm:w-auto order-1 sm:order-3">
                     <ShoppingCart className="mr-2 h-4 w-4" /> Convert to Sale
                 </Button>
             )}
             {isEditing ? (
-                <Button type="submit" form="quotation-form" className="w-full sm:w-auto order-2 sm:order-2">Save Quotation</Button>
+                <Button type="submit" form="quotation-form" className="w-full sm:w-auto order-2 sm:order-2 font-black uppercase tracking-widest">Save Quotation</Button>
             ) : (
                 quotation?.id && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-                    <Button type="button" onClick={handleSubmit(onSubmit)} className="w-full sm:w-auto order-2 sm:order-2">Save Changes</Button>
+                    <Button type="button" onClick={handleSubmit(onSubmit)} className="w-full sm:w-auto order-2 sm:order-2 font-black uppercase tracking-widest">Save Changes</Button>
                 )
             )}
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-3 sm:order-1">Cancel</Button>

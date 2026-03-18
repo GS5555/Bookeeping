@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,6 +36,7 @@ import { PlusCircle, Trash2, Edit } from "lucide-react";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { toast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 const STORE_ID = 'store_main';
 
@@ -99,17 +101,15 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
   const enquiryStatusesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'enquiryStatuses'), orderBy('name')) : null, [firestore]);
   const { data: enquiryStatuses } = useCollection<EnquiryStatus>(enquiryStatusesRef);
   
-  const enquiryTypesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'enquiryTypes'), orderBy('name')) : null, [firestore]);
-  const { data: enquiryTypes } = useCollection<EnquiryType>(enquiryTypesRef);
+  const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
+  const { data: products } = useCollection<Product>(productsRef);
 
-  const enquirySourcesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'enquirySources'), orderBy('name')) : null, [firestore]);
-  const { data: enquirySources } = useCollection<EnquirySource>(enquirySourcesRef);
-  
   const followUpTypesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'followUpTypes'), orderBy('name')) : null, [firestore]);
   const { data: followUpTypes } = useCollection<FollowUpType>(followUpTypesRef);
 
-  const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
-  const { data: products } = useCollection<Product>(productsRef);
+  const sortedProducts = useMemo(() => products?.sort((a, b) => a.name.localeCompare(b.name)), [products]);
+  const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
+  const sortedStatuses = useMemo(() => enquiryStatuses?.sort((a, b) => a.name.localeCompare(b.name)), [enquiryStatuses]);
 
   const [newFollowUpNote, setNewFollowUpNote] = useState("");
   const [newFollowUpType, setNewFollowUpType] = useState("");
@@ -194,7 +194,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
     <>
       <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader className="p-6 border-b">
             <div className="flex justify-between items-center pr-6">
                 <div>
@@ -211,17 +211,17 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
           
           <Form {...form}>
             <form id="enquiry-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                   {isEditing ? (
                     <FormField control={control} name="customerId" render={({ field }) => (
                         <FormItem>
-                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</FormLabel>
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer <span className="text-destructive font-black">*</span></FormLabel>
                             <div className="flex gap-2">
                                 <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select customer" /></SelectTrigger></FormControl>
-                                    <SelectContent>{customers?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                                    <SelectContent>{sortedCustomers?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                                 </Select>
-                                <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)} className="shrink-0"><PlusCircle className="h-4 w-4" /></Button>
+                                <Button type="button" variant="outline" size="icon" onClick={() => setIsCustomerDialogOpen(true)} className="shrink-0 h-10 w-10"><PlusCircle className="h-4 w-4" /></Button>
                             </div>
                             <FormMessage />
                         </FormItem>
@@ -231,7 +231,13 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                   )}
                   {isEditing ? (
                     <FormField control={control} name="status" render={({ field }) => (
-                        <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger className="h-10"><SelectValue /></SelectTrigger></FormControl><SelectContent>{enquiryStatuses?.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent></Select></FormItem>
+                        <FormItem>
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status <span className="text-destructive font-black">*</span></FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Status" /></SelectTrigger></FormControl>
+                                <SelectContent>{sortedStatuses?.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </FormItem>
                     )}/>
                   ) : (
                     <ReadOnlyField label="Status" value={getValues('status')} />
@@ -240,7 +246,7 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
 
               <FormField control={control} name="enquiry" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Enquiry Details</FormLabel>
+                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Enquiry Details <span className="text-destructive font-black">*</span></FormLabel>
                     {isEditing ? <FormControl><Textarea {...field} className="min-h-24" /></FormControl> : <div className="text-sm p-3 border rounded-md bg-muted whitespace-pre-wrap">{field.value}</div>}
                     <FormMessage />
                   </FormItem>
@@ -252,49 +258,51 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                       {isEditing && <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", productName: "", quantity: 1, unitPrice: 0, gstRate: 0, totalPrice: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button>}
                   </div>
                   {fields.map((field, index) => (
-                      <div key={field.id} className="border-2 p-4 rounded-lg bg-card shadow-sm space-y-4">
-                          <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-black text-muted-foreground uppercase">Item #{index + 1}</span>
+                      <Card key={field.id} className="border-2 shadow-sm bg-accent/5 overflow-hidden">
+                          <CardHeader className="flex flex-row items-center justify-between py-2 px-4 bg-muted/20 border-b">
+                              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Item #{index + 1}</span>
                               {isEditing && <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>}
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                              <div className="sm:col-span-6">
-                                  {isEditing ? (
-                                      <FormField control={control} name={`items.${index}.productId`} render={({ field: f }) => (
-                                          <Select onValueChange={(val) => {
-                                              f.onChange(val);
-                                              const p = products?.find(prod => prod.id === val);
-                                              if(p) {
-                                                  setValue(`items.${index}.productName`, p.name);
-                                                  setValue(`items.${index}.unitPrice`, p.sellingPrice);
-                                                  setValue(`items.${index}.gstRate`, p.gstRate);
-                                                  setValue(`items.${index}.totalPrice`, p.sellingPrice * (getValues(`items.${index}.quantity`) || 1));
-                                              }
-                                          }} value={f.value}>
-                                              <SelectTrigger className="h-10"><SelectValue placeholder="Product" /></SelectTrigger>
-                                              <SelectContent>{products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                                          </Select>
-                                      )}/>
-                                  ) : <ReadOnlyField label="Product" value={getValues(`items.${index}.productName`)} />}
+                          </CardHeader>
+                          <CardContent className="p-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                                  <div className="sm:col-span-6">
+                                      {isEditing ? (
+                                          <FormField control={control} name={`items.${index}.productId`} render={({ field: f }) => (
+                                              <Select onValueChange={(val) => {
+                                                  f.onChange(val);
+                                                  const p = sortedProducts?.find(prod => prod.id === val);
+                                                  if(p) {
+                                                      setValue(`items.${index}.productName`, p.name);
+                                                      setValue(`items.${index}.unitPrice`, p.sellingPrice);
+                                                      setValue(`items.${index}.gstRate`, p.gstRate);
+                                                      setValue(`items.${index}.totalPrice`, p.sellingPrice * (getValues(`items.${index}.quantity`) || 1));
+                                                  }
+                                              }} value={f.value}>
+                                                  <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select Product" /></SelectTrigger></FormControl>
+                                                  <SelectContent>{sortedProducts?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                                              </Select>
+                                          )}/>
+                                      ) : <ReadOnlyField label="Product" value={getValues(`items.${index}.productName`)} />}
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                      {isEditing ? (
+                                          <FormField control={control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10" />} />
+                                      ) : <ReadOnlyField label="Qty" value={getValues(`items.${index}.quantity`)} />}
+                                  </div>
+                                  <div className="sm:col-span-4">
+                                      {isEditing ? (
+                                          <FormField control={control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black" />} />
+                                      ) : <ReadOnlyField label="Price" value={`₹${getValues(`items.${index}.unitPrice`)?.toLocaleString()}`} />}
+                                  </div>
                               </div>
-                              <div className="sm:col-span-2">
-                                  {isEditing ? (
-                                      <FormField control={control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10" />} />
-                                  ) : <ReadOnlyField label="Qty" value={getValues(`items.${index}.quantity`)} />}
-                              </div>
-                              <div className="sm:col-span-4">
-                                  {isEditing ? (
-                                      <FormField control={control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black" />} />
-                                  ) : <ReadOnlyField label="Price" value={`₹${getValues(`items.${index}.unitPrice`)?.toLocaleString()}`} />}
-                              </div>
-                          </div>
-                      </div>
+                          </CardContent>
+                      </Card>
                   ))}
               </div>
 
-              <div className="rounded-2xl border-2 border-primary/20 p-6 bg-primary/5 shadow-inner flex justify-between items-center">
-                  <span className="text-xl font-black uppercase tracking-tighter">Est. Total</span>
-                  <span className="text-3xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
+              <div className="rounded-2xl border-2 border-primary/20 p-6 sm:p-8 bg-primary/5 shadow-inner flex justify-between items-center">
+                  <span className="text-xl sm:text-2xl font-black uppercase tracking-tighter">Est. Total</span>
+                  <span className="text-3xl sm:text-4xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
               </div>
 
               <Separator />
@@ -306,13 +314,14 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
                   </div>
                   {isEditing && (
                       <div className="p-4 border-2 border-dashed rounded-lg bg-muted/30 space-y-4">
-                          <Textarea value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="New interaction notes..." />
+                          <Label className="text-[10px] font-bold uppercase tracking-widest">Add New Log Entry</Label>
+                          <Textarea value={newFollowUpNote} onChange={(e) => setNewFollowUpNote(e.target.value)} placeholder="Interaction details..." />
                           <div className="flex flex-col sm:flex-row gap-2">
                               <Select value={newFollowUpType} onValueChange={setNewFollowUpType}>
-                                  <SelectTrigger className="flex-1"><SelectValue placeholder="Interaction Type" /></SelectTrigger>
-                                  <SelectContent>{followUpTypes?.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
+                                  <SelectTrigger className="flex-1 h-10"><SelectValue placeholder="Interaction Type" /></SelectTrigger>
+                                  <SelectContent>{followUpTypes?.sort((a,b)=>a.name.localeCompare(b.name)).map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
                               </Select>
-                              <Button type="button" onClick={handleAddFollowUp} className="shrink-0">Add Entry</Button>
+                              <Button type="button" onClick={handleAddFollowUp} className="shrink-0 h-10">Add Entry</Button>
                           </div>
                       </div>
                   )}
@@ -320,9 +329,11 @@ export function EnquiryDialog({ open, onOpenChange, enquiry, onSuccess }: Enquir
             </form>
           </Form>
           
-          <DialogFooter className="p-6 border-t bg-muted/5 gap-2">
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-              {isEditing && <Button type="submit" form="enquiry-form">Save Enquiry</Button>}
+          <DialogFooter className="p-6 border-t bg-muted/5 gap-2 flex flex-col sm:flex-row">
+              {isEditing ? (
+                  <Button type="submit" form="enquiry-form" className="w-full sm:w-auto order-1 sm:order-2 font-black uppercase tracking-widest">Save Enquiry</Button>
+              ) : null}
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

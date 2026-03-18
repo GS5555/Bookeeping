@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,7 +26,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useMemo, useState } from "react";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { Product, Category, SubCategory, Vendor } from "@/lib/types";
 
 const STORE_ID = 'store_main';
@@ -55,13 +56,13 @@ export function StockDialog({ open, onOpenChange, onSuccess, inventoryItem }: St
   const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
   const { data: allProducts } = useCollection<Product>(productsRef);
 
-  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
+  const vendorsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'vendors'), orderBy('name')) : null, [firestore]);
   const { data: vendors } = useCollection<Vendor>(vendorsRef);
 
-  const categoriesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'categories')) : null, [firestore]);
+  const categoriesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'categories'), orderBy('name')) : null, [firestore]);
   const { data: categories } = useCollection<Category>(categoriesRef);
 
-  const subCategoriesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'subCategories')) : null, [firestore]);
+  const subCategoriesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'subCategories'), orderBy('name')) : null, [firestore]);
   const { data: subCategories } = useCollection<SubCategory>(subCategoriesRef);
 
   const filteredSubCategories = useMemo(() => {
@@ -120,9 +121,9 @@ export function StockDialog({ open, onOpenChange, onSuccess, inventoryItem }: St
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-md flex flex-col p-0 overflow-hidden">
+      <DialogContent className="max-w-[95vw] sm:max-w-md flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader className="p-6 pb-4 border-b">
-          <DialogTitle>{inventoryItem ? `Adjust Stock for ${inventoryItem.productName}` : 'New Stock Entry'}</DialogTitle>
+          <DialogTitle>{inventoryItem ? `Adjust Stock: ${inventoryItem.productName}` : 'New Stock Entry'}</DialogTitle>
           <DialogDescription>Manually update inventory levels.</DialogDescription>
         </DialogHeader>
         
@@ -134,21 +135,21 @@ export function StockDialog({ open, onOpenChange, onSuccess, inventoryItem }: St
                       <SelectTrigger className="h-10"><SelectValue placeholder="Category" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Categories</SelectItem>
-                        {categories?.sort((a,b)=>a.name.localeCompare(b.name)).map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                        {categories?.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <Select value={selectedSubCategory} onValueChange={(value) => { setSelectedSubCategory(value); form.setValue('productId', ''); }} disabled={filteredSubCategories.length === 0}>
                       <SelectTrigger className="h-10"><SelectValue placeholder="Sub-Category" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Sub-Categories</SelectItem>
-                        {filteredSubCategories.sort((a,b)=>a.name.localeCompare(b.name)).map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}
+                        {filteredSubCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                 </div>
             )}
             <FormField control={form.control} name="productId" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Product</FormLabel>
+                  <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Product <span className="text-destructive font-black">*</span></FormLabel>
                   <Select onValueChange={field.onChange} value={field.value} disabled={!!inventoryItem}>
                     <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select a product" /></SelectTrigger></FormControl>
                     <SelectContent>{filteredProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>)}</SelectContent>
@@ -158,10 +159,10 @@ export function StockDialog({ open, onOpenChange, onSuccess, inventoryItem }: St
             )}/>
             <FormField control={form.control} name="vendorId" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Vendor</FormLabel>
+                  <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Vendor <span className="text-destructive font-black">*</span></FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl><SelectTrigger className="h-10"><SelectValue placeholder="Select a vendor" /></SelectTrigger></FormControl>
-                    <SelectContent>{vendors?.sort((a,b)=>a.name.localeCompare(b.name)).map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>{vendors?.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}</SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
@@ -175,7 +176,7 @@ export function StockDialog({ open, onOpenChange, onSuccess, inventoryItem }: St
             )}/>
             <FormField control={form.control} name="quantity" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Quantity Adjustment</FormLabel>
+                  <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Quantity Adjustment <span className="text-destructive font-black">*</span></FormLabel>
                   <FormControl><Input type="number" placeholder="e.g., 10 or -5" {...field} className="h-10 font-bold"/></FormControl>
                   <FormDescription className="text-[10px]">Positive adds stock, negative removes it.</FormDescription>
                   <FormMessage />
@@ -184,7 +185,7 @@ export function StockDialog({ open, onOpenChange, onSuccess, inventoryItem }: St
           </form>
         </Form>
         <DialogFooter className="flex flex-col sm:flex-row gap-2 p-6 pt-4 border-t">
-            <Button type="submit" form="stock-form" className="w-full sm:w-auto order-1 sm:order-2">Update Inventory</Button>
+            <Button type="submit" form="stock-form" className="w-full sm:w-auto order-1 sm:order-2 font-black uppercase tracking-widest">Update Inventory</Button>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto order-2 sm:order-1">Cancel</Button>
         </DialogFooter>
       </DialogContent>

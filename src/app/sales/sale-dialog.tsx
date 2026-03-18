@@ -129,6 +129,10 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
   const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
   const { data: subCategoriesData } = useCollection<SubCategory>(subCategoriesRef);
 
+  const sortedProducts = useMemo(() => allProducts?.sort((a, b) => a.name.localeCompare(b.name)), [allProducts]);
+  const sortedCustomers = useMemo(() => customers?.sort((a, b) => a.name.localeCompare(b.name)), [customers]);
+  const sortedCouriers = useMemo(() => couriers?.sort((a, b) => a.name.localeCompare(b.name)), [couriers]);
+
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -357,7 +361,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                             </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                            {customers?.sort((a,b)=>a.name.localeCompare(b.name)).map(c => (
+                            {sortedCustomers?.map(c => (
                                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                             ))}
                             </SelectContent>
@@ -509,7 +513,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                                                   </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                  {allProducts?.map(p => (
+                                                  {sortedProducts?.map(p => (
                                                     <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
                                                   ))}
                                                 </SelectContent>
@@ -548,7 +552,7 @@ export function SaleDialog({ children, open, onOpenChange, sale, onSuccess }: Sa
                                     <SelectTrigger className="h-9"><SelectValue placeholder="Select Courier" /></SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    {couriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                                    {sortedCouriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </FormItem>
