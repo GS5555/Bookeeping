@@ -1,6 +1,6 @@
 "use client"
 
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts"
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
 import { useState, useEffect } from "react";
 
 const generateData = () => [
@@ -30,31 +30,36 @@ export function SalesOverview() {
   }
   
   return (
-    <ResponsiveContainer width="100%" height={350}>
-      <BarChart data={data}>
-        <XAxis
-          dataKey="name"
-          stroke="hsl(var(--muted-foreground))"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-        />
-        <YAxis
-          stroke="hsl(var(--muted-foreground))"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(value) => `₹${value / 1000}K`}
-        />
-        <Tooltip
-            cursor={{fill: 'hsl(var(--muted))'}}
-            contentStyle={{
-                backgroundColor: 'hsl(var(--background))',
-                borderColor: 'hsl(var(--border))',
-            }}
-        />
-        <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="w-full h-[350px] min-w-0">
+        <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.5} />
+            <XAxis
+            dataKey="name"
+            stroke="hsl(var(--muted-foreground))"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+            />
+            <YAxis
+            stroke="hsl(var(--muted-foreground))"
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(value) => `₹${value / 1000}K`}
+            />
+            <Tooltip
+                cursor={{fill: 'hsl(var(--muted))', opacity: 0.4}}
+                contentStyle={{
+                    backgroundColor: 'hsl(var(--background))',
+                    borderColor: 'hsl(var(--border))',
+                    borderRadius: '8px',
+                    fontSize: '12px'
+                }}
+            />
+            <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+        </BarChart>
+        </ResponsiveContainer>
+    </div>
   )
 }

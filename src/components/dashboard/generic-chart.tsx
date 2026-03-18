@@ -33,14 +33,27 @@ const CHART_COLORS = [
 
 export function GenericChart({ title, description, data, dataKeyX, dataKeysY, chartConfig, chartType, yAxisFormatter = (value) => value.toString(), categorical = false }: GenericChartProps) {
   
+  const commonXAxis = (
+    <XAxis 
+      dataKey={dataKeyX} 
+      tickLine={false} 
+      axisLine={false} 
+      tickMargin={8} 
+      fontSize={10} 
+      angle={data.length > 5 ? -45 : 0}
+      textAnchor={data.length > 5 ? "end" : "middle"}
+      height={data.length > 5 ? 60 : 30}
+    />
+  );
+
   const renderChart = () => {
     switch (chartType) {
       case 'line':
         return (
-          <LineChart data={data}>
+          <LineChart data={data} margin={{ left: 12, right: 12, top: 12, bottom: data.length > 5 ? 30 : 12 }}>
             <CartesianGrid vertical={false} />
-            <XAxis dataKey={dataKeyX} tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-            <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={12}/>
+            {commonXAxis}
+            <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={10} width={40} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
             {dataKeysY.map((key) => (
               <Line key={key} type="monotone" dataKey={key} stroke={`var(--color-${key})`} strokeWidth={2} dot={false} />
@@ -49,10 +62,10 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
         );
       case 'area':
         return (
-          <AreaChart data={data}>
+          <AreaChart data={data} margin={{ left: 12, right: 12, top: 12, bottom: data.length > 5 ? 30 : 12 }}>
             <CartesianGrid vertical={false} />
-            <XAxis dataKey={dataKeyX} tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-            <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={12} />
+            {commonXAxis}
+            <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={10} width={40} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
             {dataKeysY.map((key) => (
               <defs key={`def-${key}`}>
@@ -78,16 +91,16 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
        case 'pie':
         const RADIAN = Math.PI / 180;
         const renderCustomizedLabel = ({ cx, cy, midAngle, outerRadius, percent, index, name, value }: any) => {
-            const radius = outerRadius * 1.3; 
+            const radius = outerRadius * 1.2; 
             const x = cx + radius * Math.cos(-midAngle * RADIAN);
             const y = cy + radius * Math.sin(-midAngle * RADIAN);
             const sin = Math.sin(-RADIAN * midAngle);
             const cos = Math.cos(-RADIAN * midAngle);
             const sx = cx + outerRadius * cos;
             const sy = cy + outerRadius * sin;
-            const mx = cx + (outerRadius + 20) * cos;
-            const my = cy + (outerRadius + 20) * sin;
-            const ex = mx + (cos >= 0 ? 1 : -1) * 22;
+            const mx = cx + (outerRadius + 10) * cos;
+            const my = cy + (outerRadius + 10) * sin;
+            const ex = mx + (cos >= 0 ? 1 : -1) * 12;
             const ey = my;
             const textAnchor = cos >= 0 ? 'start' : 'end';
             const percentage = (percent * 100).toFixed(0);
@@ -97,14 +110,14 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
                 <g>
                     <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={sliceColor} fill="none" />
                     <circle cx={ex} cy={ey} r={2} fill={sliceColor} stroke="none" />
-                    <text x={ex + (cos >= 0 ? 1 : -1) * 6} y={ey} textAnchor={textAnchor} fill={sliceColor} dy={4} fontSize={11}>
-                        {`${name} (${value} | ${percentage}%)`}
+                    <text x={ex + (cos >= 0 ? 1 : -1) * 4} y={ey} textAnchor={textAnchor} fill={sliceColor} dy={4} fontSize={9}>
+                        {`${name} (${value})`}
                     </text>
                 </g>
             );
         };
         return (
-          <PieChart margin={{ top: 40, right: 75, bottom: 40, left: 75 }}>
+          <PieChart margin={{ top: 20, right: 40, bottom: 20, left: 40 }}>
               <ChartTooltip
                 cursor={false}
                 content={<ChartTooltipContent hideLabel={false} />}
@@ -115,7 +128,7 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
                 nameKey={dataKeyX}
                 cx="50%"
                 cy="50%"
-                outerRadius="80%"
+                outerRadius="60%"
                 labelLine={false}
                 label={renderCustomizedLabel}
               >
@@ -128,10 +141,10 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
       case 'bar':
       default:
         return (
-          <BarChart data={data}>
+          <BarChart data={data} margin={{ left: 12, right: 12, top: 12, bottom: data.length > 5 ? 30 : 12 }}>
             <CartesianGrid vertical={false} />
-            <XAxis dataKey={dataKeyX} tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-            <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={12}/>
+            {commonXAxis}
+            <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={10} width={40} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
             {dataKeysY.map((key) => (
               <Bar key={key} dataKey={key} fill={`var(--color-${key})`} radius={4}>
@@ -145,30 +158,30 @@ export function GenericChart({ title, description, data, dataKeyX, dataKeysY, ch
     }
   };
   
-  if(!title && !description) {
-      return (
-         <ChartContainer config={chartConfig} className="w-full h-[500px]">
-          <ResponsiveContainer width="100%" height="100%">
-            {renderChart()}
-          </ResponsiveContainer>
+  const content = (
+    <div className="w-full h-[350px] min-w-0">
+        <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                {renderChart()}
+            </ResponsiveContainer>
         </ChartContainer>
-      )
+    </div>
+  );
+
+  if(!title && !description) {
+      return content;
   }
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="flex flex-row items-start justify-between pb-2">
+    <Card className="h-full flex flex-col min-w-0 w-full overflow-hidden border-2 shadow-sm">
+      <CardHeader className="flex flex-col sm:flex-row items-start justify-between pb-2 border-b">
         <div>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
+          <CardTitle className="text-lg sm:text-xl font-black uppercase tracking-tight">{title}</CardTitle>
+          <CardDescription className="text-xs">{description}</CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 min-h-[350px]">
-        <ChartContainer config={chartConfig} className="w-full h-full">
-          <ResponsiveContainer width="100%" height="100%">
-            {renderChart()}
-          </ResponsiveContainer>
-        </ChartContainer>
+      <CardContent className="flex-1 pt-6 px-2 sm:px-6">
+        {content}
       </CardContent>
     </Card>
   );
