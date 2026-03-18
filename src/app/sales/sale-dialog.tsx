@@ -173,14 +173,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // AUTO-APPEND LOGIC: If the last item gets a product, add a new empty row
-  useEffect(() => {
-    const lastItem = watchedItems[watchedItems.length - 1];
-    if (lastItem?.productId && open) {
-      append({ productId: "", brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
-    }
-  }, [watchedItems, open, append]);
-
   const totals = useMemo(() => {
     const subTotalVal = watchedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
     let couponDiscountValue = 0;
@@ -239,6 +231,11 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         setValue(`items.${index}.gstRate`, product.gstRate);
         setValue(`items.${index}.categoryId`, product.category);
         setValue(`items.${index}.subCategoryId`, product.subCategory || '');
+        
+        // AUTO-APPEND: If this is the last row, add a new one
+        if (index === fields.length - 1) {
+            append({ productId: "", brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
+        }
     }
     
     setProductSearchOpen(prev => ({ ...prev, [index]: false }));
@@ -401,7 +398,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                   const subCategory = subCategories?.find(sc => sc.id === product?.subCategory);
                   
                   return (
-                      <Card key={field.id} className={cn("border-2 shadow-sm overflow-hidden", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
+                      <Card key={field.id} className={cn("border-2 shadow-sm", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
                           <CardHeader className="py-2 px-4 bg-muted/20 flex flex-row justify-between items-center">
                              <div className="flex items-center gap-3">
                                 <span className="text-[10px] font-black uppercase text-muted-foreground">Item #{index + 1}</span>
