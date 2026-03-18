@@ -34,7 +34,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
-import { Combobox } from "@/components/ui/combobox";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 

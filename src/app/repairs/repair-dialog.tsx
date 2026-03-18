@@ -29,7 +29,6 @@ import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Edit, Search } from "lucide-react";
-import { Combobox } from "@/components/ui/combobox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
@@ -106,7 +105,11 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[95vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent 
+        className="sm:max-w-lg max-h-[95vh] flex flex-col p-0 overflow-hidden" 
+        onInteractOutside={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader className="p-6 pb-4 border-b">
           <div className="flex justify-between items-center pr-6">
             <div>
@@ -133,9 +136,19 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                                     <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                                 </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                            <PopoverContent 
+                                className="w-[--radix-popover-trigger-width] p-0" 
+                                align="start" 
+                                onOpenAutoFocus={(e) => e.preventDefault()}
+                                onCloseAutoFocus={(e) => e.preventDefault()}
+                                onInteractOutside={(e) => e.preventDefault()}
+                            >
                                 <Command shouldFilter={true}>
-                                    <CommandInput placeholder="Type name..." autoFocus />
+                                    <CommandInput 
+                                        placeholder="Type name..." 
+                                        autoFocus 
+                                        onPointerDown={(e) => e.currentTarget.focus()}
+                                    />
                                     <CommandList>
                                         <CommandEmpty>No customer found.</CommandEmpty>
                                         <CommandGroup>
@@ -164,9 +177,19 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
                                     <Search className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                                 </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                            <PopoverContent 
+                                className="w-[--radix-popover-trigger-width] p-0" 
+                                align="start" 
+                                onOpenAutoFocus={(e) => e.preventDefault()}
+                                onCloseAutoFocus={(e) => e.preventDefault()}
+                                onInteractOutside={(e) => e.preventDefault()}
+                            >
                                 <Command shouldFilter={true}>
-                                    <CommandInput placeholder="Type name or SKU..." autoFocus />
+                                    <CommandInput 
+                                        placeholder="Type name or SKU..." 
+                                        autoFocus 
+                                        onPointerDown={(e) => e.currentTarget.focus()}
+                                    />
                                     <CommandList>
                                         <CommandEmpty>No product found.</CommandEmpty>
                                         <CommandGroup>
