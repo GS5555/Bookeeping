@@ -305,7 +305,11 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                     {customerSearchOpen && (
                                         <div className="absolute top-full left-0 z-[100] w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-xl outline-none">
                                             <Command shouldFilter={true}>
-                                                <CommandInput placeholder="Type name..." autoFocus onPointerDown={(e) => e.currentTarget.focus()} />
+                                                <CommandInput 
+                                                    placeholder="Type name..." 
+                                                    autoFocus 
+                                                    onPointerDown={(e) => e.currentTarget.focus()} 
+                                                />
                                                 <CommandList className="max-h-[200px] overflow-y-auto overflow-x-hidden p-1">
                                                     <CommandEmpty className="py-6 text-center text-sm">No customer found.</CommandEmpty>
                                                     <CommandGroup>
@@ -418,7 +422,11 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                               {productSearchOpen[index] && (
                                                   <div className="absolute top-full left-0 z-[100] w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-xl outline-none">
                                                       <Command shouldFilter={true}>
-                                                          <CommandInput placeholder="Search Name or SKU..." autoFocus onPointerDown={(e) => e.currentTarget.focus()} />
+                                                          <CommandInput 
+                                                            placeholder="Search Name or SKU..." 
+                                                            autoFocus 
+                                                            onPointerDown={(e) => e.currentTarget.focus()} 
+                                                          />
                                                           <CommandList className="max-h-[200px] overflow-y-auto overflow-x-hidden p-1">
                                                               <CommandEmpty className="py-6 text-center text-sm">No results.</CommandEmpty>
                                                               <CommandGroup>

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown, Search } from "lucide-react"
+import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,7 +31,7 @@ interface ComboboxProps {
 
 /**
  * A portal-free Combobox that works reliably inside Dialogs.
- * Uses local absolute positioning instead of Radix Popover.
+ * Uses local absolute positioning instead of Radix Popover to avoid focus trap bugs.
  */
 export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notFoundText, className, disabled }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
@@ -59,7 +59,7 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
         variant="outline"
         role="combobox"
         aria-expanded={open}
-        className={cn("w-full justify-between h-10 px-3 font-normal bg-background", className)}
+        className={cn("w-full justify-between h-10 px-3 font-normal bg-background border-muted-foreground/50", className)}
         disabled={disabled}
         onClick={() => setOpen(!open)}
       >
@@ -75,6 +75,7 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
             <CommandInput 
               placeholder={searchPlaceholder} 
               autoFocus 
+              onPointerDown={(e) => e.currentTarget.focus()}
               className="h-10"
             />
             <CommandList className="max-h-[250px] overflow-y-auto overflow-x-hidden p-1">
