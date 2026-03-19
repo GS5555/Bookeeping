@@ -111,32 +111,36 @@ const generateInvoiceDoc = (doc: jsPDF, sale: Sale, customers: Customer[], compa
         if (sale.igstAmount > 0) summaryData.push([{ content: 'IGST', styles: footerStyles }, { content: formatCurrency(sale.igstAmount), styles: footerStyles }]);
     }
 
-    const roundedTotal = Math.round(sale.totalAmount);
-    const roundOff = roundedTotal - sale.totalAmount;
-    
+    const roundOff = sale.roundOffAmount || 0;
     if (roundOff !== 0) {
         summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: formatCurrency(roundOff), styles: footerStyles }]);
     }
     
-    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(roundedTotal), styles: totalFooterStyles }]);
+    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(sale.totalAmount), styles: totalFooterStyles }]);
+
+    // Dynamic column styles based on column count
+    const colStyles: any = { 0: { cellWidth: 10 }, 2: { cellWidth: 25 } };
+    if (isGstSale) {
+        colStyles[4] = { halign: 'right', cellWidth: 20 };
+        colStyles[5] = { halign: 'right', cellWidth: 20 };
+        colStyles[6] = { halign: 'right', cellWidth: 30 };
+        colStyles[7] = { halign: 'right', cellWidth: 35 };
+    } else {
+        colStyles[3] = { halign: 'right', cellWidth: 20 };
+        colStyles[4] = { halign: 'right', cellWidth: 30 };
+        colStyles[5] = { halign: 'right', cellWidth: 35 };
+    }
 
     (doc as any).autoTable({
         startY: lastY, head, body, theme: 'grid',
         headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255] },
-        columnStyles: { 
-            0: { cellWidth: 10 }, 
-            2: { cellWidth: 25 },
-            4: { halign: 'right', cellWidth: 20 }, 
-            5: { halign: 'right', cellWidth: 20 }, 
-            6: { halign: 'right', cellWidth: 30 }, 
-            7: { halign: 'right', cellWidth: 35 } 
-        },
+        columnStyles: colStyles,
         foot: summaryData.map(row => ([{ ...row[0], colSpan: isGstSale ? 7 : 5 }, row[1]])),
         footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
     });
 
     let finalY = (doc as any).lastAutoTable.finalY + 10;
-    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(roundedTotal)}`, 14, finalY);
+    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(sale.totalAmount)}`, 14, finalY);
     
     if (companyDetails.invoiceTerms) {
         finalY += 15;
@@ -174,8 +178,7 @@ const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor
     const footerStyles = { halign: 'right' as const };
     const totalFooterStyles = { ...footerStyles, fontStyle: 'bold' as const, fontSize: 11 };
 
-    const roundedTotal = Math.round(po.totalAmount);
-    const roundOff = roundedTotal - po.totalAmount;
+    const roundOff = po.roundOffAmount || 0;
 
     const summaryData = [
         [{ content: 'Subtotal', styles: footerStyles }, { content: formatCurrency(po.subTotal), styles: footerStyles }],
@@ -185,7 +188,7 @@ const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor
     if (roundOff !== 0) {
         summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: formatCurrency(roundOff), styles: footerStyles }]);
     }
-    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(roundedTotal), styles: totalFooterStyles }]);
+    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(po.totalAmount), styles: totalFooterStyles }]);
 
     (doc as any).autoTable({
         startY: lastY + 10, head, body, theme: 'grid',
@@ -203,7 +206,7 @@ const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor
     });
 
     let finalY = (doc as any).lastAutoTable.finalY + 10;
-    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(roundedTotal)}`, 14, finalY);
+    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(po.totalAmount)}`, 14, finalY);
 
     return doc;
 }

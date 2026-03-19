@@ -68,8 +68,7 @@ function PurchaseOrderContent() {
     
     const vendorAddress = vendor?.addresses.find(a => a.isPrimary) || vendor?.addresses[0];
     const totalAmount = po.totalAmount;
-    const roundedTotal = Math.round(totalAmount);
-    const roundOffAmount = roundedTotal - totalAmount;
+    const roundOffAmount = po.roundOffAmount || 0;
 
     return (
         <div className="min-h-screen bg-white p-4 sm:p-8 flex flex-col items-center">
@@ -163,7 +162,7 @@ function PurchaseOrderContent() {
                         <div>
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Amount in Words</p>
                             <p className="text-sm font-bold italic text-gray-800 bg-gray-50 p-4 rounded-lg border">
-                                {numberToWordsInr(roundedTotal)}
+                                {numberToWordsInr(totalAmount)}
                             </p>
                         </div>
                         {po.comments && (
@@ -191,7 +190,7 @@ function PurchaseOrderContent() {
                         )}
                         <div className="flex justify-between items-center pt-4 border-t-2 border-gray-900 mt-2">
                             <span className="text-sm font-black text-gray-900 uppercase">Grand Total</span>
-                            <span className="text-3xl font-black text-gray-900 tracking-tighter">{formatCurrency(roundedTotal)}</span>
+                            <span className="text-3xl font-black text-gray-900 tracking-tighter">{formatCurrency(totalAmount)}</span>
                         </div>
                     </div>
                 </div>

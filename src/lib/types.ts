@@ -137,6 +137,7 @@ export interface Sale {
   couponDiscount?: number;
   manualDiscountPercentage?: number;
   manualDiscountAmount?: number;
+  roundOffAmount: number;
   totalAmount: number;
   amountPaid?: number;
   balanceAmount?: number;
@@ -228,6 +229,7 @@ export interface PurchaseOrder {
     cgstAmount: number;
     sgstAmount: number;
     igstAmount: number;
+    roundOffAmount: number;
     totalAmount: number;
     amountPaid?: number;
     balanceAmount?: number;

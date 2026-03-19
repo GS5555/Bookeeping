@@ -52,12 +52,12 @@ const saleItemSchema = z.object({
     handPreference: z.string().default('Normal'),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1.").default(1),
     unitPrice: z.coerce.number().min(0, "Unit price cannot be negative.").default(0),
-    hsnCode: z.string().optional(),
+    hsnCode: z.string().optional().default(""),
     gstRate: z.number().default(0),
-    color1: z.string().optional(),
-    color2: z.string().optional(),
-    categoryId: z.string().optional(),
-    subCategoryId: z.string().optional(),
+    color1: z.string().optional().default(""),
+    color2: z.string().optional().default(""),
+    categoryId: z.string().optional().default(""),
+    subCategoryId: z.string().optional().default(""),
 });
 
 const formSchema = z.object({
@@ -67,16 +67,17 @@ const formSchema = z.object({
   saleType: z.enum(["GST", "Cash"], { required_error: "Sale type is required." }),
   items: z.array(saleItemSchema).min(1, "At least one product must be selected."),
   useDifferentShipping: z.boolean().default(false),
-  shippingAddressId: z.string().optional(),
-  couponCode: z.string().optional(),
+  shippingAddressId: z.string().optional().default(""),
+  couponCode: z.string().optional().default(""),
   manualDiscountPercentage: z.coerce.number().min(0).max(100).default(0),
   paymentMethod: z.enum(["NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Cash", "Other", "Sponsored", "Replacement"]),
   invoiceStatus: z.enum(["Paid", "Unpaid", "Partially Paid"]),
-  amountPaid: z.coerce.number().min(0).optional(),
-  courierCompany: z.string().optional(),
-  trackingNumber: z.string().optional(),
-  trackingLink: z.string().url("Invalid tracking URL").or(z.literal("")).optional(),
+  amountPaid: z.coerce.number().min(0).optional().default(0),
+  courierCompany: z.string().optional().default(""),
+  trackingNumber: z.string().optional().default(""),
+  trackingLink: z.string().url("Invalid tracking URL").or(z.literal("")).optional().default(""),
   numberOfBoxes: z.coerce.number().int().min(1).default(1),
+  comments: z.string().optional().default(""),
 });
 
 type SaleFormValues = z.infer<typeof formSchema>;
@@ -135,6 +136,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       paymentMethod: "Cash",
       invoiceStatus: "Paid",
       numberOfBoxes: 1,
+      comments: "",
     },
   });
 
@@ -182,7 +184,18 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         });
     }
     const rawTotal = taxableValue + cgstVal + sgstVal + igstVal;
-    return { subTotal: subTotalVal, totalDiscount: totalDiscountValue, totalAmount: Math.round(rawTotal), cgstAmount: cgstVal, sgstAmount: sgstVal, igstAmount: igstVal };
+    const roundedTotal = Math.round(rawTotal);
+    const roundOff = roundedTotal - rawTotal;
+
+    return { 
+        subTotal: subTotalVal, 
+        totalDiscount: totalDiscountValue, 
+        totalAmount: roundedTotal, 
+        roundOffAmount: roundOff,
+        cgstAmount: cgstVal, 
+        sgstAmount: sgstVal, 
+        igstAmount: igstVal 
+    };
   }, [watchedItems, watchedCouponCode, watchedManualDiscount, watchedSaleType, watchedStoreId, primaryAddress, coupons, stores]);
 
   const balanceDue = useMemo(() => {
@@ -244,6 +257,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
+    // Explicitly handle optional fields to avoid Firestore 'undefined' errors
     onSuccess({
       ...data,
       id: sale?.id || `sale_${Date.now()}`,
@@ -251,9 +265,19 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       customerGstNumber: customer?.gstNumber || '',
       billingAddress: billingAddress!,
       items: validItems as any,
+      subTotal: totals.subTotal,
+      gstAmount: totals.gstAmount,
+      cgstAmount: totals.cgstAmount,
+      sgstAmount: totals.sgstAmount,
+      igstAmount: totals.igstAmount,
+      roundOffAmount: totals.roundOffAmount,
       totalAmount: totals.totalAmount,
       balanceAmount: balanceDue,
       saleDate: data.saleDate.toISOString(),
+      courierCompany: data.courierCompany || "",
+      trackingNumber: data.trackingNumber || "",
+      trackingLink: data.trackingLink || "",
+      comments: data.comments || "",
     } as any);
   };
 
@@ -413,7 +437,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                 </div>
             </div>
 
-            <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 space-y-3">
+            <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 space-y-3 shadow-sm">
                 <div className="flex justify-between text-sm"><span>Subtotal</span><span className="font-bold">₹{totals.subTotal.toLocaleString()}</span></div>
                 {totals.totalDiscount > 0 && <div className="flex justify-between text-sm text-destructive"><span>Discount</span><span className="font-bold">-₹{totals.totalDiscount.toLocaleString()}</span></div>}
                 {watchedSaleType === 'GST' && (
@@ -422,6 +446,12 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                         <div className="flex justify-between text-xs text-muted-foreground"><span>SGST</span><span>₹{totals.sgstAmount.toLocaleString()}</span></div>
                         <div className="flex justify-between text-xs text-muted-foreground"><span>IGST</span><span>₹{totals.igstAmount.toLocaleString()}</span></div>
                     </>
+                )}
+                {totals.roundOffAmount !== 0 && (
+                    <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
+                        <span>Round Off</span>
+                        <span className="font-medium">₹{totals.roundOffAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
                 )}
                 <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
                     <span className="text-xl font-black uppercase">Net Payable</span>

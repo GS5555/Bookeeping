@@ -45,9 +45,9 @@ const poItemSchema = z.object({
     sku: z.string().default(''),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1.").default(1),
     unitPrice: z.coerce.number().min(0, "Unit price cannot be negative.").default(0),
-    hsnCode: z.string().optional(),
+    hsnCode: z.string().optional().default(""),
     gstRate: z.number().default(0),
-    productName: z.string().optional(),
+    productName: z.string().optional().default(""),
 });
 
 const formSchema = z.object({
@@ -58,10 +58,10 @@ const formSchema = z.object({
   items: z.array(poItemSchema).min(1, "At least one item is required."),
   paymentMethod: z.enum(["NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Cash", "Other"]),
   paymentStatus: z.enum(["Paid", "Unpaid", "Partially Paid"]),
-  comments: z.string().optional(),
-  courierCompany: z.string().optional(),
-  trackingNumber: z.string().optional(),
-  trackingLink: z.string().url({ message: "Please enter a valid URL." }).or(z.literal('')).optional(),
+  comments: z.string().optional().default(""),
+  courierCompany: z.string().optional().default(""),
+  trackingNumber: z.string().optional().default(""),
+  trackingLink: z.string().url({ message: "Please enter a valid URL." }).or(z.literal('')).optional().default(""),
   numberOfBoxes: z.coerce.number().int().min(1).default(1),
 });
 
@@ -129,7 +129,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     }
   }, [open, reset, append]);
 
-  const { subTotal, totalAmount, gstAmount } = useMemo(() => {
+  const totals = useMemo(() => {
     let sub = 0;
     let gst = 0;
     watchedItems.forEach(item => {
@@ -139,7 +139,16 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             gst += lineSub * ((Number(item.gstRate) || 0) / 100);
         }
     });
-    return { subTotal: sub, gstAmount: gst, totalAmount: Math.round(sub + gst) };
+    const rawTotal = sub + gst;
+    const roundedTotal = Math.round(rawTotal);
+    const roundOff = roundedTotal - rawTotal;
+
+    return { 
+        subTotal: sub, 
+        gstAmount: gst, 
+        totalAmount: roundedTotal,
+        roundOffAmount: roundOff
+    };
   }, [watchedItems, watchedPurchaseType]);
 
   const handleProductSelect = (productId: string, index: number) => {
@@ -208,16 +217,17 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
       paymentStatus: data.paymentStatus,
       paymentMethod: data.paymentMethod,
       items: poItems as any,
-      subTotal,
-      gstAmount,
-      cgstAmount: gstAmount / 2,
-      sgstAmount: gstAmount / 2,
+      subTotal: totals.subTotal,
+      gstAmount: totals.gstAmount,
+      cgstAmount: totals.gstAmount / 2,
+      sgstAmount: totals.gstAmount / 2,
       igstAmount: 0,
-      totalAmount,
-      comments: data.comments,
-      courierCompany: data.courierCompany,
-      trackingNumber: data.trackingNumber,
-      trackingLink: data.trackingLink,
+      roundOffAmount: totals.roundOffAmount,
+      totalAmount: totals.totalAmount,
+      comments: data.comments || "",
+      courierCompany: data.courierCompany || "",
+      trackingNumber: data.trackingNumber || "",
+      trackingLink: data.trackingLink || "",
       numberOfBoxes: data.numberOfBoxes,
     });
   };
@@ -343,9 +353,15 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             </div>
 
             <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 shadow-inner space-y-3">
-                <div className="flex justify-between text-sm"><span>Subtotal</span><span className="font-bold">₹{subTotal.toLocaleString()}</span></div>
-                <div className="flex justify-between text-sm border-y py-2 border-primary/10"><span>Tax (GST)</span><span className="font-bold">₹{gstAmount.toLocaleString()}</span></div>
-                <div className="flex justify-between items-center pt-4"><span className="text-xl font-black uppercase">Total Amount</span><span className="text-3xl font-black text-primary tracking-tighter">₹{totalAmount.toLocaleString()}</span></div>
+                <div className="flex justify-between text-sm"><span>Subtotal</span><span className="font-bold">₹{totals.subTotal.toLocaleString()}</span></div>
+                <div className="flex justify-between text-sm border-y py-2 border-primary/10"><span>Tax (GST)</span><span className="font-bold">₹{totals.gstAmount.toLocaleString()}</span></div>
+                {totals.roundOffAmount !== 0 && (
+                    <div className="flex justify-between text-xs italic text-muted-foreground">
+                        <span>Round Off</span>
+                        <span className="font-medium">₹{totals.roundOffAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                )}
+                <div className="flex justify-between items-center pt-4"><span className="text-xl font-black uppercase">Total Amount</span><span className="text-3xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span></div>
             </div>
           </form>
         </Form>

@@ -1,0 +1,173 @@
+/**
+ * FIRESTORE SECURITY RULES (VERSION 2)
+ *
+ * CORE PHILOSOPHY:
+ * This ruleset implements a robust Role-Based Access Control (RBAC) system combined with strict
+ * User-Ownership for sensitive profile data. It prioritizes "Authorization Independence" by
+ * leveraging denormalized fields (like 'role' in UserProfile or 'createdByUserId' in records)
+ * to ensure that authorization decisions are fast and do not require excessive cross-document lookups.
+ *
+ * DATA STRUCTURE:
+ * - /user_profiles/{userId}: Private user data, path-locked to the Firebase Auth UID.
+ * - /{globalCollections}/{id}: Operational data (Products, Orders, Vendors, etc.) are stored in
+ *   top-level collections to facilitate flat queries.
+ *
+ * KEY SECURITY DECISIONS:
+ * 1. RBAC (Role-Based Access Control): A user's role (Admin, Editor, Viewer) is stored in their
+ *    UserProfile and used to gate write operations on global catalog data.
+ * 2. Path-Based Ownership: User profiles are secured by matching the document ID to the
+ *    authenticated user's UID.
+ * 3. Prototyping Flexibility: Rules enforce WHO can write WHAT (authorization and relational integrity),
+ *    but do not strictly enforce the data types of non-critical fields to allow for rapid UI iteration.
+ * 4. Relational Integrity: On creation, documents must correctly set their internal
+ *    relational IDs (e.g., createdByUserId) to match the authenticated user.
+ */
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- GLOBAL HELPER FUNCTIONS ---
+
+    /** @description Checks if the user is authenticated. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** @description Checks if the provided ID matches the authenticated user's UID. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** @description Fetches the authenticated user's profile document. */
+    function getUserProfile() {
+      return get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data;
+    }
+
+    /** @description Checks if the user has a specific role. */
+    function hasRole(role) {
+      return isSignedIn() && getUserProfile().role == role;
+    }
+
+    /** @description Combined check for Admin or Editor roles. */
+    function isAdminOrEditor() {
+      return hasRole('Admin') || hasRole('Editor');
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Rules for UserProfile. Scoped by path ownership.
+     * @path /user_profiles/{userId}
+     * @allow (get, list, create, update) If the user is the owner of the path.
+     * @deny (create) If the userId in the data does not match the path.
+     * @principle Path-based ownership and relational integrity for user data.
+     */
+    match /user_profiles/{userId} {
+      allow get: if isOwner(userId) || hasRole('Admin');
+      allow list: if isOwner(userId) || hasRole('Admin');
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if (isOwner(userId) || hasRole('Admin')) && request.resource.data.userId == resource.data.userId;
+      allow delete: if hasRole('Admin');
+    }
+
+    /**
+     * @description Rules for Global Catalog/Lookup Collections (Categories, Brands, HSN, etc.).
+     * @path /{collectionId}/{docId}
+     * @allow (get, list) Any authenticated user.
+     * @allow (create, update, delete) Only Admins or Editors.
+     * @principle Role-based write access with public authenticated read access.
+     */
+    match /{collectionId}/{docId} {
+      // Define which collections follow the Global Lookup pattern
+      function isGlobalLookup() {
+        return collectionId in [
+          'categories', 'brands', 'hsn_codes', 'vendors',
+          'store_locations', 'products', 'inventory',
+          'customers', 'expense_categories', 'coupons',
+          'courier_partners'
+        ];
+      }
+
+      allow get, list: if isSignedIn() && isGlobalLookup();
+      allow create, update, delete: if isAdminOrEditor() && isGlobalLookup();
+    }
+
+    /**
+     * @description Rules for Operational/Transaction Records (Orders, Adjustments, Transfers, Expenses).
+     * @path /{collectionId}/{docId}
+     * @allow (get, list) Any authenticated user.
+     * @allow (create, update, delete) Role-restricted; validates audit fields on creation.
+     * @principle Denormalized ID validation for audit integrity and role-gated writes.
+     */
+    match /stock_adjustments/{adjustmentId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdminOrEditor() && request.resource.data.adjustedByUserId == request.auth.uid;
+      allow update, delete: if isAdminOrEditor();
+    }
+
+    match /stock_transfers/{transferId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdminOrEditor() && request.resource.data.initiatedByUserId == request.auth.uid;
+      allow update, delete: if isAdminOrEditor();
+    }
+
+    match /sales_orders/{salesOrderId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdminOrEditor() && request.resource.data.createdByUserId == request.auth.uid;
+      allow update, delete: if isAdminOrEditor();
+    }
+
+    match /sales_order_items/{itemId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdminOrEditor();
+    }
+
+    match /sales_returns/{returnId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdminOrEditor() && request.resource.data.returnedByUserId == request.auth.uid;
+      allow update, delete: if isAdminOrEditor();
+    }
+
+    match /sales_return_items/{itemId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdminOrEditor();
+    }
+
+    match /purchase_orders/{orderId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdminOrEditor() && request.resource.data.createdByUserId == request.auth.uid;
+      allow update, delete: if isAdminOrEditor();
+    }
+
+    match /purchase_order_items/{itemId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdminOrEditor();
+    }
+
+    match /expenses/{expenseId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdminOrEditor() && request.resource.data.recordedByUserId == request.auth.uid;
+      allow update, delete: if isAdminOrEditor();
+    }
+
+    match /addresses/{addressId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdminOrEditor();
+    }
+
+    /**
+     * @description Rules for Support Tickets.
+     * @path /support_tickets/{ticketId}
+     * @allow (get, list) Owner (reporter), Assignee, or Staff.
+     * @allow (create) Authenticated user sets self as reporter.
+     * @principle Flexible access based on ownership, assignment, or role.
+     */
+    match /support_tickets/{ticketId} {
+      allow get, list: if isSignedIn() && (isOwner(resource.data.reporterUserId) || isOwner(resource.data.assigneeUserId) || isAdminOrEditor());
+      allow create: if isSignedIn() && request.resource.data.reporterUserId == request.auth.uid;
+      allow update: if isSignedIn() && (isOwner(resource.data.reporterUserId) || isOwner(resource.data.assigneeUserId) || isAdminOrEditor());
+      allow delete: if hasRole('Admin');
+    }
+  }
+}

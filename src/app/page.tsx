@@ -1,3 +1,4 @@
+
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import {
@@ -188,14 +189,16 @@ export default function Dashboard() {
                 const invoiceSequence = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
                 
                 const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
-                const finalSaleData: Sale = {
+                
+                // Final sanitization to remove undefined values
+                const finalSaleData = JSON.parse(JSON.stringify({
                     ...sale,
                     id: saleDocRef.id,
                     invoiceSequence,
                     dueDate: addDays(new Date(sale.saleDate), 30).toISOString(),
                     createdBy: currentUser.id,
                     createdByName: currentUser.displayName,
-                } as Sale;
+                }));
 
                 transaction.set(saleDocRef, finalSaleData);
                 transaction.update(companyRef, { [numberField]: newNumber });
@@ -213,10 +216,19 @@ export default function Dashboard() {
   };
 
   const handlePurchaseSuccess = async (po: PurchaseOrder) => {
-    if (!firestore) return;
+    if (!firestore || !currentUser) return;
     try {
       const docRef = doc(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'));
-      await setDoc(docRef, { ...po, id: docRef.id });
+      
+      // Final sanitization to remove undefined values
+      const finalPoData = JSON.parse(JSON.stringify({ 
+          ...po, 
+          id: docRef.id,
+          createdBy: currentUser.id,
+          createdByName: currentUser.displayName
+      }));
+
+      await setDoc(docRef, finalPoData);
       setIsPurchaseDialogOpen(false);
       toast({ title: "Success!", description: `Purchase Order #${po.purchaseOrderNumber} created.` });
     } catch(e) {
