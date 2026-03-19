@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { DateRange } from "react-day-picker"
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Download, FileDown } from 'lucide-react';
-import { addDays, format, startOfYear, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfYear, startOfDay, endOfDay } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { exportToExcel, downloadGenericReportPdf } from '@/lib/actions';
@@ -73,6 +73,7 @@ export default function ReportsPage() {
     const filterByDate = (items: any[], dateKey: string) => {
         if (!items) return [];
         return items.filter(item => {
+            if (!item[dateKey]) return false;
             const itemDate = new Date(item[dateKey]);
             if (!date?.from) return true;
             const from = startOfDay(date.from);
@@ -89,7 +90,6 @@ export default function ReportsPage() {
         const safeQuotes = filterByDate(quotations || [], 'date');
         const safeEnquiries = filterByDate(enquiries || [], 'date');
 
-        // Merged Inventory logic
         const mergedInventory = (products || []).map(p => {
             const invItem = (inventory || []).find(i => i.productId === p.id);
             const totalStock = invItem?.stockBatches?.reduce((sum, b) => sum + b.quantity, 0) || 0;

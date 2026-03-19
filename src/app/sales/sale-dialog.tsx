@@ -64,14 +64,14 @@ const formSchema = z.object({
   customerId: z.string().min(1, "Customer is required."),
   storeId: z.string().min(1, "Store is required."),
   saleDate: z.date({ required_error: "Sale date is required." }),
-  saleType: z.enum(["GST", "Cash"], { required_error: "Sale type is required." }),
+  saleType: z.enum(["GST", "Cash", "Retail"], { required_error: "Sale type is required." }).default("GST"),
   items: z.array(saleItemSchema).min(1, "At least one product must be selected."),
   useDifferentShipping: z.boolean().default(false),
   shippingAddressId: z.string().optional().default(""),
   couponCode: z.string().optional().default(""),
   manualDiscountPercentage: z.coerce.number().min(0).max(100).default(0),
-  paymentMethod: z.enum(["NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Cash", "Other", "Sponsored", "Replacement"]),
-  invoiceStatus: z.enum(["Paid", "Unpaid", "Partially Paid"]),
+  paymentMethod: z.enum(["NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Cash", "Other", "Sponsored", "Replacement"]).default("Cash"),
+  invoiceStatus: z.enum(["Paid", "Unpaid", "Partially Paid"]).default("Paid"),
   amountPaid: z.coerce.number().min(0).optional().default(0),
   courierCompany: z.string().optional().default(""),
   trackingNumber: z.string().optional().default(""),
@@ -257,7 +257,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
-    // Explicitly handle optional fields to avoid Firestore 'undefined' errors
     const finalSale = JSON.parse(JSON.stringify({
       ...data,
       id: sale?.id || `sale_${Date.now()}`,
@@ -461,12 +460,10 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                         <div className="flex justify-between text-xs text-muted-foreground"><span>IGST</span><span>₹{totals.igstAmount.toLocaleString()}</span></div>
                     </>
                 )}
-                {totals.roundOffAmount !== 0 && (
-                    <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
-                        <span>Round Off</span>
-                        <span className="font-medium">₹{totals.roundOffAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                    </div>
-                )}
+                <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
+                    <span>Round Off</span>
+                    <span className="font-medium">{totals.roundOffAmount < 0 ? '-' : '+'}{Math.abs(totals.roundOffAmount).toFixed(2)}</span>
+                </div>
                 <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
                     <span className="text-xl font-black uppercase">Net Payable</span>
                     <span className="text-3xl font-black text-primary">₹{totals.totalAmount.toLocaleString()}</span>
