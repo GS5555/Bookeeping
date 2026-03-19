@@ -49,6 +49,7 @@ const STORE_ID = 'store_main';
 const saleItemSchema = z.object({
     productId: z.string().optional(),
     sku: z.string().default(''),
+    productName: z.string().default(''),
     brandId: z.string().optional(),
     handPreference: z.string().default('Normal'),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1.").default(1),
@@ -133,7 +134,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       storeId: STORE_ID,
       saleDate: new Date(),
       saleType: "GST",
-      items: [{ productId: "", sku: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' }],
+      items: [{ productId: "", sku: '', productName: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' }],
       useDifferentShipping: false,
       couponCode: "",
       manualDiscountPercentage: 0,
@@ -159,17 +160,19 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const customerAddresses = useMemo(() => selectedCustomer?.addresses || [], [selectedCustomer]);
   const primaryAddress = useMemo(() => customerAddresses.find(a => a.isPrimary) || customerAddresses[0], [customerAddresses]);
 
-  // Unified calculation logic helper
   const calculateTotals = (items: any[], type: string, storeId: string, custAddress: any, couponCode: string, manualDisc: number) => {
     const subTotalVal = items.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
+    
     let couponDiscountValue = 0;
     const coupon = coupons?.find(c => c.code === couponCode && c.isActive);
     if(coupon && subTotalVal >= coupon.minPurchaseAmount) {
       couponDiscountValue = coupon.discountType === 'percentage' ? (subTotalVal * coupon.discountValue) / 100 : coupon.discountValue;
     }
+    
     const manualDiscountValue = (subTotalVal * (Number(manualDisc) || 0)) / 100;
     const totalDiscountValue = Math.min(subTotalVal, couponDiscountValue + manualDiscountValue);
     const taxableValue = subTotalVal - totalDiscountValue;
+    
     const discountRatio = subTotalVal > 0 ? totalDiscountValue / subTotalVal : 0;
 
     let cgstVal = 0, sgstVal = 0, igstVal = 0;
@@ -181,13 +184,16 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
             const itemLineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
             const itemTaxableValue = itemLineTotal * (1 - discountRatio);
             const itemGstTotal = itemTaxableValue * ((Number(item.gstRate) || 0) / 100);
-            if (isInterState) igstVal += itemGstTotal;
-            else {
+            
+            if (isInterState) {
+                igstVal += itemGstTotal;
+            } else {
                 cgstVal += itemGstTotal / 2;
                 sgstVal += itemGstTotal / 2;
             }
         });
     }
+    
     const gstTotal = cgstVal + sgstVal + igstVal;
     const rawTotal = taxableValue + gstTotal;
     const roundedTotal = Math.round(rawTotal);
@@ -196,6 +202,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     return { 
         subTotal: subTotalVal, 
         totalDiscount: totalDiscountValue, 
+        couponDiscount: couponDiscountValue,
+        manualDiscountAmount: manualDiscountValue,
         gstAmount: gstTotal,
         totalAmount: roundedTotal, 
         roundOffAmount: roundOff,
@@ -208,12 +216,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const totals = useMemo(() => {
     return calculateTotals(watchedItems, watchedSaleType, watchedStoreId, primaryAddress, watchedCouponCode, watchedManualDiscount);
   }, [watchedItems, watchedCouponCode, watchedManualDiscount, watchedSaleType, watchedStoreId, primaryAddress, coupons, stores]);
-
-  const balanceDue = useMemo(() => {
-    const status = watch('invoiceStatus');
-    const amountPaid = Number(watch('amountPaid')) || 0;
-    return status === 'Partially Paid' ? totals.totalAmount - amountPaid : (status === 'Unpaid' ? totals.totalAmount : 0);
-  }, [watch, totals.totalAmount]);
 
   const handleProductSelect = (productId: string, index: number) => {
     const product = allProducts?.find(p => p.id === productId);
@@ -229,6 +231,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     } else {
         setValue(`items.${index}.productId`, product.id);
         setValue(`items.${index}.sku`, product.sku);
+        setValue(`items.${index}.productName`, product.name);
         setValue(`items.${index}.brandId`, product.brand);
         setValue(`items.${index}.unitPrice`, product.finalPrice || product.sellingPrice);
         setValue(`items.${index}.hsnCode`, product.hsnCode);
@@ -237,7 +240,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         setValue(`items.${index}.subCategoryId`, product.subCategory || '');
         
         if (index === fields.length - 1) {
-            append({ productId: "", sku: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
+            append({ productId: "", sku: '', productName: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
         }
     }
   };
@@ -283,6 +286,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       cgstAmount: finalTotals.cgstAmount,
       sgstAmount: finalTotals.sgstAmount,
       igstAmount: finalTotals.igstAmount,
+      couponDiscount: finalTotals.couponDiscount,
+      manualDiscountAmount: finalTotals.manualDiscountAmount,
       roundOffAmount: finalTotals.roundOffAmount,
       totalAmount: finalTotals.totalAmount,
       balanceAmount: finalTotals.totalAmount - (data.invoiceStatus === 'Paid' ? finalTotals.totalAmount : (data.amountPaid || 0)),
@@ -304,7 +309,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         } as any);
     } else if (open) {
         reset();
-        append({ productId: "", sku: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
+        append({ productId: "", sku: '', productName: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
     }
   }, [open, sale, reset, append]);
 
