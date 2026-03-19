@@ -112,8 +112,8 @@ const generateInvoiceDoc = (doc: jsPDF, sale: Sale, customers: Customer[], compa
     }
 
     const roundOff = sale.roundOffAmount || 0;
-    if (roundOff !== 0) {
-        summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: formatCurrency(roundOff), styles: footerStyles }]);
+    if (Math.abs(roundOff) > 0.01) {
+        summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: `${roundOff < 0 ? '-' : '+'}${formatCurrency(Math.abs(roundOff))}`, styles: footerStyles }]);
     }
     
     summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(sale.totalAmount), styles: totalFooterStyles }]);
@@ -185,8 +185,8 @@ const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor
         [{ content: 'GST Amount', styles: footerStyles }, { content: formatCurrency(po.gstAmount), styles: footerStyles }],
     ];
 
-    if (roundOff !== 0) {
-        summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: formatCurrency(roundOff), styles: footerStyles }]);
+    if (Math.abs(roundOff) > 0.01) {
+        summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: `${roundOff < 0 ? '-' : '+'}${formatCurrency(Math.abs(roundOff))}`, styles: footerStyles }]);
     }
     summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(po.totalAmount), styles: totalFooterStyles }]);
 

@@ -12,6 +12,7 @@ import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { downloadInvoice } from '@/lib/actions';
 import { useIsMounted } from '@/hooks/use-is-mounted';
+import { cn } from '@/lib/utils';
 
 const formatCurrency = (amount: number): string => {
     if (typeof amount !== 'number') return '₹0.00';
@@ -70,7 +71,10 @@ export default function InvoicePage() {
     const isGstSale = sale.saleType === 'GST';
     const termsAndConditions = companyDetails.invoiceTerms?.split('\n') || [];
     const totalAmount = sale.totalAmount;
-    const roundOffAmount = sale.roundOffAmount || 0;
+    
+    // Explicitly calculate roundOff if missing from document (legacy data)
+    const calculatedRawTotal = sale.subTotal - (sale.couponDiscount || 0) - (sale.manualDiscountAmount || 0) + (sale.gstAmount || 0);
+    const roundOffAmount = sale.roundOffAmount !== undefined ? sale.roundOffAmount : (sale.totalAmount - calculatedRawTotal);
 
     return (
         <div className="min-h-screen bg-white p-4 sm:p-8 flex flex-col items-center">
@@ -214,10 +218,10 @@ export default function InvoicePage() {
                             </div>
                         )}
                         
-                        {roundOffAmount !== 0 && (
+                        {Math.abs(roundOffAmount) > 0.01 && (
                             <div className="flex justify-between text-[10px] font-black text-gray-900 italic uppercase">
                                 <span>ROUND OFF</span>
-                                <span>{formatCurrency(roundOffAmount)}</span>
+                                <span>{roundOffAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(roundOffAmount))}</span>
                             </div>
                         )}
                         

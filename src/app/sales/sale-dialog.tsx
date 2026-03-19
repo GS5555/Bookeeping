@@ -471,7 +471,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                 {totals.roundOffAmount !== 0 && (
                     <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
                         <span>Round Off</span>
-                        <span className="font-medium">{totals.roundOffAmount < 0 ? '-' : '+'}{Math.abs(totals.roundOffAmount).toFixed(2)}</span>
+                        <span className={cn("font-bold", totals.roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
+                            {totals.roundOffAmount < 0 ? '-' : '+'}₹{Math.abs(totals.roundOffAmount).toFixed(2)}
+                        </span>
                     </div>
                 )}
                 <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
