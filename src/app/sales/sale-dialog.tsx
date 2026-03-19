@@ -258,13 +258,13 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
     // Explicitly handle optional fields to avoid Firestore 'undefined' errors
-    onSuccess({
+    const finalSale = JSON.parse(JSON.stringify({
       ...data,
       id: sale?.id || `sale_${Date.now()}`,
       customerName: customer?.name || 'Unknown',
       customerGstNumber: customer?.gstNumber || '',
       billingAddress: billingAddress!,
-      items: validItems as any,
+      items: validItems,
       subTotal: totals.subTotal,
       gstAmount: totals.gstAmount,
       cgstAmount: totals.cgstAmount,
@@ -278,8 +278,22 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       trackingNumber: data.trackingNumber || "",
       trackingLink: data.trackingLink || "",
       comments: data.comments || "",
-    } as any);
+    }));
+
+    onSuccess(finalSale);
   };
+
+  useEffect(() => {
+    if (open && sale) {
+        reset({
+            ...sale,
+            saleDate: sale.saleDate ? new Date(sale.saleDate) : new Date(),
+        } as any);
+    } else if (open) {
+        reset();
+        append({ productId: "", sku: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
+    }
+  }, [open, sale, reset, append]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -426,7 +440,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <FormField control={form.control} name="courierCompany" render={({ field }) => (
                         <FormItem className="md:col-span-2">
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value || ""}>
                                 <FormControl><SelectTrigger className="h-9 border-muted-foreground/50 bg-background"><SelectValue placeholder="Select Courier" /></SelectTrigger></FormControl>
                                 <SelectContent>{couriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
                             </Select>
