@@ -54,13 +54,13 @@ export default function InvoicePage() {
     const { data: companyDetails, isLoading: isCompanyLoading } = useDoc<Company>(companyDocRef);
 
     if (isSaleLoading || isCustomerLoading || isCompanyLoading || !isMounted) {
-        return <div className="flex items-center justify-center h-screen bg-white"><p className="animate-pulse font-medium">Loading TAX INVOICE details...</p></div>;
+        return <div className="flex items-center justify-center h-screen bg-white"><p className="animate-pulse font-medium text-lg">Loading TAX INVOICE details...</p></div>;
     }
     
     if (!sale || !companyDetails) {
         return (
-            <div className="flex items-center justify-center h-screen bg-white">
-                <div className="text-center p-8 border rounded-xl shadow-sm bg-gray-50 max-w-sm">
+            <div className="flex items-center justify-center h-screen bg-white text-center">
+                <div className="p-8 border rounded-xl shadow-sm bg-gray-50 max-w-sm">
                     <h1 className="text-2xl font-bold mb-4">TAX INVOICE Not Found</h1>
                     <Button asChild className="w-full"><Link href="/sales">Back to Sales</Link></Button>
                 </div>
@@ -79,14 +79,14 @@ export default function InvoicePage() {
     return (
         <div className="min-h-screen bg-white p-4 sm:p-8 flex flex-col items-center">
             <div className="w-full max-w-5xl flex flex-col sm:flex-row justify-between items-center gap-4 mb-8 print:hidden">
-                <Button variant="ghost" asChild className="hover:bg-gray-100">
+                <Button variant="ghost" asChild className="hover:bg-gray-100 font-bold uppercase tracking-widest text-xs">
                     <Link href="/sales"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard</Link>
                 </Button>
                 <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3">
-                    <Button variant="outline" onClick={() => window.print()} className="border-gray-300">
+                    <Button variant="outline" onClick={() => window.print()} className="border-gray-300 font-black uppercase text-xs">
                         <Printer className="mr-2 h-4 w-4" /> Print TAX Invoice
                     </Button>
-                    <Button onClick={() => downloadInvoice(sale, customer ? [customer] : [], companyDetails)} className="shadow-md">
+                    <Button onClick={() => downloadInvoice(sale, customer ? [customer] : [], companyDetails)} className="shadow-md font-black uppercase text-xs">
                         <FileDown className="mr-2 h-4 w-4" /> Save as PDF
                     </Button>
                 </div>
@@ -183,7 +183,7 @@ export default function InvoicePage() {
                     <div className="flex-1 space-y-8">
                         <div>
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Amount in Words</p>
-                            <p className="text-sm font-bold italic text-gray-800 bg-gray-50 p-4 rounded-lg border">
+                            <p className="text-sm font-bold italic text-gray-800 bg-gray-50 p-4 rounded-lg border leading-relaxed">
                                 {numberToWordsInr(totalAmount)}
                             </p>
                         </div>
@@ -197,7 +197,7 @@ export default function InvoicePage() {
                         )}
                     </div>
                     
-                    <div className="w-full md:w-80 space-y-3 bg-gray-50 p-6 rounded-xl border">
+                    <div className="w-full md:w-80 space-y-3 bg-gray-50 p-6 rounded-xl border border-gray-200">
                         <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
                             <span>Subtotal</span>
                             <span className="text-gray-900">{formatCurrency(sale.subTotal)}</span>
@@ -219,9 +219,11 @@ export default function InvoicePage() {
                         )}
                         
                         {Math.abs(roundOffAmount) > 0.01 && (
-                            <div className="flex justify-between text-[10px] font-black text-gray-900 italic uppercase">
-                                <span>ROUND OFF</span>
-                                <span>{roundOffAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(roundOffAmount))}</span>
+                            <div className="flex justify-between text-[10px] font-black uppercase italic border-t pt-2 border-gray-200">
+                                <span className="text-gray-500">Round Off Adjustment</span>
+                                <span className={cn(roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
+                                    {roundOffAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(roundOffAmount))}
+                                </span>
                             </div>
                         )}
                         

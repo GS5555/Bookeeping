@@ -101,8 +101,9 @@ const generateInvoiceDoc = (doc: jsPDF, sale: Sale, customers: Customer[], compa
         [{ content: 'Subtotal', styles: footerStyles }, { content: formatCurrency(sale.subTotal), styles: footerStyles }],
     ];
 
-    if ((sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0) > 0) {
-        summaryData.push([{ content: 'Total Discount', styles: footerStyles }, { content: `-${formatCurrency((sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0))}`, styles: footerStyles }]);
+    const totalDiscount = (sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0);
+    if (totalDiscount > 0) {
+        summaryData.push([{ content: 'Total Discount', styles: footerStyles }, { content: `-${formatCurrency(totalDiscount)}`, styles: footerStyles }]);
     }
 
     if (isGstSale) {

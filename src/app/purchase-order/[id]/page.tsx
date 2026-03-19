@@ -12,6 +12,7 @@ import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { AppShell } from '@/components/layout/app-shell';
 import { downloadPurchaseOrder } from '@/lib/actions';
+import { cn } from '@/lib/utils';
 
 const formatCurrency = (amount: number): string => {
     if (typeof amount !== 'number') return '₹0.00';
@@ -52,13 +53,13 @@ function PurchaseOrderContent() {
     const { data: companyDetails, isLoading: isCompanyLoading } = useDoc<Company>(companyDocRef);
 
     if (isPoLoading || isVendorLoading || isCompanyLoading) {
-        return <div className="flex items-center justify-center h-screen bg-white"><p className="animate-pulse">Loading Purchase Order...</p></div>;
+        return <div className="flex items-center justify-center h-screen bg-white"><p className="animate-pulse font-medium text-lg">Loading Purchase Order...</p></div>;
     }
     
     if (!po || !companyDetails) {
         return (
              <div className="flex items-center justify-center h-screen bg-white">
-                <div className="text-center p-8 border rounded-lg shadow-sm">
+                <div className="text-center p-8 border rounded-lg shadow-sm bg-gray-50">
                     <h1 className="text-2xl font-bold mb-4">Purchase Order Not Found</h1>
                     <Button asChild><Link href="/purchases">Go back to Purchases</Link></Button>
                 </div>
@@ -73,14 +74,14 @@ function PurchaseOrderContent() {
     return (
         <div className="min-h-screen bg-white p-4 sm:p-8 flex flex-col items-center">
             <div className="w-full max-w-5xl flex flex-col sm:flex-row justify-between items-center gap-4 mb-8 print:hidden">
-                <Button variant="ghost" asChild className="hover:bg-gray-100">
+                <Button variant="ghost" asChild className="hover:bg-gray-100 font-bold uppercase tracking-widest text-xs">
                     <Link href="/purchases"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Purchases</Link>
                 </Button>
                 <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
-                    <Button variant="outline" onClick={() => window.print()} className="flex-1 sm:flex-none">
+                    <Button variant="outline" onClick={() => window.print()} className="flex-1 sm:flex-none font-black uppercase text-xs">
                         <Printer className="mr-2 h-4 w-4" /> Print PO
                     </Button>
-                    <Button onClick={() => downloadPurchaseOrder(po, vendor ? [vendor] : [], companyDetails)} className="flex-1 sm:flex-none">
+                    <Button onClick={() => downloadPurchaseOrder(po, vendor ? [vendor] : [], companyDetails)} className="flex-1 sm:flex-none font-black uppercase text-xs">
                         <FileDown className="mr-2 h-4 w-4" /> Download PDF
                     </Button>
                 </div>
@@ -101,7 +102,7 @@ function PurchaseOrderContent() {
                         <div className="space-y-2">
                             <div>
                                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">PO NUMBER</p>
-                                <p className="text-2xl font-black text-gray-900 tracking-tight">#{po.purchaseOrderNumber}</p>
+                                <p className="text-2xl font-black text-gray-900 tracking-tight">{po.purchaseOrderNumber}</p>
                             </div>
                             <div className="pt-2">
                                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">ORDER DATE</p>
@@ -161,19 +162,19 @@ function PurchaseOrderContent() {
                     <div className="flex-1 space-y-8">
                         <div>
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Amount in Words</p>
-                            <p className="text-sm font-bold italic text-gray-800 bg-gray-50 p-4 rounded-lg border">
+                            <p className="text-sm font-bold italic text-gray-800 bg-gray-50 p-4 rounded-lg border border-gray-100 leading-relaxed">
                                 {numberToWordsInr(totalAmount)}
                             </p>
                         </div>
                         {po.comments && (
                             <div>
                                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Special Instructions</p>
-                                <p className="text-xs text-gray-600 bg-gray-50 p-4 rounded-lg border border-dashed">{po.comments}</p>
+                                <p className="text-xs text-gray-600 bg-gray-50 p-4 rounded-lg border border-dashed whitespace-pre-wrap">{po.comments}</p>
                             </div>
                         )}
                     </div>
                     
-                    <div className="w-full md:w-80 space-y-3 bg-gray-50 p-6 rounded-xl border">
+                    <div className="w-full md:w-80 space-y-3 bg-gray-50 p-6 rounded-xl border border-gray-200">
                         <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
                             <span>Subtotal</span>
                             <span className="text-gray-900">{formatCurrency(po.subTotal)}</span>
@@ -182,10 +183,12 @@ function PurchaseOrderContent() {
                             <span>GST Amount</span>
                             <span className="text-gray-900">{formatCurrency(po.gstAmount)}</span>
                         </div>
-                        {roundOffAmount !== 0 && (
-                            <div className="flex justify-between text-[10px] font-black text-gray-900 italic uppercase">
-                                <span>ROUND OFF</span>
-                                <span>{formatCurrency(roundOffAmount)}</span>
+                        {Math.abs(roundOffAmount) > 0.01 && (
+                            <div className="flex justify-between text-[10px] font-black uppercase italic border-t pt-2 border-gray-200">
+                                <span className="text-gray-500">Round Off Adjustment</span>
+                                <span className={cn(roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
+                                    {roundOffAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(roundOffAmount))}
+                                </span>
                             </div>
                         )}
                         <div className="flex justify-between items-center pt-4 border-t-2 border-gray-900 mt-2">

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -158,23 +159,24 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const customerAddresses = useMemo(() => selectedCustomer?.addresses || [], [selectedCustomer]);
   const primaryAddress = useMemo(() => customerAddresses.find(a => a.isPrimary) || customerAddresses[0], [customerAddresses]);
 
-  const totals = useMemo(() => {
-    const subTotalVal = watchedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
+  // Unified calculation logic helper
+  const calculateTotals = (items: any[], type: string, storeId: string, custAddress: any, couponCode: string, manualDisc: number) => {
+    const subTotalVal = items.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
     let couponDiscountValue = 0;
-    const coupon = coupons?.find(c => c.code === watchedCouponCode && c.isActive);
+    const coupon = coupons?.find(c => c.code === couponCode && c.isActive);
     if(coupon && subTotalVal >= coupon.minPurchaseAmount) {
       couponDiscountValue = coupon.discountType === 'percentage' ? (subTotalVal * coupon.discountValue) / 100 : coupon.discountValue;
     }
-    const manualDiscountValue = (subTotalVal * (Number(watchedManualDiscount) || 0)) / 100;
+    const manualDiscountValue = (subTotalVal * (Number(manualDisc) || 0)) / 100;
     const totalDiscountValue = Math.min(subTotalVal, couponDiscountValue + manualDiscountValue);
     const taxableValue = subTotalVal - totalDiscountValue;
     const discountRatio = subTotalVal > 0 ? totalDiscountValue / subTotalVal : 0;
 
     let cgstVal = 0, sgstVal = 0, igstVal = 0;
-    if(watchedSaleType === 'GST' && subTotalVal > 0) {
-        const store = stores?.find(s => s.id === watchedStoreId);
-        const isInterState = primaryAddress?.state !== store?.state;
-        watchedItems.forEach(item => {
+    if(type === 'GST' && subTotalVal > 0) {
+        const store = stores?.find(s => s.id === storeId);
+        const isInterState = custAddress?.state !== store?.state;
+        items.forEach(item => {
             if (!item.productId) return;
             const itemLineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
             const itemTaxableValue = itemLineTotal * (1 - discountRatio);
@@ -186,19 +188,25 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
             }
         });
     }
-    const rawTotal = taxableValue + cgstVal + sgstVal + igstVal;
+    const gstTotal = cgstVal + sgstVal + igstVal;
+    const rawTotal = taxableValue + gstTotal;
     const roundedTotal = Math.round(rawTotal);
     const roundOff = roundedTotal - rawTotal;
 
     return { 
         subTotal: subTotalVal, 
         totalDiscount: totalDiscountValue, 
+        gstAmount: gstTotal,
         totalAmount: roundedTotal, 
         roundOffAmount: roundOff,
         cgstAmount: cgstVal, 
         sgstAmount: sgstVal, 
         igstAmount: igstVal 
     };
+  };
+
+  const totals = useMemo(() => {
+    return calculateTotals(watchedItems, watchedSaleType, watchedStoreId, primaryAddress, watchedCouponCode, watchedManualDiscount);
   }, [watchedItems, watchedCouponCode, watchedManualDiscount, watchedSaleType, watchedStoreId, primaryAddress, coupons, stores]);
 
   const balanceDue = useMemo(() => {
@@ -260,6 +268,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
+    // Recalculate totals one last time to be absolute safe
+    const finalTotals = calculateTotals(validItems, data.saleType, data.storeId, billingAddress, data.couponCode, data.manualDiscountPercentage);
+
     const finalSale = JSON.parse(JSON.stringify({
       ...data,
       id: sale?.id || `sale_${Date.now()}`,
@@ -267,14 +278,14 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       customerGstNumber: customer?.gstNumber || '',
       billingAddress: billingAddress!,
       items: validItems,
-      subTotal: totals.subTotal,
-      gstAmount: totals.gstAmount,
-      cgstAmount: totals.cgstAmount,
-      sgstAmount: totals.sgstAmount,
-      igstAmount: totals.igstAmount,
-      roundOffAmount: totals.roundOffAmount,
-      totalAmount: totals.totalAmount,
-      balanceAmount: balanceDue,
+      subTotal: finalTotals.subTotal,
+      gstAmount: finalTotals.gstAmount,
+      cgstAmount: finalTotals.cgstAmount,
+      sgstAmount: finalTotals.sgstAmount,
+      igstAmount: finalTotals.igstAmount,
+      roundOffAmount: finalTotals.roundOffAmount,
+      totalAmount: finalTotals.totalAmount,
+      balanceAmount: finalTotals.totalAmount - (data.invoiceStatus === 'Paid' ? finalTotals.totalAmount : (data.amountPaid || 0)),
       saleDate: data.saleDate.toISOString(),
       courierCompany: data.courierCompany || "",
       trackingNumber: data.trackingNumber || "",
@@ -459,7 +470,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
             </div>
 
             <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 space-y-3 shadow-sm">
-                <div className="flex justify-between text-sm"><span>Subtotal</span><span className="font-bold">₹{totals.subTotal.toLocaleString()}</span></div>
+                <div className="flex justify-between text-sm font-medium"><span>Subtotal</span><span className="font-bold">₹{totals.subTotal.toLocaleString()}</span></div>
                 {totals.totalDiscount > 0 && <div className="flex justify-between text-sm text-destructive"><span>Discount</span><span className="font-bold">-₹{totals.totalDiscount.toLocaleString()}</span></div>}
                 {watchedSaleType === 'GST' && (
                     <>
@@ -468,23 +479,23 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                         <div className="flex justify-between text-xs text-muted-foreground"><span>IGST</span><span>₹{totals.igstAmount.toLocaleString()}</span></div>
                     </>
                 )}
-                {totals.roundOffAmount !== 0 && (
+                {Math.abs(totals.roundOffAmount) > 0.01 && (
                     <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
-                        <span>Round Off</span>
+                        <span>Round Off Adjustment</span>
                         <span className={cn("font-bold", totals.roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
                             {totals.roundOffAmount < 0 ? '-' : '+'}₹{Math.abs(totals.roundOffAmount).toFixed(2)}
                         </span>
                     </div>
                 )}
                 <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
-                    <span className="text-xl font-black uppercase">Net Payable</span>
-                    <span className="text-3xl font-black text-primary">₹{totals.totalAmount.toLocaleString()}</span>
+                    <span className="text-xl font-black uppercase tracking-tight">Net Payable</span>
+                    <span className="text-3xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
                 </div>
             </div>
           </form>
         </Form>
         <DialogFooter className="p-4 border-t bg-muted/10">
-            <Button type="submit" form="sale-form">Save Invoice</Button>
+            <Button type="submit" form="sale-form" className="font-black uppercase tracking-widest px-8">Save Invoice</Button>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
         </DialogFooter>
         <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
