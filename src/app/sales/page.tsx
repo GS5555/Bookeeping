@@ -1,3 +1,4 @@
+
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CustomerFinancials } from './customer-financials';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { CustomerLedger } from './customer-ledger';
+import { format } from 'date-fns';
 
 const STORE_ID = 'store_main';
 

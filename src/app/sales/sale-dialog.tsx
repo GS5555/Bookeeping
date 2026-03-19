@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Sale, Customer, Product, Coupon, Brand, Courier, Store, Category, SubCategory } from "@/lib/types";
+import { Sale, Customer, Product, Coupon, Brand, Courier, Store, Category, SubCategory, InventoryItem } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -100,6 +100,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
 
   const productsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'products'), orderBy('name')) : null, [firestore]);
   const { data: allProducts } = useCollection<Product>(productsRef);
+
+  const inventoryRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'inventoryItems') : null, [firestore]);
+  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
 
   const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
   const { data: stores } = useCollection<Store>(storesRef);
@@ -384,6 +387,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                   const product = allProducts?.find(p => p.id === selectedProdId);
                   const category = categories?.find(c => c.id === product?.category);
                   const subCategory = subCategories?.find(sc => sc.id === product?.subCategory);
+                  const stockItem = inventory?.find(i => i.productId === selectedProdId);
+                  const currentStock = stockItem?.stockBatches?.reduce((sum, b) => sum + b.quantity, 0) || 0;
                   
                   return (
                       <Card key={field.id} className={cn("border-2 shadow-sm", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
@@ -394,6 +399,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                     <div className="flex gap-1 flex-wrap">
                                         <Badge className="text-[9px] font-black h-5 bg-blue-100 text-blue-700 border-blue-200 uppercase">SKU: {product.sku}</Badge>
                                         <Badge className="text-[9px] font-black h-5 bg-green-100 text-green-700 border-green-200 uppercase">GST: {product.gstRate}%</Badge>
+                                        <Badge className={cn("text-[9px] font-black h-5 uppercase", currentStock < 10 ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")}>
+                                            Stock: {currentStock}
+                                        </Badge>
                                         {category && <Badge className="text-[9px] font-black h-5 bg-purple-100 text-purple-700 border-purple-200 uppercase">CAT: {category.name}</Badge>}
                                         {subCategory && <Badge className="text-[9px] font-black h-5 bg-orange-100 text-orange-700 border-orange-200 uppercase">SUB: {subCategory.name}</Badge>}
                                     </div>
@@ -460,10 +468,12 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                         <div className="flex justify-between text-xs text-muted-foreground"><span>IGST</span><span>₹{totals.igstAmount.toLocaleString()}</span></div>
                     </>
                 )}
-                <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
-                    <span>Round Off</span>
-                    <span className="font-medium">{totals.roundOffAmount < 0 ? '-' : '+'}{Math.abs(totals.roundOffAmount).toFixed(2)}</span>
-                </div>
+                {totals.roundOffAmount !== 0 && (
+                    <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
+                        <span>Round Off</span>
+                        <span className="font-medium">{totals.roundOffAmount < 0 ? '-' : '+'}{Math.abs(totals.roundOffAmount).toFixed(2)}</span>
+                    </div>
+                )}
                 <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
                     <span className="text-xl font-black uppercase">Net Payable</span>
                     <span className="text-3xl font-black text-primary">₹{totals.totalAmount.toLocaleString()}</span>

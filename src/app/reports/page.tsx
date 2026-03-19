@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
 import { exportToExcel, downloadGenericReportPdf } from '@/lib/actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { Sale, PurchaseOrder, Expense, InventoryItem, SaleReturn, Customer, Product, Quotation, Enquiry } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 
@@ -46,22 +46,22 @@ export default function ReportsPage() {
 
     const firestore = useFirestore();
 
-    const salesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'sales') : null, [firestore]);
+    const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc')) : null, [firestore]);
     const { data: sales } = useCollection<Sale>(salesRef);
 
-    const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
+    const expensesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'expenses'), orderBy('date', 'desc')) : null, [firestore]);
     const { data: expenses } = useCollection<Expense>(expensesRef);
 
-    const poRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'purchaseOrders') : null, [firestore]);
+    const poRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'), orderBy('orderDate', 'desc')) : null, [firestore]);
     const { data: purchaseOrders } = useCollection<PurchaseOrder>(poRef);
 
-    const returnsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'salesReturns') : null, [firestore]);
+    const returnsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'salesReturns'), orderBy('returnDate', 'desc')) : null, [firestore]);
     const { data: returns } = useCollection<SaleReturn>(returnsRef);
     
-    const quotationsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'quotations') : null, [firestore]);
+    const quotationsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'quotations'), orderBy('date', 'desc')) : null, [firestore]);
     const { data: quotations } = useCollection<Quotation>(quotationsRef);
     
-    const enquiriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'enquiries') : null, [firestore]);
+    const enquiriesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'enquiries'), orderBy('date', 'desc')) : null, [firestore]);
     const { data: enquiries } = useCollection<Enquiry>(enquiriesRef);
 
     const inventoryRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'inventoryItems') : null, [firestore]);
