@@ -29,3 +29,34 @@ Use this prompt to replicate the detailed Product module:
 5. **SKU Generator**: Add a 'Generate SKU' function that constructs a unique identifier using prefixes from the Brand name, Category name, and a 4-digit timestamp suffix.
 6. **Price History Tracking**: Maintain an internal array of objects (`priceHistory`) tracking every time a price is modified, logging both old and new Purchase/Selling prices with ISO timestamps.
 7. **Cloning Logic**: Add a 'Clone' action that pre-fills the creation dialog with data from an existing product but resets the SKU, Serial Number, and ID fields for a new entry."
+
+---
+
+# Storage Analytics & Diagnostics Prompt
+
+Use this prompt to replicate the Storage Analytics functionality:
+
+"Build a robust Storage Analytics and Optimization Dashboard with the following technical requirements:
+
+1. **KPI & Metrics Engine**:
+   - Total Footprint: Calculate and display the total size of monitored files in GB.
+   - Capacity Gauge: Show a progress bar indicating current disk utilization (e.g., 84%).
+   - Index Snapshot: Display total file count and current monthly growth rate.
+
+2. **Visual Analytics**:
+   - Integrate a Pie Chart (Recharts) to show the breakdown of storage by file type (Logs, Backups, Media, Temp, Other).
+   - Use tooltips that format bytes into human-readable MB/GB.
+
+3. **Smart Optimization (AI Recommendations)**:
+   - Flag optimization tasks: Truncate Logs (>90 days), Compress Media (>500MB), Archive Backups (>30 days).
+   - Display impact (space saved) and confidence level for each.
+
+4. **Dual-View Explorer**:
+   - Registry View: Tabular list of top 50 largest files with absolute paths and deletion actions.
+   - Directory Tree View: Recursive folder component showing aggregated sizes and file counts.
+
+5. **Scan Workflow**:
+   - Include a 'Deep Scan' trigger that re-indexes the file system and updates charts asynchronously.
+
+6. **Role-Based Security**:
+   - Restrict the module strictly to 'admin' roles with a professional 'Access Denied' state for others."
