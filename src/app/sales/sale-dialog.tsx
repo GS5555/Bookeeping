@@ -2,7 +2,7 @@
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -146,25 +146,27 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
-  const { setValue, watch, reset, getValues } = form;
+  const { setValue, reset, getValues } = form;
 
-  const watchedItems = watch("items") || [];
-  const watchedCouponCode = watch("couponCode");
-  const watchedSaleType = watch("saleType");
-  const watchedCustomerId = watch("customerId");
-  const watchedStoreId = watch("storeId");
-  const watchedManualDiscount = watch("manualDiscountPercentage");
-  const watchedUseDifferentShipping = watch("useDifferentShipping");
+  // Use useWatch for deep array reactivity
+  const watchedItems = useWatch({ control: form.control, name: "items" }) || [];
+  const watchedCouponCode = useWatch({ control: form.control, name: "couponCode" });
+  const watchedSaleType = useWatch({ control: form.control, name: "saleType" });
+  const watchedCustomerId = useWatch({ control: form.control, name: "customerId" });
+  const watchedStoreId = useWatch({ control: form.control, name: "storeId" });
+  const watchedManualDiscount = useWatch({ control: form.control, name: "manualDiscountPercentage" });
+  const watchedUseDifferentShipping = useWatch({ control: form.control, name: "useDifferentShipping" });
 
   const selectedCustomer = useMemo(() => customers?.find(c => c.id === watchedCustomerId), [customers, watchedCustomerId]);
   const customerAddresses = useMemo(() => selectedCustomer?.addresses || [], [selectedCustomer]);
   const primaryAddress = useMemo(() => customerAddresses.find(a => a.isPrimary) || customerAddresses[0], [customerAddresses]);
 
-  /**
-   * Recalculates all financial figures based on current form state.
-   */
   const calculateTotals = (items: any[], type: string, storeId: string, custAddress: any, couponCode: string, manualDisc: number) => {
-    const subTotalVal = items.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
+    const subTotalVal = items.reduce((acc, item) => {
+        const qty = Number(item.quantity) || 0;
+        const price = Number(item.unitPrice) || 0;
+        return acc + (qty * price);
+    }, 0);
     
     let couponDiscountValue = 0;
     const coupon = coupons?.find(c => c.code === couponCode && c.isActive);
@@ -181,7 +183,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     let cgstVal = 0, sgstVal = 0, igstVal = 0;
     if(type === 'GST' && subTotalVal > 0) {
         const store = stores?.find(s => s.id === storeId);
-        const isInterState = custAddress?.state !== store?.state;
+        const isInterState = custAddress?.state && store?.state ? custAddress.state !== store.state : false;
         items.forEach(item => {
             if (!item.productId) return;
             const itemLineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
@@ -224,7 +226,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const product = allProducts?.find(p => p.id === productId);
     if (!product) return;
 
-    // Check for duplicates
     const existingIndex = watchedItems.findIndex((item, i) => item.productId === productId && i !== index);
     
     if (existingIndex > -1) {
@@ -233,19 +234,18 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         remove(index);
         toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
     } else {
-        // Explicitly set SKU and other fields to ensure visibility in previews
         setValue(`items.${index}.productId`, product.id);
         setValue(`items.${index}.sku`, product.sku);
         setValue(`items.${index}.productName`, product.name);
         setValue(`items.${index}.brandId`, product.brand);
         
-        // Use base selling price (extract from tax-inclusive catalog price if needed)
         const catalogPrice = product.finalPrice || product.sellingPrice;
-        const basePrice = catalogPrice / (1 + (product.gstRate / 100));
+        const gstRate = product.gstRate || 0;
+        const basePrice = catalogPrice / (1 + (gstRate / 100));
         setValue(`items.${index}.unitPrice`, parseFloat(basePrice.toFixed(2)));
         
         setValue(`items.${index}.hsnCode`, product.hsnCode);
-        setValue(`items.${index}.gstRate`, product.gstRate);
+        setValue(`items.${index}.gstRate`, gstRate);
         setValue(`items.${index}.categoryId`, product.category);
         setValue(`items.${index}.subCategoryId`, product.subCategory || '');
         
@@ -264,7 +264,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         return {
             ...item,
             productId: item.productId!,
-            sku: item.sku || product?.sku || '', // Guarantee SKU is captured
+            sku: item.sku || product?.sku || '',
             productName: product?.name || 'Unknown',
             brandName: brand?.name || 'Unknown',
             totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
@@ -281,10 +281,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
-    // Final forced calculation to ensure precision and fix "0 total" bug
     const finalTotals = calculateTotals(validItems, data.saleType, data.storeId, billingAddress, data.couponCode, data.manualDiscountPercentage);
 
-    // Deep sanitize data to prevent undefined values in Firestore transaction
     const finalSale = JSON.parse(JSON.stringify({
       ...data,
       id: sale?.id || `sale_${Date.now()}`,
@@ -300,7 +298,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       couponDiscount: finalTotals.couponDiscount,
       manualDiscountAmount: finalTotals.manualDiscountAmount,
       roundOffAmount: finalTotals.roundOffAmount,
-      total: finalTotals.total, // Standard field name used throughout
+      total: finalTotals.total,
       balanceAmount: finalTotals.total - (data.status === 'paid' ? finalTotals.total : (data.amountPaid || 0)),
       saleDate: data.saleDate.toISOString(),
       courierCompany: data.courierCompany || "",
@@ -411,6 +409,10 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
               <FormLabel className="text-lg font-black uppercase tracking-tight border-b pb-2 block">Invoice Items</FormLabel>
               {fields.map((field, index) => {
                   const selectedProdId = watchedItems[index]?.productId;
+                  const itemQty = Number(watchedItems[index]?.quantity) || 0;
+                  const itemPrice = Number(watchedItems[index]?.unitPrice) || 0;
+                  const lineTotal = itemQty * itemPrice;
+
                   const product = allProducts?.find(p => p.id === selectedProdId);
                   const category = categories?.find(c => c.id === product?.category);
                   const subCategory = subCategories?.find(sc => sc.id === product?.subCategory);
@@ -434,6 +436,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                     </div>
                                 )}
                              </div>
+                             {lineTotal > 0 && <Badge variant="secondary" className="font-black text-[10px]">Line Total: ₹{lineTotal.toLocaleString()}</Badge>}
                              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
                           </CardHeader>
                           <CardContent className="p-4 grid grid-cols-12 gap-3 items-end overflow-visible">
