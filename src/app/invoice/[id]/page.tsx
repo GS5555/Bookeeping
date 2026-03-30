@@ -72,8 +72,8 @@ export default function InvoicePage() {
     const termsAndConditions = companyDetails.invoiceTerms?.split('\n') || [];
     const totalAmount = sale.total;
     
-    // Fix: Fallback calculation for Round Off if missing in old data
-    const rawTotal = sale.subTotal + (sale.gstAmount || 0) - (sale.couponDiscount || 0) - (sale.manualDiscountAmount || 0);
+    // Explicit visibility logic for Round Off
+    const rawTotal = (sale.subTotal || 0) + (sale.gstAmount || 0) - (sale.couponDiscount || 0) - (sale.manualDiscountAmount || 0);
     const roundOffAmount = sale.roundOffAmount !== undefined ? sale.roundOffAmount : (sale.total - rawTotal);
 
     return (
@@ -167,7 +167,6 @@ export default function InvoicePage() {
                                         <p className="font-bold text-gray-900">{item.productName}</p>
                                         <p className="text-[10px] text-gray-500 uppercase">{item.brandName || 'N/A'}</p>
                                     </td>
-                                    {/* SKU logic: Ensure it's never N/A if it exists in data */}
                                     <td className="py-5 font-mono text-xs">{item.sku || 'N/A'}</td>
                                     {isGstSale && <td className="py-5 font-mono text-xs">{item.hsnCode || '-'}</td>}
                                     <td className="py-5 text-right font-medium">{item.gstRate}%</td>
@@ -219,7 +218,7 @@ export default function InvoicePage() {
                             </div>
                         )}
                         
-                        {/* Fix: Explicit visibility for Round Off row */}
+                        {/* Explicit visibility for Round Off row */}
                         {Math.abs(roundOffAmount) > 0.01 && (
                             <div className="flex justify-between text-[10px] font-black uppercase italic border-t pt-2 border-gray-200">
                                 <span className="text-gray-500">Round Off Adjustment</span>

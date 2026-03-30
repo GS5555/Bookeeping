@@ -1,3 +1,4 @@
+
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -105,7 +106,7 @@ export default function SalesPage() {
                 
                 const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
                 
-                // Deep sanitization to remove undefined
+                // Final sanitization to remove undefined values
                 const sanitizedSale = JSON.parse(JSON.stringify({
                     ...sale,
                     id: saleDocRef.id,
@@ -151,8 +152,9 @@ export default function SalesPage() {
         const salesThisMonth = safeSales.filter(s => new Date(s.saleDate) >= currentMonthStart);
         const salesLastMonth = safeSales.filter(s => isWithinInterval(new Date(s.saleDate), { start: lastMonthStart, end: lastMonthEnd }));
         
-        const totalRev = salesThisMonth.reduce((acc, s) => acc + s.total, 0);
-        const totalRevLastMonth = salesLastMonth.reduce((acc, s) => acc + s.total, 0);
+        // Corrected field name usage
+        const totalRev = salesThisMonth.reduce((acc, s) => acc + (s.total || 0), 0);
+        const totalRevLastMonth = salesLastMonth.reduce((acc, s) => acc + (s.total || 0), 0);
         
         const totalRet = safeReturns.reduce((acc, r) => acc + r.totalRefundAmount, 0);
         
@@ -165,7 +167,7 @@ export default function SalesPage() {
             totalRev,
             totalRet,
             netRev: totalRev - totalRet,
-            avgSale: safeSales.length ? safeSales.reduce((a, s) => a + s.total, 0) / safeSales.length : 0,
+            avgSale: safeSales.length ? safeSales.reduce((a, s) => a + (s.total || 0), 0) / safeSales.length : 0,
             revenueChange: calcChange(totalRev, totalRevLastMonth)
         };
     }, [safeSales, safeReturns]);
@@ -181,7 +183,7 @@ export default function SalesPage() {
         const monthlyData: Record<string, number> = {};
         safeSales.forEach(s => {
             const m = format(new Date(s.saleDate), 'MMM');
-            monthlyData[m] = (monthlyData[m] || 0) + s.total;
+            monthlyData[m] = (monthlyData[m] || 0) + (s.total || 0);
         });
         return Object.entries(monthlyData).map(([name, total]) => ({ name, total }));
     }, [safeSales]);
