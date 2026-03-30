@@ -72,7 +72,6 @@ export default function InvoicePage() {
     const termsAndConditions = companyDetails.invoiceTerms?.split('\n') || [];
     const totalAmount = sale.total;
     
-    // Explicit visibility logic for Round Off
     const rawTotal = (sale.subTotal || 0) + (sale.gstAmount || 0) - (sale.couponDiscount || 0) - (sale.manualDiscountAmount || 0);
     const roundOffAmount = sale.roundOffAmount !== undefined ? sale.roundOffAmount : (sale.total - rawTotal);
 
@@ -218,7 +217,6 @@ export default function InvoicePage() {
                             </div>
                         )}
                         
-                        {/* Explicit visibility for Round Off row */}
                         {Math.abs(roundOffAmount) > 0.01 && (
                             <div className="flex justify-between text-[10px] font-black uppercase italic border-t pt-2 border-gray-200">
                                 <span className="text-gray-500">Round Off Adjustment</span>

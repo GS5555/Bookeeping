@@ -14,7 +14,7 @@ interface FormattedNumberCellProps {
 
 /**
  * A safe wrapper for formatting numbers with en-IN locale.
- * Prevents hydration errors and handles undefined/null values.
+ * Prevents hydration errors and handles undefined/null values gracefully.
  */
 export const FormattedNumberCell = ({ value, prefix = '₹', suffix = '', className, options }: FormattedNumberCellProps) => {
   const [hasMounted, setHasMounted] = useState(false);
@@ -26,12 +26,15 @@ export const FormattedNumberCell = ({ value, prefix = '₹', suffix = '', classN
     return <Skeleton className="h-4 w-[65px]" />;
   }
 
-  // Safety check for value to prevent "cannot read properties of undefined (reading 'toLocaleString')"
+  // Safety guard for undefined/null/NaN to prevent toLocaleString crashes
   if (value === undefined || value === null || isNaN(value)) {
     return <span className={className}>{prefix}0{suffix}</span>;
   }
 
-  const formattedValue = value.toLocaleString('en-IN', options);
-
-  return <span className={className}>{prefix}{formattedValue}{suffix}</span>;
+  try {
+    const formattedValue = value.toLocaleString('en-IN', options);
+    return <span className={className}>{prefix}{formattedValue}{suffix}</span>;
+  } catch (e) {
+    return <span className={className}>{prefix}0{suffix}</span>;
+  }
 }

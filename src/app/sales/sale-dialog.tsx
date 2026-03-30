@@ -161,7 +161,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const primaryAddress = useMemo(() => customerAddresses.find(a => a.isPrimary) || customerAddresses[0], [customerAddresses]);
 
   /**
-   * Core financial logic: Calculates subtotal, discounts, GST, and explicit Round Off.
+   * Recalculates all financial figures based on current form state.
    */
   const calculateTotals = (items: any[], type: string, storeId: string, custAddress: any, couponCode: string, manualDisc: number) => {
     const subTotalVal = items.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
@@ -224,7 +224,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const product = allProducts?.find(p => p.id === productId);
     if (!product) return;
 
-    // Check for duplicates and consolidate
+    // Check for duplicates
     const existingIndex = watchedItems.findIndex((item, i) => item.productId === productId && i !== index);
     
     if (existingIndex > -1) {
@@ -233,9 +233,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         remove(index);
         toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
     } else {
-        // Set all required line item fields to ensure visibility in previews
+        // Explicitly set SKU and other fields to ensure visibility in previews
         setValue(`items.${index}.productId`, product.id);
-        setValue(`items.${index}.sku`, product.sku); // Guaranteed SKU mapping
+        setValue(`items.${index}.sku`, product.sku);
         setValue(`items.${index}.productName`, product.name);
         setValue(`items.${index}.brandId`, product.brand);
         
@@ -249,7 +249,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         setValue(`items.${index}.categoryId`, product.category);
         setValue(`items.${index}.subCategoryId`, product.subCategory || '');
         
-        // Auto-append next row
         if (index === fields.length - 1) {
             append({ productId: "", sku: '', productName: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
         }
@@ -259,14 +258,13 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const handleFormSubmit = (data: SaleFormValues) => {
     if (!customers || !allProducts || !brands || !currentUser) return;
 
-    // Filter out blank rows and perform mapping
     const validItems = data.items.filter(i => i.productId && i.productId !== "").map(item => {
         const product = allProducts.find(p => p.id === item.productId);
         const brand = brands.find(b => b.id === item.brandId);
         return {
             ...item,
             productId: item.productId!,
-            sku: item.sku || product?.sku || '', // Permanent SKU capture
+            sku: item.sku || product?.sku || '', // Guarantee SKU is captured
             productName: product?.name || 'Unknown',
             brandName: brand?.name || 'Unknown',
             totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
@@ -283,10 +281,10 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
-    // Final forced calculation to prevent stale state (resolves "total showing 0")
+    // Final forced calculation to ensure precision and fix "0 total" bug
     const finalTotals = calculateTotals(validItems, data.saleType, data.storeId, billingAddress, data.couponCode, data.manualDiscountPercentage);
 
-    // Deep sanitization to prevent 'undefined' field values in Firestore transaction
+    // Deep sanitize data to prevent undefined values in Firestore transaction
     const finalSale = JSON.parse(JSON.stringify({
       ...data,
       id: sale?.id || `sale_${Date.now()}`,
@@ -302,7 +300,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       couponDiscount: finalTotals.couponDiscount,
       manualDiscountAmount: finalTotals.manualDiscountAmount,
       roundOffAmount: finalTotals.roundOffAmount,
-      total: finalTotals.total, // Standard field name
+      total: finalTotals.total, // Standard field name used throughout
       balanceAmount: finalTotals.total - (data.status === 'paid' ? finalTotals.total : (data.amountPaid || 0)),
       saleDate: data.saleDate.toISOString(),
       courierCompany: data.courierCompany || "",
@@ -335,7 +333,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       >
         <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle>{sale?.id ? "Edit Sale" : "New Sale"}</DialogTitle>
-            <DialogDescription>Create a compliant TAX INVOICE or Retail Receipt.</DialogDescription>
+            <DialogDescription>Create a professional TAX INVOICE or Cash Receipt.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form id="sale-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
@@ -497,7 +495,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                         <div className="flex justify-between text-xs text-muted-foreground"><span>IGST</span><span>₹{totals.igstAmount.toLocaleString()}</span></div>
                     </>
                 )}
-                {/* Live Round Off Display */}
                 {Math.abs(totals.roundOffAmount) > 0.01 && (
                     <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
                         <span>Round Off Adjustment</span>

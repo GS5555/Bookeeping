@@ -106,7 +106,6 @@ export default function SalesPage() {
                 
                 const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
                 
-                // Final sanitization to remove undefined values
                 const sanitizedSale = JSON.parse(JSON.stringify({
                     ...sale,
                     id: saleDocRef.id,
@@ -152,7 +151,6 @@ export default function SalesPage() {
         const salesThisMonth = safeSales.filter(s => new Date(s.saleDate) >= currentMonthStart);
         const salesLastMonth = safeSales.filter(s => isWithinInterval(new Date(s.saleDate), { start: lastMonthStart, end: lastMonthEnd }));
         
-        // Corrected field name usage
         const totalRev = salesThisMonth.reduce((acc, s) => acc + (s.total || 0), 0);
         const totalRevLastMonth = salesLastMonth.reduce((acc, s) => acc + (s.total || 0), 0);
         
