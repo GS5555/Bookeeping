@@ -5,14 +5,18 @@ import { useState, useEffect } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface FormattedNumberCellProps {
-  value: number;
+  value?: number | null;
   prefix?: string;
   suffix?: string;
   className?: string;
   options?: Intl.NumberFormatOptions;
 }
 
-export const FormattedNumberCell = ({ value, prefix = '₹', suffix, className, options }: FormattedNumberCellProps) => {
+/**
+ * A safe wrapper for formatting numbers with en-IN locale.
+ * Prevents hydration errors and handles undefined/null values.
+ */
+export const FormattedNumberCell = ({ value, prefix = '₹', suffix = '', className, options }: FormattedNumberCellProps) => {
   const [hasMounted, setHasMounted] = useState(false);
   useEffect(() => {
     setHasMounted(true);
@@ -20,6 +24,11 @@ export const FormattedNumberCell = ({ value, prefix = '₹', suffix, className, 
 
   if (!hasMounted) {
     return <Skeleton className="h-4 w-[65px]" />;
+  }
+
+  // Safety check for value to prevent "cannot read properties of undefined (reading 'toLocaleString')"
+  if (value === undefined || value === null || isNaN(value)) {
+    return <span className={className}>{prefix}0{suffix}</span>;
   }
 
   const formattedValue = value.toLocaleString('en-IN', options);

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
@@ -83,22 +84,6 @@ export const salesReportColumns: ColumnDef<any>[] = [
     header: "Sub-Category",
   },
   {
-    accessorKey: "referenceName",
-    header: "Reference",
-    cell: ({ row }) => {
-      const sale = row.original;
-      if (!sale.referenceName && !sale.referenceContact) {
-        return 'N/A';
-      }
-      return (
-        <div>
-          {sale.referenceName && <p>{sale.referenceName}</p>}
-          {sale.referenceContact && <p className="text-xs text-muted-foreground">{sale.referenceContact}</p>}
-        </div>
-      );
-    },
-  },
-  {
     accessorKey: "saleType",
     header: "Type",
   },
@@ -111,9 +96,10 @@ export const salesReportColumns: ColumnDef<any>[] = [
     cell: ({ row }) => row.original.items.length
   },
   {
-    accessorKey: "totalAmount",
+    /* Fix: Use 'total' instead of 'totalAmount' */
+    accessorKey: "total",
     header: "Total",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.totalAmount} />,
+    cell: ({ row }) => <FormattedNumberCell value={row.original.total} />,
   },
   {
     accessorKey: "amountPaid",
@@ -159,10 +145,6 @@ export const gstReportColumns: ColumnDef<any>[] = [
     header: "Customer",
   },
   {
-    accessorKey: "storeName",
-    header: "Store",
-  },
-  {
     accessorKey: "subTotal",
     header: "Subtotal",
     cell: ({ row }) => <FormattedNumberCell value={row.original.subTotal} />,
@@ -183,9 +165,10 @@ export const gstReportColumns: ColumnDef<any>[] = [
     cell: ({ row }) => <FormattedNumberCell value={row.original.igstAmount} />,
   },
   {
-    accessorKey: "totalAmount",
+    /* Fix: Use 'total' instead of 'totalAmount' */
+    accessorKey: "total",
     header: "Total",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.totalAmount} />,
+    cell: ({ row }) => <FormattedNumberCell value={row.original.total} />,
   },
 ]
 
@@ -560,4 +543,3 @@ export const enquiriesReportColumns: ColumnDef<Enquiry>[] = [
     cell: ({ row }) => (row.original.followUps?.length || 0).toString(),
   },
 ];
-    

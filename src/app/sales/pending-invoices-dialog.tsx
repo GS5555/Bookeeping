@@ -79,7 +79,10 @@ export function PendingInvoicesDialog({ data, open, onOpenChange }: PendingInvoi
                         </TableCell>
                         <TableCell>{format(new Date(invoice.saleDate), 'dd MMM yyyy')}</TableCell>
                         <TableCell>{format(new Date(invoice.dueDate), 'dd MMM yyyy')}</TableCell>
-                        <TableCell><FormattedNumberCell value={invoice.totalAmount} /></TableCell>
+                        <TableCell>
+                          {/* Fix: Use 'total' instead of 'totalAmount' to match interface */}
+                          <FormattedNumberCell value={invoice.total} />
+                        </TableCell>
                         <TableCell>
                           <Badge variant={isOverdue ? 'destructive' : 'secondary'}>{status}</Badge>
                         </TableCell>

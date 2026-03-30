@@ -32,18 +32,18 @@ export default function AccountingPage() {
         const relevantSales = sales || [];
         const relevantExpenses = expenses || [];
 
-        const totalRevenue = relevantSales.reduce((acc, sale) => acc + sale.totalAmount, 0);
+        // Fix: Use 'total' instead of 'totalAmount' to match Sale interface
+        const totalRevenue = relevantSales.reduce((acc, sale) => acc + (sale.total || 0), 0);
         
         const totalCogs = relevantSales.reduce((acc, sale) => {
             const saleCogs = sale.items.reduce((itemAcc, item) => {
-                // Use the accurate cost captured at the time of sale
                 return itemAcc + (item.costOfGoodsSold || 0);
             }, 0);
             return acc + saleCogs;
         }, 0);
 
         const grossProfit = totalRevenue - totalCogs;
-        const totalExpensesValue = relevantExpenses.reduce((acc, expense) => acc + expense.amount, 0);
+        const totalExpensesValue = relevantExpenses.reduce((acc, expense) => acc + (expense.amount || 0), 0);
         const netProfit = grossProfit - totalExpensesValue;
 
         return { totalRevenue, totalCogs, grossProfit, totalExpenses: totalExpensesValue, netProfit };
@@ -67,7 +67,8 @@ export default function AccountingPage() {
             const month = getMonth(new Date(sale.saleDate));
             if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
             
-            monthlyData[month].revenue += sale.totalAmount;
+            // Fix: Use 'total' instead of 'totalAmount'
+            monthlyData[month].revenue += (sale.total || 0);
             
             const saleCogs = sale.items.reduce((acc, item) => {
                  return acc + (item.costOfGoodsSold || 0);

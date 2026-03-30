@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -44,7 +45,8 @@ export function RecentSales({ sales }: RecentSalesProps) {
                         </Link>
                     </div>
                     {isMounted ? (
-                        <div className="ml-auto font-medium text-green-600">+₹{sale.totalAmount.toLocaleString('en-IN')}</div>
+                        /* Fix: Use 'total' instead of 'totalAmount' to match interface */
+                        <div className="ml-auto font-medium text-green-600">+₹{(sale.total || 0).toLocaleString('en-IN')}</div>
                     ) : (
                         <Skeleton className="h-5 w-20 ml-auto" />
                     )}

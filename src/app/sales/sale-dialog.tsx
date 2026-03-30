@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -42,8 +43,6 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useMemo, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const STORE_ID = 'store_main';
 
@@ -161,6 +160,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const customerAddresses = useMemo(() => selectedCustomer?.addresses || [], [selectedCustomer]);
   const primaryAddress = useMemo(() => customerAddresses.find(a => a.isPrimary) || customerAddresses[0], [customerAddresses]);
 
+  /**
+   * Core financial logic: Calculates subtotal, discounts, GST, and explicit Round Off.
+   */
   const calculateTotals = (items: any[], type: string, storeId: string, custAddress: any, couponCode: string, manualDisc: number) => {
     const subTotalVal = items.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
     
@@ -222,6 +224,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const product = allProducts?.find(p => p.id === productId);
     if (!product) return;
 
+    // Check for duplicates and consolidate
     const existingIndex = watchedItems.findIndex((item, i) => item.productId === productId && i !== index);
     
     if (existingIndex > -1) {
@@ -230,16 +233,23 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         remove(index);
         toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
     } else {
+        // Set all required line item fields to ensure visibility in previews
         setValue(`items.${index}.productId`, product.id);
-        setValue(`items.${index}.sku`, product.sku);
+        setValue(`items.${index}.sku`, product.sku); // Guaranteed SKU mapping
         setValue(`items.${index}.productName`, product.name);
         setValue(`items.${index}.brandId`, product.brand);
-        setValue(`items.${index}.unitPrice`, product.finalPrice || product.sellingPrice);
+        
+        // Use base selling price (extract from tax-inclusive catalog price if needed)
+        const catalogPrice = product.finalPrice || product.sellingPrice;
+        const basePrice = catalogPrice / (1 + (product.gstRate / 100));
+        setValue(`items.${index}.unitPrice`, parseFloat(basePrice.toFixed(2)));
+        
         setValue(`items.${index}.hsnCode`, product.hsnCode);
         setValue(`items.${index}.gstRate`, product.gstRate);
         setValue(`items.${index}.categoryId`, product.category);
         setValue(`items.${index}.subCategoryId`, product.subCategory || '');
         
+        // Auto-append next row
         if (index === fields.length - 1) {
             append({ productId: "", sku: '', productName: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
         }
@@ -249,17 +259,18 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const handleFormSubmit = (data: SaleFormValues) => {
     if (!customers || !allProducts || !brands || !currentUser) return;
 
+    // Filter out blank rows and perform mapping
     const validItems = data.items.filter(i => i.productId && i.productId !== "").map(item => {
         const product = allProducts.find(p => p.id === item.productId);
         const brand = brands.find(b => b.id === item.brandId);
         return {
             ...item,
             productId: item.productId!,
-            sku: item.sku || product?.sku || '',
+            sku: item.sku || product?.sku || '', // Permanent SKU capture
             productName: product?.name || 'Unknown',
             brandName: brand?.name || 'Unknown',
             totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
-            costOfGoodsSold: 0,
+            costOfGoodsSold: product?.purchasePrice || 0,
             discount: 0,
         };
     });
@@ -272,8 +283,10 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
+    // Final forced calculation to prevent stale state (resolves "total showing 0")
     const finalTotals = calculateTotals(validItems, data.saleType, data.storeId, billingAddress, data.couponCode, data.manualDiscountPercentage);
 
+    // Deep sanitization to prevent 'undefined' field values in Firestore transaction
     const finalSale = JSON.parse(JSON.stringify({
       ...data,
       id: sale?.id || `sale_${Date.now()}`,
@@ -289,7 +302,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       couponDiscount: finalTotals.couponDiscount,
       manualDiscountAmount: finalTotals.manualDiscountAmount,
       roundOffAmount: finalTotals.roundOffAmount,
-      total: finalTotals.total,
+      total: finalTotals.total, // Standard field name
       balanceAmount: finalTotals.total - (data.status === 'paid' ? finalTotals.total : (data.amountPaid || 0)),
       saleDate: data.saleDate.toISOString(),
       courierCompany: data.courierCompany || "",
@@ -484,6 +497,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                         <div className="flex justify-between text-xs text-muted-foreground"><span>IGST</span><span>₹{totals.igstAmount.toLocaleString()}</span></div>
                     </>
                 )}
+                {/* Live Round Off Display */}
                 {Math.abs(totals.roundOffAmount) > 0.01 && (
                     <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
                         <span>Round Off Adjustment</span>

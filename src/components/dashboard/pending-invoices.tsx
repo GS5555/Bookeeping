@@ -25,23 +25,23 @@ export function PendingInvoices({ sales, customers }: PendingInvoicesProps) {
   const pendingSales = useMemo(() => {
     return sales
       .filter(s => {
-        const isPending = s.invoiceStatus === 'Unpaid' || s.invoiceStatus === 'Partially Paid';
+        // Fix: Use 'status' instead of 'invoiceStatus'
+        const isPending = s.status === 'pending' || (s.balanceAmount && s.balanceAmount > 0);
         const customerMatch = selectedCustomer === 'all' || s.customerId === selectedCustomer;
         return isPending && customerMatch;
       })
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   }, [sales, selectedCustomer]);
 
-  // STABLE list of customers who HAVE pending invoices
   const customersWithPending = useMemo(() => {
-    const pendingIds = new Set(sales.filter(s => s.invoiceStatus !== 'Paid').map(s => s.customerId));
+    const pendingIds = new Set(sales.filter(s => s.status !== 'paid').map(s => s.customerId));
     return customers.filter(c => pendingIds.has(c.id));
   }, [sales, customers]);
 
   const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    'Paid': 'default',
-    'Unpaid': 'destructive',
-    'Partially Paid': 'secondary',
+    'paid': 'default',
+    'pending': 'destructive',
+    'cancelled': 'secondary',
   };
 
   return (
@@ -94,14 +94,15 @@ export function PendingInvoices({ sales, customers }: PendingInvoicesProps) {
                                 )}
                             </div>
                             <div className="ml-auto text-right">
-                                <p className="font-medium text-sm">₹{sale.totalAmount.toLocaleString()}</p>
-                                <Badge variant={statusVariant[sale.invoiceStatus]} className="text-[10px] h-5 px-1.5">{sale.invoiceStatus}</Badge>
+                                {/* Fix: Use 'total' instead of 'totalAmount' */}
+                                <p className="font-medium text-sm">₹{sale.total.toLocaleString()}</p>
+                                <Badge variant={statusVariant[sale.status]} className="text-[10px] h-5 px-1.5 uppercase">{sale.status}</Badge>
                             </div>
                         </div>
                     )
                 }) : (
                     <div className="text-center text-muted-foreground pt-10">
-                        <p>No pending invoices. Great job!</p>
+                        <p>No pending invoices.</p>
                     </div>
                 )}
             </div>
