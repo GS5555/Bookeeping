@@ -1,4 +1,3 @@
-
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -24,7 +23,7 @@ import type { ChartConfig } from '@/components/ui/chart';
 import { exportToExcel } from '@/lib/actions';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, query, orderBy, limit, deleteDoc, setDoc, runTransaction, where, getDocs } from 'firebase/firestore';
+import { collection, doc, query, orderBy, limit, deleteDoc, runTransaction } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CustomerFinancials } from './customer-financials';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -131,7 +130,9 @@ export default function SalesPage() {
         if (!firestore) return;
         try {
             const returnDocRef = doc(collection(firestore, 'stores', STORE_ID, 'salesReturns'));
-            await setDoc(returnDocRef, { ...saleReturn, id: returnDocRef.id });
+            await runTransaction(firestore, async (transaction) => {
+                transaction.set(returnDocRef, { ...saleReturn, id: returnDocRef.id });
+            });
             setIsReturnDialogOpen(false);
             toast({ title: "Success!", description: "Return processed successfully." });
         } catch (error) {

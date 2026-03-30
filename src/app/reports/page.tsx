@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useMemo } from 'react';
 import { PageHeader } from '@/components/layout/page-header';
@@ -129,8 +128,8 @@ export default function ReportsPage() {
 
     const handleExportPdf = () => {
        const actionMap = {
-            sales: () => downloadGenericReportPdf('Sales Report', [['Invoice #', 'Date', 'Customer', 'Type', 'Amount']], reportData.sales.map(s => [s.invoiceSequence, format(new Date(s.saleDate), 'dd/MM/yy'), s.customerName, s.saleType, `Rs.${s.totalAmount}`]), getFilename('sales_report')),
-            gst: () => downloadGenericReportPdf('GST Sales Report', [['Invoice #', 'Date', 'Customer', 'Subtotal', 'Tax', 'Total']], reportData.gst.map(s => [s.invoiceSequence, format(new Date(s.saleDate), 'dd/MM/yy'), s.customerName, s.subTotal, s.gstAmount, s.totalAmount]), getFilename('gst_sales_report')),
+            sales: () => downloadGenericReportPdf('Sales Report', [['Invoice #', 'Date', 'Customer', 'Type', 'Amount']], reportData.sales.map(s => [s.invoiceSequence, format(new Date(s.saleDate), 'dd/MM/yy'), s.customerName, s.saleType, `Rs.${s.total}`]), getFilename('sales_report')),
+            gst: () => downloadGenericReportPdf('GST Sales Report', [['Invoice #', 'Date', 'Customer', 'Subtotal', 'Tax', 'Total']], reportData.gst.map(s => [s.invoiceSequence, format(new Date(s.saleDate), 'dd/MM/yy'), s.customerName, s.subTotal, s.gstAmount, s.total]), getFilename('gst_sales_report')),
             purchases: () => downloadGenericReportPdf('Purchases Report', [['PO #', 'Date', 'Vendor', 'Status', 'Total']], reportData.purchases.map(p => [p.purchaseOrderNumber, format(new Date(p.orderDate), 'dd/MM/yy'), p.vendorName, p.status, p.totalAmount]), getFilename('purchases_report')),
             inventory: () => downloadGenericReportPdf('Inventory Report', [['Product', 'SKU', 'Store', 'Stock']], reportData.inventory.map(i => [i.name, i.sku, i.storeName, i.quantity]), getFilename('inventory_report')),
        };

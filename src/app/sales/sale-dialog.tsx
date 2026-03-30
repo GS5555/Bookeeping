@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,7 +31,7 @@ import { format, addDays } from "date-fns";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
+import { collection, query, orderBy, doc, setDoc } from "firebase/firestore";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -43,6 +42,8 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useMemo, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const STORE_ID = 'store_main';
 
@@ -205,7 +206,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         couponDiscount: couponDiscountValue,
         manualDiscountAmount: manualDiscountValue,
         gstAmount: gstTotal,
-        total: roundedTotal, // using 'total' as requested
+        total: roundedTotal,
         roundOffAmount: roundOff,
         cgstAmount: cgstVal, 
         sgstAmount: sgstVal, 
@@ -271,7 +272,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
-    // Final accurate recalculation before save
     const finalTotals = calculateTotals(validItems, data.saleType, data.storeId, billingAddress, data.couponCode, data.manualDiscountPercentage);
 
     const finalSale = JSON.parse(JSON.stringify({
@@ -289,7 +289,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       couponDiscount: finalTotals.couponDiscount,
       manualDiscountAmount: finalTotals.manualDiscountAmount,
       roundOffAmount: finalTotals.roundOffAmount,
-      total: finalTotals.total, // Ensure field name is 'total'
+      total: finalTotals.total,
       balanceAmount: finalTotals.total - (data.status === 'paid' ? finalTotals.total : (data.amountPaid || 0)),
       saleDate: data.saleDate.toISOString(),
       courierCompany: data.courierCompany || "",
