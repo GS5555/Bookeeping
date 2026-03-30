@@ -29,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CustomerFinancials } from './customer-financials';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { CustomerLedger } from './customer-ledger';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 
 const STORE_ID = 'store_main';
 
@@ -105,15 +105,18 @@ export default function SalesPage() {
                 const invoiceSequence = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
                 
                 const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
-                const finalSale = { 
-                    ...sale, 
-                    id: saleDocRef.id, 
-                    invoiceSequence, 
+                
+                // Deep sanitization to remove undefined
+                const sanitizedSale = JSON.parse(JSON.stringify({
+                    ...sale,
+                    id: saleDocRef.id,
+                    invoiceSequence,
+                    dueDate: addDays(new Date(sale.saleDate), 30).toISOString(),
                     createdBy: currentUser.id,
-                    createdByName: currentUser.displayName 
-                };
+                    createdByName: currentUser.displayName || 'Staff'
+                }));
 
-                transaction.set(saleDocRef, finalSale);
+                transaction.set(saleDocRef, sanitizedSale);
                 transaction.update(companyRef, { [numberField]: newNumber });
             });
             setIsSaleDialogOpen(false);

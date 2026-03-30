@@ -72,7 +72,7 @@ export default function InvoicePage() {
     const termsAndConditions = companyDetails.invoiceTerms?.split('\n') || [];
     const totalAmount = sale.totalAmount;
     
-    // Explicitly calculate roundOff if missing from document (legacy data)
+    // Logic to calculate roundOff if missing from document (legacy data)
     const calculatedRawTotal = sale.subTotal - (sale.couponDiscount || 0) - (sale.manualDiscountAmount || 0) + (sale.gstAmount || 0);
     const roundOffAmount = sale.roundOffAmount !== undefined ? sale.roundOffAmount : (sale.totalAmount - calculatedRawTotal);
 

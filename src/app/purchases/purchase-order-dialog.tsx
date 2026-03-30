@@ -155,7 +155,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     const product = products?.find(p => p.id === productId);
     if (!product) return;
 
-    // Consolidation logic: check if product exists in other rows
     const existingIndex = watchedItems.findIndex((item, i) => item.productId === productId && i !== index);
     
     if (existingIndex > -1) {
@@ -171,7 +170,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
         setValue(`items.${index}.hsnCode`, product.hsnCode);
         setValue(`items.${index}.gstRate`, product.gstRate);
         
-        // Auto-append logic
         if (index === watchedItems.length - 1) {
             append({ productId: "", sku: '', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0 });
         }
@@ -182,12 +180,13 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
     const vendor = vendors?.find(v => v.id === data.vendorId);
     if (!vendor) return;
 
-    // Ignore empty line items
     const validItems = data.items.filter(i => i.productId && i.productId !== "");
     if (validItems.length === 0) {
         toast({ title: "Validation Error", description: "At least one product must be selected.", variant: "destructive" });
         return;
     }
+
+    const finalTotals = totals; // Ensure we use the latest memoized totals
 
     const poItems = validItems.map(item => {
         const product = products?.find(p => p.id === item.productId);
@@ -217,13 +216,13 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
       paymentStatus: data.paymentStatus,
       paymentMethod: data.paymentMethod,
       items: poItems as any,
-      subTotal: totals.subTotal,
-      gstAmount: totals.gstAmount,
-      cgstAmount: totals.gstAmount / 2,
-      sgstAmount: totals.gstAmount / 2,
+      subTotal: finalTotals.subTotal,
+      gstAmount: finalTotals.gstAmount,
+      cgstAmount: finalTotals.gstAmount / 2,
+      sgstAmount: finalTotals.gstAmount / 2,
       igstAmount: 0,
-      roundOffAmount: totals.roundOffAmount,
-      totalAmount: totals.totalAmount,
+      roundOffAmount: finalTotals.roundOffAmount,
+      totalAmount: finalTotals.totalAmount,
       comments: data.comments || "",
       courierCompany: data.courierCompany || "",
       trackingNumber: data.trackingNumber || "",
@@ -355,10 +354,12 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 shadow-inner space-y-3">
                 <div className="flex justify-between text-sm"><span>Subtotal</span><span className="font-bold">₹{totals.subTotal.toLocaleString()}</span></div>
                 <div className="flex justify-between text-sm border-y py-2 border-primary/10"><span>Tax (GST)</span><span className="font-bold">₹{totals.gstAmount.toLocaleString()}</span></div>
-                {totals.roundOffAmount !== 0 && (
+                {Math.abs(totals.roundOffAmount) > 0.01 && (
                     <div className="flex justify-between text-xs italic text-muted-foreground">
-                        <span>Round Off</span>
-                        <span className="font-medium">₹{totals.roundOffAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        <span>Round Off Adjustment</span>
+                        <span className={cn("font-medium", totals.roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
+                            {totals.roundOffAmount < 0 ? '-' : '+'}₹{Math.abs(totals.roundOffAmount).toFixed(2)}
+                        </span>
                     </div>
                 )}
                 <div className="flex justify-between items-center pt-4"><span className="text-xl font-black uppercase">Total Amount</span><span className="text-3xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span></div>

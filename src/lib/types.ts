@@ -561,8 +561,6 @@ export interface Event {
   updatedAt: string;
 }
 
-// --- Storage Analytics Types ---
-
 export type StorageFileType = 'log' | 'backup' | 'media' | 'temp' | 'other';
 
 export interface StorageFile {

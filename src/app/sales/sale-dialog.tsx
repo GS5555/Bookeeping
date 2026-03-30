@@ -271,7 +271,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
-    // Recalculate totals one last time to be absolute safe
+    // Final accurate recalculation
     const finalTotals = calculateTotals(validItems, data.saleType, data.storeId, billingAddress, data.couponCode, data.manualDiscountPercentage);
 
     const finalSale = JSON.parse(JSON.stringify({
