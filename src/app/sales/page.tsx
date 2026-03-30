@@ -29,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CustomerFinancials } from './customer-financials';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { CustomerLedger } from './customer-ledger';
-import { format, addDays } from 'date-fns';
+import { format, addDays, startOfMonth, subMonths, isWithinInterval, endOfMonth } from 'date-fns';
 
 const STORE_ID = 'store_main';
 
@@ -140,22 +140,47 @@ export default function SalesPage() {
         }
     };
 
-    const summaryData: SummaryCardData[] = useMemo(() => {
-        const totalRev = safeSales.reduce((acc, s) => acc + s.totalAmount, 0);
+    const dynamicStats = useMemo(() => {
+        const now = new Date();
+        const currentMonthStart = startOfMonth(now);
+        const lastMonth = subMonths(now, 1);
+        const lastMonthStart = startOfMonth(lastMonth);
+        const lastMonthEnd = endOfMonth(lastMonth);
+        
+        const salesThisMonth = safeSales.filter(s => new Date(s.saleDate) >= currentMonthStart);
+        const salesLastMonth = safeSales.filter(s => isWithinInterval(new Date(s.saleDate), { start: lastMonthStart, end: lastMonthEnd }));
+        
+        const totalRev = salesThisMonth.reduce((acc, s) => acc + s.total, 0);
+        const totalRevLastMonth = salesLastMonth.reduce((acc, s) => acc + s.total, 0);
+        
         const totalRet = safeReturns.reduce((acc, r) => acc + r.totalRefundAmount, 0);
-        return [
-            { title: "Total Revenue", value: isMounted ? `₹${totalRev.toLocaleString('en-IN')}` : '₹...', icon: CircleDollarSign },
-            { title: "Total Returns", value: isMounted ? `₹${totalRet.toLocaleString('en-IN')}` : '₹...', icon: ArrowLeftRight },
-            { title: "Net Revenue", value: isMounted ? `₹${(totalRev - totalRet).toLocaleString('en-IN')}` : '₹...', icon: TrendingUp },
-            { title: "Avg. Sale", value: isMounted ? `₹${(safeSales.length ? totalRev / safeSales.length : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹...', icon: ShoppingCart },
-        ];
-    }, [safeSales, safeReturns, isMounted]);
+        
+        const calcChange = (cur: number, prev: number) => {
+            if (prev === 0) return cur > 0 ? 100 : 0;
+            return ((cur - prev) / prev) * 100;
+        };
+
+        return {
+            totalRev,
+            totalRet,
+            netRev: totalRev - totalRet,
+            avgSale: safeSales.length ? safeSales.reduce((a, s) => a + s.total, 0) / safeSales.length : 0,
+            revenueChange: calcChange(totalRev, totalRevLastMonth)
+        };
+    }, [safeSales, safeReturns]);
+
+    const summaryData: SummaryCardData[] = useMemo(() => [
+        { title: "Total Revenue", value: isMounted ? `₹${dynamicStats.totalRev.toLocaleString('en-IN')}` : '₹...', icon: CircleDollarSign, description: `${dynamicStats.revenueChange.toFixed(1)}% vs last month` },
+        { title: "Total Returns", value: isMounted ? `₹${dynamicStats.totalRet.toLocaleString('en-IN')}` : '₹...', icon: ArrowLeftRight },
+        { title: "Net Revenue", value: isMounted ? `₹${dynamicStats.netRev.toLocaleString('en-IN')}` : '₹...', icon: TrendingUp },
+        { title: "Avg. Sale", value: isMounted ? `₹${dynamicStats.avgSale.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹...', icon: ShoppingCart },
+    ], [dynamicStats, isMounted]);
 
     const chartData = useMemo(() => {
         const monthlyData: Record<string, number> = {};
         safeSales.forEach(s => {
             const m = format(new Date(s.saleDate), 'MMM');
-            monthlyData[m] = (monthlyData[m] || 0) + s.totalAmount;
+            monthlyData[m] = (monthlyData[m] || 0) + s.total;
         });
         return Object.entries(monthlyData).map(([name, total]) => ({ name, total }));
     }, [safeSales]);

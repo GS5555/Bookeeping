@@ -73,7 +73,7 @@ const formSchema = z.object({
   couponCode: z.string().optional().default(""),
   manualDiscountPercentage: z.coerce.number().min(0).max(100).default(0),
   paymentMethod: z.enum(["NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Cash", "Other", "Sponsored", "Replacement"]).default("Cash"),
-  invoiceStatus: z.enum(["Paid", "Unpaid", "Partially Paid"]).default("Paid"),
+  status: z.enum(["paid", "pending", "cancelled"]).default("paid"),
   amountPaid: z.coerce.number().min(0).optional().default(0),
   courierCompany: z.string().optional().default(""),
   trackingNumber: z.string().optional().default(""),
@@ -139,7 +139,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       couponCode: "",
       manualDiscountPercentage: 0,
       paymentMethod: "Cash",
-      invoiceStatus: "Paid",
+      status: "paid",
       numberOfBoxes: 1,
       comments: "",
     },
@@ -205,7 +205,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         couponDiscount: couponDiscountValue,
         manualDiscountAmount: manualDiscountValue,
         gstAmount: gstTotal,
-        totalAmount: roundedTotal, 
+        total: roundedTotal, // using 'total' as requested
         roundOffAmount: roundOff,
         cgstAmount: cgstVal, 
         sgstAmount: sgstVal, 
@@ -271,7 +271,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
-    // Final accurate recalculation
+    // Final accurate recalculation before save
     const finalTotals = calculateTotals(validItems, data.saleType, data.storeId, billingAddress, data.couponCode, data.manualDiscountPercentage);
 
     const finalSale = JSON.parse(JSON.stringify({
@@ -289,8 +289,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       couponDiscount: finalTotals.couponDiscount,
       manualDiscountAmount: finalTotals.manualDiscountAmount,
       roundOffAmount: finalTotals.roundOffAmount,
-      totalAmount: finalTotals.totalAmount,
-      balanceAmount: finalTotals.totalAmount - (data.invoiceStatus === 'Paid' ? finalTotals.totalAmount : (data.amountPaid || 0)),
+      total: finalTotals.total, // Ensure field name is 'total'
+      balanceAmount: finalTotals.total - (data.status === 'paid' ? finalTotals.total : (data.amountPaid || 0)),
       saleDate: data.saleDate.toISOString(),
       courierCompany: data.courierCompany || "",
       trackingNumber: data.trackingNumber || "",
@@ -494,7 +494,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                 )}
                 <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
                     <span className="text-xl font-black uppercase tracking-tight">Net Payable</span>
-                    <span className="text-3xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span>
+                    <span className="text-3xl font-black text-primary tracking-tighter">₹{totals.total.toLocaleString()}</span>
                 </div>
             </div>
           </form>

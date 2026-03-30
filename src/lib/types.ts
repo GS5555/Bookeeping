@@ -138,10 +138,10 @@ export interface Sale {
   manualDiscountPercentage?: number;
   manualDiscountAmount?: number;
   roundOffAmount: number;
-  totalAmount: number;
+  total: number;
   amountPaid?: number;
   balanceAmount?: number;
-  invoiceStatus: 'Paid' | 'Unpaid' | 'Partially Paid';
+  status: 'paid' | 'pending' | 'cancelled';
   paymentMethod: 'NEFT' | 'RTGS' | 'IMPS' | 'UPI' | 'Cheque' | 'Cash' | 'Other' | 'Sponsored' | 'Replacement';
   paymentDetails?: string;
   invoiceSequence: string;
@@ -195,6 +195,14 @@ export interface SupportTicket {
   categoryId?: string;
   subCategoryId?: string;
   vendorId?: string;
+}
+
+export interface TicketMessage {
+  id: string;
+  ticketId: string;
+  senderId: string;
+  message: string;
+  createdAt: string;
 }
 
 export interface PurchaseOrder {

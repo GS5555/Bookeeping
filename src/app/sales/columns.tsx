@@ -1,3 +1,4 @@
+
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
@@ -29,9 +30,9 @@ import { downloadInvoice } from "@/lib/actions"
 import { Checkbox } from "@/components/ui/checkbox"
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    'Paid': 'default',
-    'Unpaid': 'destructive',
-    'Partially Paid': 'secondary',
+    'paid': 'default',
+    'pending': 'destructive',
+    'cancelled': 'secondary',
 }
 
 interface ActionsCellProps {
@@ -78,63 +79,8 @@ const ActionsCell = ({ sale, products, customers, onDelete, onEdit, onShare }: A
         downloadInvoice(sale, customers, companyDetails);
     }
 
-    const handlePrintAllBarcodes = () => {
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-            let barcodesHtml = '';
-            sale.items.forEach(item => {
-                const product = products.find(p => p.id === item.productId);
-                if (!product) return;
-                
-                const canvas = document.getElementById(`barcode-${sale.invoiceSequence}-${product.sku}`) as HTMLCanvasElement;
-                if (canvas) {
-                    const dataUrl = canvas.toDataURL();
-                    barcodesHtml += `
-                        <div style="text-align: center; padding: 10px; page-break-inside: avoid;">
-                            <p style="font-size: 10px; margin: 0; font-family: sans-serif;">${product.name}</p>
-                            <img src="${dataUrl}" />
-                            <p style="font-size: 10px; margin: 0; font-family: sans-serif;">${product.sku}</p>
-                        </div>
-                    `;
-                }
-            });
-
-            printWindow.document.write(`
-                <html>
-                    <head><title>Print Barcodes for Invoice #${sale.invoiceSequence}</title></head>
-                    <body style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
-                        ${barcodesHtml}
-                    </body>
-                </html>
-            `);
-            printWindow.document.close();
-            printWindow.focus();
-            setTimeout(() => {
-                printWindow.print();
-                printWindow.close();
-            }, 500);
-        }
-    }
-
-
     return (
         <>
-            <div style={{ display: 'none' }}>
-                {sale.items.map(item => {
-                    const product = products.find(p => p.id === item.productId);
-                    if (!product) return null;
-                    return (
-                        <div key={item.productId}>
-                            <BarcodeComponent
-                                value={product.sku}
-                                id={`barcode-${sale.invoiceSequence}-${product.sku}`}
-                                renderer="canvas"
-                            />
-                        </div>
-                    );
-                })}
-            </div>
-
             <DeleteConfirmationDialog
                 open={isDeleteDialogOpen}
                 onOpenChange={setIsDeleteDialogOpen}
@@ -172,10 +118,6 @@ const ActionsCell = ({ sale, products, customers, onDelete, onEdit, onShare }: A
                      <DropdownMenuItem onClick={handlePrint}>
                         <Printer className="mr-2 h-4 w-4" />
                         View / Print TAX Invoice
-                    </DropdownMenuItem>
-                     <DropdownMenuItem onClick={handlePrintAllBarcodes}>
-                        <Barcode className="mr-2 h-4 w-4" />
-                        Print Barcodes
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleDownloadPdf}>
                         <FileDown className="mr-2 h-4 w-4" />
@@ -244,27 +186,17 @@ export const salesColumns = (options: {onDelete: (saleId: string) => void, onEdi
     },
   },
   {
-    accessorKey: "createdBy",
-    header: "Created By",
-    cell: ({ row }) => {
-        const userId = row.original.createdBy;
-        if (!userId) return 'N/A';
-        const user = options.users?.find(u => u.id === userId);
-        return user ? user.displayName : 'Unknown User';
-    }
-  },
-  {
-    accessorKey: "invoiceStatus",
+    accessorKey: "status",
     header: "Status",
     cell: ({ row }) => {
-      const status = row.getValue("invoiceStatus") as string;
-      return <Badge variant={statusVariant[status] ?? 'outline'}>{status}</Badge>
+      const status = row.getValue("status") as string;
+      return <Badge variant={statusVariant[status] ?? 'outline'} className="capitalize">{status}</Badge>
     }
   },
   {
-    accessorKey: "totalAmount",
+    accessorKey: "total",
     header: "Total",
-     cell: ({ row }) => <FormattedNumberCell value={row.original.totalAmount} />,
+     cell: ({ row }) => <FormattedNumberCell value={row.original.total} />,
   },
   {
     id: "actions",

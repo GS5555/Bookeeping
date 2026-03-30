@@ -60,7 +60,7 @@ export default function InvoicePage() {
     if (!sale || !companyDetails) {
         return (
             <div className="flex items-center justify-center h-screen bg-white text-center">
-                <div className="p-8 border rounded-xl shadow-sm bg-gray-50 max-w-sm">
+                <div className="p-8 border rounded-xl shadow-sm bg-gray-50 max-sm">
                     <h1 className="text-2xl font-bold mb-4">TAX INVOICE Not Found</h1>
                     <Button asChild className="w-full"><Link href="/sales">Back to Sales</Link></Button>
                 </div>
@@ -70,11 +70,9 @@ export default function InvoicePage() {
     
     const isGstSale = sale.saleType === 'GST';
     const termsAndConditions = companyDetails.invoiceTerms?.split('\n') || [];
-    const totalAmount = sale.totalAmount;
+    const totalAmount = sale.total;
     
-    // Logic to calculate roundOff if missing from document (legacy data)
-    const calculatedRawTotal = sale.subTotal - (sale.couponDiscount || 0) - (sale.manualDiscountAmount || 0) + (sale.gstAmount || 0);
-    const roundOffAmount = sale.roundOffAmount !== undefined ? sale.roundOffAmount : (sale.totalAmount - calculatedRawTotal);
+    const roundOffAmount = sale.roundOffAmount || 0;
 
     return (
         <div className="min-h-screen bg-white p-4 sm:p-8 flex flex-col items-center">
