@@ -148,7 +148,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
   const { setValue, reset, getValues } = form;
 
-  // Use useWatch for deep array reactivity
   const watchedItems = useWatch({ control: form.control, name: "items" }) || [];
   const watchedCouponCode = useWatch({ control: form.control, name: "couponCode" });
   const watchedSaleType = useWatch({ control: form.control, name: "saleType" });

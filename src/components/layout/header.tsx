@@ -1,8 +1,8 @@
+
 'use client';
 import React from 'react';
 import {
   Menu,
-  Notebook,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -54,18 +54,19 @@ const MobileCompanyLogo = () => {
     const showLogo = companyDetails.displayLogo && companyDetails.logoUrl;
 
     return (
-         <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
+         <Link href="/" className="flex items-center gap-2 text-lg font-semibold max-w-[85%]">
             {showLogo ? (
-                <Image src={companyDetails.logoUrl!} alt={companyDetails.name} width={32} height={32} className="rounded-sm object-contain" />
+                <Image src={companyDetails.logoUrl!} alt={companyDetails.name} width={32} height={32} className="rounded-sm object-contain shrink-0" />
             ) : (
-                <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary text-primary-foreground font-bold">{companyDetails.shortName}</AvatarFallback>
+                <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback className="bg-primary text-primary-foreground font-bold">{companyDetails.shortName || companyDetails.name.charAt(0)}</AvatarFallback>
                 </Avatar>
             )}
-            <span className="truncate">{companyDetails.name}</span>
+            <span className="truncate text-sm font-black uppercase tracking-tighter leading-none pr-4">
+                {companyDetails.name}
+            </span>
         </Link>
     )
-
 }
 
 export function Header({ onToggleSidebar }: HeaderProps) {
@@ -91,7 +92,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                         key={item.href}
                         href={item.href}
                         onClick={() => setOpenMobile(false)}
-                        className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
+                        className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground text-sm font-bold uppercase tracking-tight"
                       >
                         <item.icon className="h-5 w-5" />
                         {item.label}
