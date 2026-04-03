@@ -1,7 +1,20 @@
 'use client';
+
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Building2, Cog, UserCog, HardDrive, Database, Edit, LineChart, ShieldCheck, Activity, Users2 } from 'lucide-react';
+import { 
+    PlusCircle, 
+    Download, 
+    Building2, 
+    HardDrive, 
+    Database, 
+    Edit, 
+    LineChart, 
+    Users2, 
+    Trash2, 
+    AlertTriangle, 
+    ShieldAlert 
+} from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -12,11 +25,27 @@ import {
 import { DataTable } from '@/components/data-table';
 import { columns, subCategoryColumns, courierColumns, basicColumns } from './columns';
 import { useState, useMemo } from 'react';
-import { Category, SubCategory, Brand, HsnCode, Color, Courier, Company, ExpenseType, Warranty, HandPreference, EnquiryStatus, CustomerType, VendorType, EnquiryType, EnquirySource, FollowUpType } from '@/lib/types';
+import { 
+    Category, 
+    SubCategory, 
+    Brand, 
+    Color, 
+    Courier, 
+    Company, 
+    ExpenseType, 
+    Warranty, 
+    HandPreference, 
+    EnquiryStatus, 
+    CustomerType, 
+    VendorType, 
+    EnquiryType, 
+    EnquirySource, 
+    FollowUpType 
+} from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { SettingDialog } from './setting-dialog';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, deleteDoc, setDoc, query, orderBy } from 'firebase/firestore';
+import { collection, doc, deleteDoc, setDoc, query, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { exportFullBackup } from '@/lib/actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CompanySettingsForm } from './company-settings-form';
@@ -25,8 +54,19 @@ import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
-type Item = Category | SubCategory | Brand | HsnCode | Color | Courier | Company | ExpenseType | Warranty | HandPreference | EnquiryStatus | CustomerType | VendorType | EnquiryType | EnquirySource | FollowUpType;
+type Item = Category | SubCategory | Brand | Color | Courier | Company | ExpenseType | Warranty | HandPreference | EnquiryStatus | CustomerType | VendorType | EnquiryType | EnquirySource | FollowUpType;
 type ItemType = 'Category' | 'Sub-Category' | 'Brand' | 'Color' | 'Courier' | 'Company' | 'Expense Type' | 'Warranty' | 'Hand Preference' | 'Enquiry Status' | 'Customer Type' | 'Vendor Type' | 'Enquiry Type' | 'Enquiry Source' | 'Follow-up Type';
 
 const STORE_ID = 'store_main';
@@ -35,6 +75,7 @@ export default function SettingsPage() {
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   
   const collections: Record<ItemType, string> = {
     'Category': 'categories', 'Sub-Category': 'subCategories', 'Brand': 'brands', 'Color': 'colors', 'Courier': 'couriers', 'Company': 'companies', 'Expense Type': 'expenseTypes', 'Warranty': 'warranties', 'Hand Preference': 'handPreferences', 'Enquiry Status': 'enquiryStatuses',
@@ -83,6 +124,40 @@ export default function SettingsPage() {
     if (!firestore) return;
     await deleteDoc(doc(firestore, 'settings', 'global', collections[itemType], itemId));
     toast({ title: "Deleted", description: `${itemType} removed.` });
+  };
+
+  const handleClearTransactions = async () => {
+    if (!firestore) return;
+    const collectionsToClear = [
+        'sales', 'purchaseOrders', 'expenses', 'salesReturns', 'quotations', 'enquiries', 'repairs'
+    ];
+    
+    setIsScanning(true);
+    try {
+        const batch = writeBatch(firestore);
+        let totalDeleted = 0;
+
+        for (const colName of collectionsToClear) {
+            const colRef = collection(firestore, 'stores', STORE_ID, colName);
+            const snapshot = await getDocs(colRef);
+            snapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+                totalDeleted++;
+            });
+        }
+
+        if (totalDeleted > 0) {
+            await batch.commit();
+            toast({ title: "Data Cleared", description: `${totalDeleted} records have been removed.` });
+        } else {
+            toast({ title: "No Data", description: "No transaction records found to delete." });
+        }
+    } catch (error) {
+        console.error("Error clearing data:", error);
+        toast({ title: "Error", description: "Failed to clear transaction data.", variant: "destructive" });
+    } finally {
+        setIsScanning(false);
+    }
   };
 
   return (
@@ -212,6 +287,66 @@ export default function SettingsPage() {
                                 <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-1">Health Status</p>
                                 <p className="text-lg font-black text-green-600 tracking-tighter">OPTIMIZED</p>
                             </div>
+                        </div>
+                    </div>
+                </Card>
+
+                {/* SYSTEM MAINTENANCE CARD */}
+                <Card className="border-none bg-card shadow-lg p-6 flex flex-col">
+                    <div className="flex justify-between items-start mb-8">
+                        <div className="space-y-1">
+                            <h3 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight">
+                                <AlertTriangle className="h-5 w-5 text-destructive" />
+                                System Maintenance
+                            </h3>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Database cleanup and reset tools.</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6 flex-1">
+                        <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 space-y-4">
+                            <div className="space-y-1">
+                                <p className="text-xs font-bold uppercase">Clear Transactional Data</p>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                    This will delete all Sales, Purchases, Expenses, Returns, Quotations, and Enquiries. 
+                                    Master data (Products, Customers, Vendors) will be preserved.
+                                </p>
+                            </div>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="sm" className="w-full font-black uppercase tracking-widest text-[10px] h-8" disabled={isScanning}>
+                                        <Trash2 className="mr-2 h-3 w-3" />
+                                        Delete Transaction Data
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action will permanently delete all transaction records (Sales, POs, etc.) for this store. This cannot be undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleClearTransactions} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                            Confirm Deletion
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-muted/30 border border-muted-foreground/10 space-y-4 opacity-50">
+                             <div className="space-y-1">
+                                <p className="text-xs font-bold uppercase">Factory Reset</p>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                    Deletes all data including Master Data and Settings. System will be restored to its initial state.
+                                </p>
+                            </div>
+                            <Button variant="outline" size="sm" disabled className="w-full font-black uppercase tracking-widest text-[10px] h-8">
+                                <ShieldAlert className="mr-2 h-3 w-3" />
+                                Full Factory Reset
+                            </Button>
                         </div>
                     </div>
                 </Card>
