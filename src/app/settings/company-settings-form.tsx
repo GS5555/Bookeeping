@@ -26,7 +26,7 @@ import Image from "next/image";
 
 const formSchema = z.object({
   name: z.string().min(1, "Company name is required."),
-  shortName: z.string().min(1, "Short name is required.").max(5),
+  shortName: z.string().min(1, "Short name is required.").max(10),
   address: z.string().optional().default(""),
   gstin: z.string().optional().default(""),
   email: z.string().email().or(z.literal("")).optional().default(""),
@@ -70,7 +70,7 @@ export function CompanySettingsForm() {
         displayLogo: company.displayLogo ?? true,
         invoicePrefix: company.invoicePrefix || "INV",
         invoiceTerms: company.invoiceTerms || "",
-        poTerms: company.invoiceTerms || "", 
+        poTerms: company.poTerms || "", 
       });
     }
   }, [company, form]);
@@ -85,7 +85,7 @@ export function CompanySettingsForm() {
       const fileRef = storageRef(storage, `company/logo-${Date.now()}`);
       await uploadBytes(fileRef, file);
       const url = await getDownloadURL(fileRef);
-      form.setValue('logoUrl', url);
+      form.setValue('logoUrl', url, { shouldDirty: true });
       toast({ title: "Logo Uploaded", description: "The new company logo has been set." });
     } catch (error) {
       console.error(error);
@@ -116,49 +116,78 @@ export function CompanySettingsForm() {
           <div className="lg:col-span-2 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="name" render={({ field }) => (
-                <FormItem><FormLabel>Company Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Company Full Name</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
               <FormField control={form.control} name="shortName" render={({ field }) => (
-                <FormItem><FormLabel>Short Name / Initials</FormLabel><FormControl><Input {...field} placeholder="e.g. CS" /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Short Name / Initials</FormLabel>
+                  <FormControl><Input {...field} placeholder="e.g. CS" /></FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
             </div>
 
             <FormField control={form.control} name="address" render={({ field }) => (
-              <FormItem><FormLabel>Business Address</FormLabel><FormControl><Textarea {...field} className="min-h-[100px]" /></FormControl><FormMessage /></FormItem>
+              <FormItem>
+                <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Business Address</FormLabel>
+                <FormControl><Textarea {...field} className="min-h-[100px]" /></FormControl>
+                <FormMessage />
+              </FormItem>
             )} />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FormField control={form.control} name="gstin" render={({ field }) => (
-                <FormItem><FormLabel>GSTIN</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">GSTIN</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
               <FormField control={form.control} name="email" render={({ field }) => (
-                <FormItem><FormLabel>Contact Email</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Contact Email</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
               <FormField control={form.control} name="phone" render={({ field }) => (
-                <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Phone Number</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
             </div>
           </div>
 
           <div className="space-y-6">
             <div className="p-6 border-2 border-dashed rounded-xl flex flex-col items-center gap-4 bg-muted/10">
-              <FormLabel className="text-xs font-black uppercase tracking-widest">Brand Logo</FormLabel>
+              <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Brand Logo</FormLabel>
               <div className="relative h-32 w-32 border bg-background rounded-lg overflow-hidden group">
                 {form.watch('logoUrl') ? (
                   <Image src={form.watch('logoUrl')} alt="Logo" fill className="object-contain p-2" />
                 ) : (
                   <div className="flex items-center justify-center h-full text-muted-foreground text-[10px] font-bold uppercase text-center p-4">No Logo<br/>Uploaded</div>
                 )}
-                {isUploading && <div className="absolute inset-0 bg-background/80 flex items-center justify-center"><RefreshCw className="animate-spin" /></div>}
+                {isUploading && <div className="absolute inset-0 bg-background/80 flex items-center justify-center"><RefreshCw className="animate-spin text-primary" /></div>}
               </div>
               <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" />
-              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="w-full font-black uppercase tracking-widest text-[10px]">
-                <Upload className="mr-2 h-3 w-3" /> Change Logo
+              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="w-full font-black uppercase tracking-widest text-[10px]" disabled={isUploading}>
+                <Upload className="mr-2 h-3 w-3" /> {isUploading ? 'Uploading...' : 'Change Logo'}
               </Button>
             </div>
             
             <FormField control={form.control} name="invoicePrefix" render={({ field }) => (
-              <FormItem><FormLabel>Invoice Prefix</FormLabel><FormControl><Input {...field} /></FormControl><FormDescription>e.g. INV, BILL, or CS</FormDescription><FormMessage /></FormItem>
+              <FormItem>
+                <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Invoice Prefix</FormLabel>
+                <FormControl><Input {...field} /></FormControl>
+                <FormDescription className="text-[10px]">e.g. INV, BILL, or CS</FormDescription>
+                <FormMessage />
+              </FormItem>
             )} />
           </div>
         </div>
@@ -167,14 +196,24 @@ export function CompanySettingsForm() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <FormField control={form.control} name="invoiceTerms" render={({ field }) => (
-            <FormItem><FormLabel>Invoice Terms & Conditions</FormLabel><FormControl><Textarea {...field} className="min-h-[150px] text-xs font-mono" /></FormControl><FormDescription>One condition per line.</FormDescription><FormMessage /></FormItem>
+            <FormItem>
+              <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Invoice Terms & Conditions</FormLabel>
+              <FormControl><Textarea {...field} className="min-h-[150px] text-xs font-mono" /></FormControl>
+              <FormDescription className="text-[10px]">One condition per line.</FormDescription>
+              <FormMessage />
+            </FormItem>
           )} />
           <FormField control={form.control} name="poTerms" render={({ field }) => (
-            <FormItem><FormLabel>Purchase Order Terms</FormLabel><FormControl><Textarea {...field} className="min-h-[150px] text-xs font-mono" /></FormControl><FormDescription>One condition per line.</FormDescription><FormMessage /></FormItem>
+            <FormItem>
+              <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Purchase Order Terms</FormLabel>
+              <FormControl><Textarea {...field} className="min-h-[150px] text-xs font-mono" /></FormControl>
+              <FormDescription className="text-[10px]">One condition per line.</FormDescription>
+              <FormMessage />
+            </FormItem>
           )} />
         </div>
 
-        <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest">
+        <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest shadow-lg">
           <Save className="mr-2 h-4 w-4" /> Save Company Profile
         </Button>
       </form>

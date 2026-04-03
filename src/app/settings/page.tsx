@@ -1,7 +1,7 @@
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, HardDrive, Database, BarChart3, Building2, Cog } from 'lucide-react';
+import { PlusCircle, Download, Building2, Cog, UserCog } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/card';
 import { DataTable } from '@/components/data-table';
 import { columns, subCategoryColumns, courierColumns } from './columns';
-import { useState, useMemo } from 'react';
-import { Category, SubCategory, Brand, HsnCode, Color, Courier, Company, ExpenseType, Warranty, HandPreference, EnquiryStatus, CustomerType, VendorType, EnquiryType, EnquirySource, FollowUpType, Sale, Product } from '@/lib/types';
+import { useState } from 'react';
+import { Category, SubCategory, Brand, HsnCode, Color, Courier, Company, ExpenseType, Warranty, HandPreference, EnquiryStatus, CustomerType, VendorType, EnquiryType, EnquirySource, FollowUpType } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { SettingDialog } from './setting-dialog';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
@@ -20,6 +20,7 @@ import { collection, doc, deleteDoc, setDoc } from 'firebase/firestore';
 import { exportFullBackup } from '@/lib/actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CompanySettingsForm } from './company-settings-form';
+import Link from 'next/link';
 
 type Item = Category | SubCategory | Brand | HsnCode | Color | Courier | Company | ExpenseType | Warranty | HandPreference | EnquiryStatus | CustomerType | VendorType | EnquiryType | EnquirySource | FollowUpType;
 type ItemType = 'Category' | 'Sub-Category' | 'Brand' | 'Color' | 'Courier' | 'Company' | 'Expense Type' | 'Warranty' | 'Hand Preference' | 'Enquiry Status' | 'Customer Type' | 'Vendor Type' | 'Enquiry Type' | 'Enquiry Source' | 'Follow-up Type';
@@ -70,18 +71,23 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6 sm:gap-8 pb-8 min-w-0 w-full overflow-x-hidden">
       <PageHeader title="Control Center">
+        <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase tracking-widest text-[10px]">
+            <Link href="/users">
+                <UserCog className="mr-2 h-4 w-4" /> Manage Users
+            </Link>
+        </Button>
         <Button variant="outline" size="sm" onClick={() => exportFullBackup({}, 'backup')} className="h-9 font-black uppercase tracking-widest text-[10px]">
             <Download className="mr-2 h-4 w-4" /> System Backup
         </Button>
       </PageHeader>
       
       <Tabs defaultValue="company" className="w-full">
-        <TabsList className="grid grid-cols-2 w-full sm:w-[400px] mb-8">
-            <TabsTrigger value="company" className="text-xs font-black uppercase tracking-widest">
-                <Building2 className="mr-2 h-4 w-4" /> Company
+        <TabsList className="grid grid-cols-2 w-full sm:w-[400px] mb-8 bg-muted/20 p-1 rounded-xl">
+            <TabsTrigger value="company" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <Building2 className="mr-2 h-4 w-4" /> Company Profile
             </TabsTrigger>
-            <TabsTrigger value="global" className="text-xs font-black uppercase tracking-widest">
-                <Cog className="mr-2 h-4 w-4" /> Global Data
+            <TabsTrigger value="global" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <Cog className="mr-2 h-4 w-4" /> Master Data
             </TabsTrigger>
         </TabsList>
 
@@ -89,7 +95,7 @@ export default function SettingsPage() {
             <Card className="border-2 shadow-sm">
                 <CardHeader className="border-b bg-muted/5">
                     <CardTitle className="text-xl font-black uppercase tracking-tight">Business Profile</CardTitle>
-                    <CardDescription className="text-xs font-bold uppercase">Configure your store's branding and document legal terms.</CardDescription>
+                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Manage your store's branding, logo, and legal terms.</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-8">
                     <CompanySettingsForm />
@@ -111,10 +117,10 @@ export default function SettingsPage() {
                 ].map((sec) => (
                 <Card key={sec.title} className="min-w-0 border-2 shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
-                    <CardTitle className="text-xs sm:text-sm font-black uppercase tracking-widest">{sec.title}</CardTitle>
+                    <CardTitle className="text-[10px] font-black uppercase tracking-widest">{sec.title}</CardTitle>
                     <Button size="sm" onClick={() => handleOpenDialog(sec.type as ItemType)} className="h-8 shrink-0 font-black uppercase text-[10px] tracking-widest"><PlusCircle className="mr-2 h-3 w-3" /> Add</Button>
                     </CardHeader>
-                    <CardContent className="pt-4 overflow-hidden">
+                    <CardContent className="pt-4 overflow-hidden px-0">
                     <DataTable 
                         columns={sec.type === 'Sub-Category' ? subCategoryColumns(categories || [])({ onEdit: (i) => handleOpenDialog('Sub-Category', i), onDelete: (id) => handleDelete('Sub-Category', id) }) : sec.type === 'Courier' ? courierColumns({ onEdit: (i) => handleOpenDialog('Courier', i as Courier), onDelete: (id) => handleDelete('Courier', id) }) : columns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleDelete(sec.type as ItemType, id) })} 
                         data={sec.data || []} 

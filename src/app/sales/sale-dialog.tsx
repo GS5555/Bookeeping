@@ -31,7 +31,7 @@ import { format, addDays } from "date-fns";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, doc, getDoc } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -262,7 +262,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         return {
             ...item,
             productId: item.productId!,
-            sku: item.sku || product?.sku || '',
+            sku: item.sku || product?.sku || '', 
             productName: product?.name || 'Unknown',
             brandName: brand?.name || 'Unknown',
             totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
@@ -328,8 +328,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogHeader className="p-6 pb-4 border-b">
-            <DialogTitle>{sale?.id ? "Edit Sale" : "New Sale"}</DialogTitle>
-            <DialogDescription>Create a professional TAX INVOICE or Cash Receipt.</DialogDescription>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tight">{sale?.id ? "Edit Sale" : "New Sale"}</DialogTitle>
+            <DialogDescription className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Process a new customer transaction and generate an invoice.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form id="sale-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
@@ -358,12 +358,12 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                     <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-widest"><MapPin className="h-3 w-3" /> Billing Address</div>
                                     <p className="text-sm font-medium">{primaryAddress?.street}, {primaryAddress?.city}</p>
                                 </div>
-                                {selectedCustomer.gstNumber && <Badge variant="outline" className="font-mono text-xs border-primary/30 bg-primary/5 text-primary">GSTIN: {selectedCustomer.gstNumber}</Badge>}
+                                {selectedCustomer.gstNumber && <Badge variant="outline" className="font-mono text-xs border-primary/30 bg-primary/5 text-primary uppercase">GSTIN: {selectedCustomer.gstNumber}</Badge>}
                             </div>
                             <FormField control={form.control} name="useDifferentShipping" render={({ field }) => (
                                 <FormItem className="flex flex-row items-center space-x-2 space-y-0 pt-2 border-t">
                                     <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                                    <Label className="text-xs font-bold uppercase cursor-pointer">Ship to different address?</Label>
+                                    <Label className="text-xs font-bold uppercase cursor-pointer text-muted-foreground">Ship to different address?</Label>
                                 </FormItem>
                             )} />
                             {watchedUseDifferentShipping && (
@@ -394,8 +394,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                             <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice Type</FormLabel>
                             <FormControl>
                                 <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
-                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="GST" /></FormControl><FormLabel className="font-normal">GST</FormLabel></FormItem>
-                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-normal">Cash</FormLabel></FormItem>
+                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="GST" /></FormControl><FormLabel className="font-bold text-xs uppercase">GST</FormLabel></FormItem>
+                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-bold text-xs uppercase">Cash</FormLabel></FormItem>
                                 </RadioGroup>
                             </FormControl>
                         </FormItem>
@@ -404,7 +404,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
             </div>
 
             <div className="space-y-4">
-              <FormLabel className="text-lg font-black uppercase tracking-tight border-b pb-2 block">Invoice Items</FormLabel>
+              <FormLabel className="text-lg font-black uppercase tracking-tight border-b-4 border-primary/20 pb-2 block">Invoice Items</FormLabel>
               {fields.map((field, index) => {
                   const selectedProdId = watchedItems[index]?.productId;
                   const itemQty = Number(watchedItems[index]?.quantity) || 0;
@@ -418,10 +418,10 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                   const currentStock = stockItem?.stockBatches?.reduce((sum, b) => sum + b.quantity, 0) || 0;
                   
                   return (
-                      <Card key={field.id} className={cn("border-2 shadow-sm", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
-                          <CardHeader className="py-2 px-4 bg-muted/20 flex flex-row justify-between items-center">
+                      <Card key={field.id} className={cn("border-2 shadow-sm transition-all duration-200", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
+                          <CardHeader className="py-2 px-4 bg-muted/20 flex flex-row justify-between items-center border-b">
                              <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-black uppercase text-muted-foreground">Item #{index + 1}</span>
+                                <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
                                 {product && (
                                     <div className="flex gap-1 flex-wrap">
                                         <Badge className="text-[9px] font-black h-5 bg-blue-100 text-blue-700 border-blue-200 uppercase">SKU: {product.sku}</Badge>
@@ -434,8 +434,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                     </div>
                                 )}
                              </div>
-                             {lineTotal > 0 && <Badge variant="secondary" className="font-black text-[10px]">Line Total: ₹{lineTotal.toLocaleString()}</Badge>}
-                             <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
+                             {lineTotal > 0 && <Badge variant="secondary" className="font-black text-[10px] bg-primary/10 text-primary uppercase">Line Total: ₹{lineTotal.toLocaleString()}</Badge>}
+                             <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
                           </CardHeader>
                           <CardContent className="p-4 grid grid-cols-12 gap-3 items-end overflow-visible">
                               <div className="col-span-12 sm:col-span-6 overflow-visible">
@@ -457,10 +457,10 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                   )} />
                               </div>
                               <div className="col-span-4 sm:col-span-2">
-                                  <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10 border-muted-foreground/50"/>} />
+                                  <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10 border-muted-foreground/50 font-bold"/>} />
                               </div>
                               <div className="col-span-8 sm:col-span-4">
-                                  <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50 bg-background" />} />
+                                  <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50 bg-background text-primary" />} />
                               </div>
                           </CardContent>
                       </Card>
@@ -471,47 +471,47 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
             <Separator />
 
             <div className="space-y-4">
-                <h4 className="font-bold text-xs uppercase tracking-widest text-primary flex items-center gap-2"><Truck className="h-4 w-4" /> Shipping & Logistics</h4>
+                <h4 className="font-black text-[10px] uppercase tracking-widest text-primary flex items-center gap-2"><Truck className="h-4 w-4" /> Shipping & Logistics</h4>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <FormField control={form.control} name="courierCompany" render={({ field }) => (
                         <FormItem className="md:col-span-2">
                             <Select onValueChange={field.onChange} value={field.value || ""}>
-                                <FormControl><SelectTrigger className="h-9 border-muted-foreground/50 bg-background"><SelectValue placeholder="Select Courier" /></SelectTrigger></FormControl>
+                                <FormControl><SelectTrigger className="h-9 border-muted-foreground/50 bg-background text-xs"><SelectValue placeholder="Select Courier Partner" /></SelectTrigger></FormControl>
                                 <SelectContent>{couriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
                             </Select>
                         </FormItem>
                     )} />
-                    <FormField control={form.control} name="trackingNumber" render={({ field }) => <FormItem><FormControl><Input placeholder="Tracking #" {...field} className="h-9 border-muted-foreground/50 bg-background" /></FormControl></FormItem>} />
-                    <FormField control={form.control} name="numberOfBoxes" render={({ field }) => <FormItem><FormControl><Input type="number" {...field} className="h-9 border-muted-foreground/50 bg-background" /></FormControl></FormItem>} />
+                    <FormField control={form.control} name="trackingNumber" render={({ field }) => <FormItem><FormControl><Input placeholder="Tracking #" {...field} className="h-9 border-muted-foreground/50 bg-background text-xs" /></FormControl></FormItem>} />
+                    <FormField control={form.control} name="numberOfBoxes" render={({ field }) => <FormItem><FormControl><Input type="number" {...field} className="h-9 border-muted-foreground/50 bg-background text-xs" /></FormControl></FormItem>} />
                 </div>
             </div>
 
-            <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 space-y-3 shadow-sm">
-                <div className="flex justify-between text-sm font-medium"><span>Subtotal</span><span className="font-bold">₹{totals.subTotal.toLocaleString()}</span></div>
-                {totals.totalDiscount > 0 && <div className="flex justify-between text-sm text-destructive"><span>Discount</span><span className="font-bold">-₹{totals.totalDiscount.toLocaleString()}</span></div>}
+            <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 space-y-3 shadow-inner">
+                <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground"><span>Subtotal</span><span className="font-black text-foreground">₹{totals.subTotal.toLocaleString()}</span></div>
+                {totals.totalDiscount > 0 && <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-destructive"><span>Total Discount</span><span className="font-black">-₹{totals.totalDiscount.toLocaleString()}</span></div>}
                 {watchedSaleType === 'GST' && (
-                    <>
-                        <div className="flex justify-between text-xs text-muted-foreground"><span>CGST</span><span>₹{totals.cgstAmount.toLocaleString()}</span></div>
-                        <div className="flex justify-between text-xs text-muted-foreground"><span>SGST</span><span>₹{totals.sgstAmount.toLocaleString()}</span></div>
-                        <div className="flex justify-between text-xs text-muted-foreground"><span>IGST</span><span>₹{totals.igstAmount.toLocaleString()}</span></div>
-                    </>
+                    <div className="space-y-1 pt-2 border-t border-primary/10">
+                        {totals.cgstAmount > 0 && <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase"><span>CGST</span><span>₹{totals.cgstAmount.toLocaleString()}</span></div>}
+                        {totals.sgstAmount > 0 && <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase"><span>SGST</span><span>₹{totals.sgstAmount.toLocaleString()}</span></div>}
+                        {totals.igstAmount > 0 && <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase"><span>IGST</span><span>₹{totals.igstAmount.toLocaleString()}</span></div>}
+                    </div>
                 )}
-                <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
-                    <span>Round Off Adjustment</span>
-                    <span className={cn("font-bold", totals.roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
+                <div className="flex justify-between text-[10px] italic font-black uppercase border-t pt-2 border-primary/10">
+                    <span className="text-muted-foreground">Round Off Adjustment</span>
+                    <span className={cn(totals.roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
                         {totals.roundOffAmount < 0 ? '-' : '+'}₹{Math.abs(totals.roundOffAmount).toFixed(2)}
                     </span>
                 </div>
-                <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
-                    <span className="text-xl font-black uppercase tracking-tight">Net Payable</span>
-                    <span className="text-3xl font-black text-primary tracking-tighter">₹{totals.total.toLocaleString()}</span>
+                <div className="flex justify-between items-center pt-4 border-t-4 border-primary/20">
+                    <span className="text-xl font-black uppercase tracking-tighter">Net Payable</span>
+                    <span className="text-4xl font-black text-primary tracking-tighter drop-shadow-sm">₹{totals.total.toLocaleString()}</span>
                 </div>
             </div>
           </form>
         </Form>
-        <DialogFooter className="p-4 border-t bg-muted/10">
-            <Button type="submit" form="sale-form" className="font-black uppercase tracking-widest px-8">Save Invoice</Button>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+        <DialogFooter className="p-4 border-t bg-muted/10 flex flex-col sm:flex-row gap-2">
+            <Button type="submit" form="sale-form" className="w-full sm:w-auto font-black uppercase tracking-widest px-12 h-12 shadow-lg">Save & Generate Invoice</Button>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-bold uppercase text-xs">Cancel</Button>
         </DialogFooter>
         <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
       </DialogContent>

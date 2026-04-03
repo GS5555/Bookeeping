@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -54,22 +53,22 @@ export default function InvoicePage() {
     const { data: companyDetails, isLoading: isCompanyLoading } = useDoc<Company>(companyDocRef);
 
     if (isSaleLoading || isCustomerLoading || isCompanyLoading || !isMounted) {
-        return <div className="flex items-center justify-center h-screen bg-white"><p className="animate-pulse font-medium text-lg">Loading TAX INVOICE details...</p></div>;
+        return <div className="flex items-center justify-center h-screen bg-white"><p className="animate-pulse font-medium text-lg uppercase tracking-widest text-muted-foreground">Generating TAX INVOICE...</p></div>;
     }
     
     if (!sale || !companyDetails) {
         return (
             <div className="flex items-center justify-center h-screen bg-white text-center">
-                <div className="p-8 border rounded-xl shadow-sm bg-gray-50 max-sm">
-                    <h1 className="text-2xl font-bold mb-4">TAX INVOICE Not Found</h1>
-                    <Button asChild className="w-full"><Link href="/sales">Back to Sales</Link></Button>
+                <div className="p-8 border-4 border-dashed rounded-xl shadow-sm bg-gray-50 max-w-sm">
+                    <h1 className="text-2xl font-black uppercase tracking-tighter mb-4">Invoice Not Found</h1>
+                    <Button asChild className="w-full font-black uppercase tracking-widest"><Link href="/sales">Return to Dashboard</Link></Button>
                 </div>
             </div>
         );
     }
     
     const isGstSale = sale.saleType === 'GST';
-    const termsAndConditions = companyDetails.invoiceTerms?.split('\n') || [];
+    const termsAndConditions = companyDetails.invoiceTerms?.split('\n').filter(t => t.trim() !== '') || [];
     const totalAmount = sale.total;
     
     const rawTotal = (sale.subTotal || 0) + (sale.gstAmount || 0) - (sale.couponDiscount || 0) - (sale.manualDiscountAmount || 0);
@@ -83,10 +82,10 @@ export default function InvoicePage() {
                 </Button>
                 <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3">
                     <Button variant="outline" onClick={() => window.print()} className="border-gray-300 font-black uppercase text-xs">
-                        <Printer className="mr-2 h-4 w-4" /> Print TAX Invoice
+                        <Printer className="mr-2 h-4 w-4" /> Print Document
                     </Button>
                     <Button onClick={() => downloadInvoice(sale, customer ? [customer] : [], companyDetails)} className="shadow-md font-black uppercase text-xs">
-                        <FileDown className="mr-2 h-4 w-4" /> Save as PDF
+                        <FileDown className="mr-2 h-4 w-4" /> Download PDF
                     </Button>
                 </div>
             </div>
@@ -95,7 +94,7 @@ export default function InvoicePage() {
                 <div className="flex flex-col md:flex-row justify-between items-start gap-8 border-b-4 border-gray-900 pb-8 mb-10">
                     <div className="flex-1">
                         <h1 className="text-4xl font-black text-gray-900 mb-3 uppercase tracking-tight">{companyDetails.name}</h1>
-                        <p className="text-sm text-gray-600 max-w-sm whitespace-pre-wrap leading-relaxed">{companyDetails.address}</p>
+                        <p className="text-sm text-gray-600 max-w-sm whitespace-pre-wrap leading-relaxed font-medium">{companyDetails.address}</p>
                         <div className="mt-6 flex flex-wrap gap-x-6 gap-y-1 text-xs font-bold text-gray-500 uppercase tracking-widest">
                             {companyDetails.gstin && <p>GSTIN: <span className="text-gray-900">{companyDetails.gstin}</span></p>}
                             {companyDetails.phone && <p>Phone: <span className="text-gray-900">{companyDetails.phone}</span></p>}
@@ -106,7 +105,7 @@ export default function InvoicePage() {
                         <h2 className="text-6xl font-black text-gray-100 uppercase mb-6 leading-none select-none">TAX INVOICE</h2>
                         <div className="space-y-2">
                             <div>
-                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">TAX INVOICE NO.</p>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">INVOICE NO.</p>
                                 <p className="text-2xl font-black text-gray-900 tracking-tight">{sale.invoiceSequence}</p>
                             </div>
                             <div className="pt-2">
@@ -139,7 +138,7 @@ export default function InvoicePage() {
                                 contact={{}} 
                             />
                         ) : (
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 text-center">Shipping same as billing</p>
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 text-center h-full flex items-center justify-center italic">Shipping same as billing</p>
                         )}
                     </div>
                 </div>
@@ -160,13 +159,13 @@ export default function InvoicePage() {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {sale.items.map((item, index) => (
-                                <tr key={index} className="text-sm text-gray-800 hover:bg-gray-50/50">
-                                    <td className="py-5 pl-4 text-gray-400 font-mono">{index + 1}</td>
+                                <tr key={index} className="text-sm text-gray-800 hover:bg-gray-50/50 transition-colors">
+                                    <td className="py-5 pl-4 text-gray-400 font-mono text-xs">{index + 1}</td>
                                     <td className="py-5">
                                         <p className="font-bold text-gray-900">{item.productName}</p>
-                                        <p className="text-[10px] text-gray-500 uppercase">{item.brandName || 'N/A'}</p>
+                                        {item.brandName && <p className="text-[10px] text-gray-500 uppercase font-bold">{item.brandName}</p>}
                                     </td>
-                                    <td className="py-5 font-mono text-xs">{item.sku || 'N/A'}</td>
+                                    <td className="py-5 font-mono text-xs font-bold">{item.sku || 'N/A'}</td>
                                     {isGstSale && <td className="py-5 font-mono text-xs">{item.hsnCode || '-'}</td>}
                                     <td className="py-5 text-right font-medium">{item.gstRate}%</td>
                                     <td className="py-5 text-right font-black">{item.quantity}</td>
@@ -182,21 +181,21 @@ export default function InvoicePage() {
                     <div className="flex-1 space-y-8">
                         <div>
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Amount in Words</p>
-                            <p className="text-sm font-bold italic text-gray-800 bg-gray-50 p-4 rounded-lg border leading-relaxed">
+                            <p className="text-sm font-bold italic text-gray-800 bg-gray-50 p-4 rounded-lg border leading-relaxed shadow-inner">
                                 {numberToWordsInr(totalAmount)}
                             </p>
                         </div>
                         {termsAndConditions.length > 0 && (
                             <div>
                                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Terms & Conditions</p>
-                                <ul className="text-[10px] text-gray-500 font-medium space-y-1.5 list-disc list-inside">
+                                <ul className="text-[10px] text-gray-500 font-bold space-y-1.5 list-decimal list-inside px-2">
                                     {termsAndConditions.map((term, i) => <li key={i}>{term}</li>)}
                                 </ul>
                             </div>
                         )}
                     </div>
                     
-                    <div className="w-full md:w-80 space-y-3 bg-gray-50 p-6 rounded-xl border border-gray-200">
+                    <div className="w-full md:w-80 space-y-3 bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
                         <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
                             <span>Subtotal</span>
                             <span className="text-gray-900">{formatCurrency(sale.subTotal)}</span>
@@ -204,7 +203,7 @@ export default function InvoicePage() {
                         
                         {(sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0) > 0 && (
                             <div className="flex justify-between text-xs font-bold text-red-600 uppercase tracking-widest">
-                                <span>Discount</span>
+                                <span>Total Discount</span>
                                 <span>-{formatCurrency((sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0))}</span>
                             </div>
                         )}
@@ -217,17 +216,15 @@ export default function InvoicePage() {
                             </div>
                         )}
                         
-                        {Math.abs(roundOffAmount) > 0.01 && (
-                            <div className="flex justify-between text-[10px] font-black uppercase italic border-t pt-2 border-gray-200">
-                                <span className="text-gray-500">Round Off Adjustment</span>
-                                <span className={cn(roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
-                                    {roundOffAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(roundOffAmount))}
-                                </span>
-                            </div>
-                        )}
+                        <div className="flex justify-between text-[10px] font-black uppercase italic border-t pt-2 border-gray-200">
+                            <span className="text-gray-500">Round Off Adjustment</span>
+                            <span className={cn(roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
+                                {roundOffAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(roundOffAmount))}
+                            </span>
+                        </div>
                         
                         <div className="flex justify-between items-center pt-4 border-t-2 border-gray-900 mt-2">
-                            <span className="text-sm font-black text-gray-900 uppercase">Grand Total</span>
+                            <span className="text-sm font-black text-gray-900 uppercase tracking-widest">Grand Total</span>
                             <span className="text-3xl font-black text-gray-900 tracking-tighter">{formatCurrency(totalAmount)}</span>
                         </div>
                     </div>

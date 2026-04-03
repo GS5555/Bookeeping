@@ -95,6 +95,7 @@ export function Sidebar() {
     }
     
     const showLogo = companyDetails.displayLogo && companyDetails.logoUrl;
+    const shortName = companyDetails.shortName || companyDetails.name.substring(0, 2).toUpperCase();
 
     return (
         <Link
@@ -105,17 +106,17 @@ export function Sidebar() {
             )}
         >
             {isExpanded ? (
-                <div className='flex items-center gap-2 w-full min-w-0 pr-4'>
+                <div className='flex items-center gap-2 w-full min-w-0 pr-2'>
                   {showLogo ? (
                      <div className="relative h-8 w-8 shrink-0">
                         <Image src={companyDetails.logoUrl!} alt={companyDetails.name} fill className="rounded-sm object-contain" />
                      </div>
                   ) : (
                     <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback className="bg-primary text-primary-foreground font-bold text-[10px]">{companyDetails.shortName || companyDetails.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{shortName}</AvatarFallback>
                     </Avatar>
                   )}
-                  <span className="text-sm font-black text-foreground truncate uppercase tracking-tighter shrink leading-none">
+                  <span className="text-xs font-black text-foreground truncate uppercase tracking-tighter shrink leading-none">
                     {companyDetails.name}
                   </span>
                 </div>
@@ -123,19 +124,19 @@ export function Sidebar() {
                  <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <span>
+                            <span className="flex items-center justify-center">
                             {showLogo ? (
                                 <div className="relative h-6 w-6">
                                     <Image src={companyDetails.logoUrl!} alt={companyDetails.name} fill className="rounded-sm object-contain" />
                                 </div>
                             ) : (
                                 <Avatar className="h-8 w-8">
-                                    <AvatarFallback className="bg-primary text-primary-foreground font-bold text-[10px]">{companyDetails.shortName || companyDetails.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                    <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{shortName}</AvatarFallback>
                                 </Avatar>
                             )}
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent side="right">{companyDetails.name}</TooltipContent>
+                        <TooltipContent side="right" className="font-black uppercase tracking-widest text-[10px]">{companyDetails.name}</TooltipContent>
                     </Tooltip>
                  </TooltipProvider>
             )}
@@ -157,7 +158,7 @@ export function Sidebar() {
               <Button
                 variant="outline"
                 size="icon"
-                className={cn("h-9 w-9 md:h-8 md:w-8", isExpanded && "self-start ml-2")}
+                className={cn("h-9 w-9 md:h-8 md:w-8 transition-all", isExpanded && "self-start ml-2")}
                 onClick={() => toggleSidebar()}
               >
                 <PanelLeft className="h-5 w-5" />
@@ -186,7 +187,7 @@ export function Sidebar() {
                     <span className={cn("truncate text-[10px] font-black uppercase tracking-widest", !isExpanded && 'sr-only' )}>{item.label}</span>
                     </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">{item.label}</TooltipContent>
+                <TooltipContent side="right" className="font-bold uppercase text-[10px] tracking-widest">{item.label}</TooltipContent>
                 </Tooltip>
             ))}
             </nav>
