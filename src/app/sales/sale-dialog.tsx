@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,7 +31,7 @@ import { format, addDays } from "date-fns";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, doc, setDoc } from "firebase/firestore";
+import { collection, query, orderBy, doc, getDoc } from "firebase/firestore";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -41,7 +40,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Combobox } from "@/components/ui/combobox";
 
 const STORE_ID = 'store_main';
@@ -146,7 +145,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
-  const { setValue, reset, getValues } = form;
+  const { setValue, reset, watch, getValues } = form;
 
   const watchedItems = useWatch({ control: form.control, name: "items" }) || [];
   const watchedCouponCode = useWatch({ control: form.control, name: "couponCode" });
@@ -160,7 +159,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const customerAddresses = useMemo(() => selectedCustomer?.addresses || [], [selectedCustomer]);
   const primaryAddress = useMemo(() => customerAddresses.find(a => a.isPrimary) || customerAddresses[0], [customerAddresses]);
 
-  const calculateTotals = (items: any[], type: string, storeId: string, custAddress: any, couponCode: string, manualDisc: number) => {
+  const calculateTotals = useCallback((items: any[], type: string, storeId: string, custAddress: any, couponCode: string, manualDisc: number) => {
     const subTotalVal = items.reduce((acc, item) => {
         const qty = Number(item.quantity) || 0;
         const price = Number(item.unitPrice) || 0;
@@ -215,11 +214,11 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         sgstAmount: sgstVal, 
         igstAmount: igstVal 
     };
-  };
+  }, [coupons, stores]);
 
   const totals = useMemo(() => {
     return calculateTotals(watchedItems, watchedSaleType, watchedStoreId, primaryAddress, watchedCouponCode, watchedManualDiscount);
-  }, [watchedItems, watchedCouponCode, watchedManualDiscount, watchedSaleType, watchedStoreId, primaryAddress, coupons, stores]);
+  }, [watchedItems, watchedCouponCode, watchedManualDiscount, watchedSaleType, watchedStoreId, primaryAddress, calculateTotals]);
 
   const handleProductSelect = (productId: string, index: number) => {
     const product = allProducts?.find(p => p.id === productId);
@@ -229,7 +228,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     
     if (existingIndex > -1) {
         const currentQty = Number(getValues(`items.${existingIndex}.quantity`)) || 0;
-        setValue(`items.${existingIndex}.quantity`, currentQty + (Number(getValues(`items.${index}.quantity`)) || 1));
+        setValue(`items.${existingIndex}.quantity`, currentQty + (Number(getValues(`items.${index}.quantity`)) || 1), { shouldValidate: true });
         remove(index);
         toast({ title: "Item consolidated", description: `${product.name} quantity updated.` });
     } else {
@@ -241,7 +240,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         const catalogPrice = product.finalPrice || product.sellingPrice;
         const gstRate = product.gstRate || 0;
         const basePrice = catalogPrice / (1 + (gstRate / 100));
-        setValue(`items.${index}.unitPrice`, parseFloat(basePrice.toFixed(2)));
+        setValue(`items.${index}.unitPrice`, parseFloat(basePrice.toFixed(2)), { shouldValidate: true });
         
         setValue(`items.${index}.hsnCode`, product.hsnCode);
         setValue(`items.${index}.gstRate`, gstRate);
@@ -497,14 +496,12 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                         <div className="flex justify-between text-xs text-muted-foreground"><span>IGST</span><span>₹{totals.igstAmount.toLocaleString()}</span></div>
                     </>
                 )}
-                {Math.abs(totals.roundOffAmount) > 0.01 && (
-                    <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
-                        <span>Round Off Adjustment</span>
-                        <span className={cn("font-bold", totals.roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
-                            {totals.roundOffAmount < 0 ? '-' : '+'}₹{Math.abs(totals.roundOffAmount).toFixed(2)}
-                        </span>
-                    </div>
-                )}
+                <div className="flex justify-between text-xs italic text-muted-foreground border-t pt-2 mt-2">
+                    <span>Round Off Adjustment</span>
+                    <span className={cn("font-bold", totals.roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
+                        {totals.roundOffAmount < 0 ? '-' : '+'}₹{Math.abs(totals.roundOffAmount).toFixed(2)}
+                    </span>
+                </div>
                 <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
                     <span className="text-xl font-black uppercase tracking-tight">Net Payable</span>
                     <span className="text-3xl font-black text-primary tracking-tighter">₹{totals.total.toLocaleString()}</span>

@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import {
@@ -38,7 +37,7 @@ import { Button } from '@/components/ui/button';
 import { useSidebar } from '@/components/ui/sidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Company } from '@/lib/types';
@@ -62,6 +61,7 @@ export const navItems = [
   { href: '/reports', icon: LineChart, label: 'Reports', roles: ['admin', 'viewer'] },
   { href: '/accounting', icon: Scale, label: 'Accounting', roles: ['admin', 'viewer'] },
   { href: '/support', icon: Ticket, label: 'Support', roles: ['admin', 'editor'] },
+  { href: '/users', icon: Users2, label: 'Users', roles: ['admin'] },
   { href: '/settings', icon: Settings, label: 'Settings', roles: ['admin'] },
   { href: '/ai-insights', icon: Bot, label: 'Gemini Chat', roles: ['admin', 'editor'] },
 ];
@@ -100,17 +100,19 @@ export function Sidebar() {
         <Link
             href="/"
             className={cn(
-                "group flex h-9 items-center gap-2 font-semibold text-primary-foreground transition-all duration-200",
+                "group flex h-9 items-center gap-2 font-semibold transition-all duration-200",
                 isExpanded ? "w-full self-start px-2 overflow-hidden" : "self-center justify-center w-9 shrink-0 rounded-full bg-primary md:h-8 md:w-8"
             )}
         >
             {isExpanded ? (
                 <div className='flex items-center gap-2 w-full min-w-0 pr-4'>
                   {showLogo ? (
-                     <Image src={companyDetails.logoUrl!} alt={companyDetails.name} width={32} height={32} className="rounded-sm object-contain shrink-0" />
+                     <div className="relative h-8 w-8 shrink-0">
+                        <Image src={companyDetails.logoUrl!} alt={companyDetails.name} fill className="rounded-sm object-contain" />
+                     </div>
                   ) : (
                     <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback className="bg-primary text-primary-foreground font-bold">{companyDetails.shortName || companyDetails.name.charAt(0)}</AvatarFallback>
+                        <AvatarFallback className="bg-primary text-primary-foreground font-bold text-[10px]">{companyDetails.shortName || companyDetails.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                   )}
                   <span className="text-sm font-black text-foreground truncate uppercase tracking-tighter shrink leading-none">
@@ -123,10 +125,12 @@ export function Sidebar() {
                         <TooltipTrigger asChild>
                             <span>
                             {showLogo ? (
-                                <Image src={companyDetails.logoUrl!} alt={companyDetails.name} width={24} height={24} className="rounded-sm object-contain" />
+                                <div className="relative h-6 w-6">
+                                    <Image src={companyDetails.logoUrl!} alt={companyDetails.name} fill className="rounded-sm object-contain" />
+                                </div>
                             ) : (
                                 <Avatar className="h-8 w-8">
-                                    <AvatarFallback className="bg-primary text-primary-foreground font-bold">{companyDetails.shortName || companyDetails.name.charAt(0)}</AvatarFallback>
+                                    <AvatarFallback className="bg-primary text-primary-foreground font-bold text-[10px]">{companyDetails.shortName || companyDetails.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                                 </Avatar>
                             )}
                             </span>
@@ -179,7 +183,7 @@ export function Sidebar() {
                     )}
                     >
                     <item.icon className="h-5 w-5 shrink-0" />
-                    <span className={cn("truncate text-xs font-bold uppercase tracking-tight", !isExpanded && 'sr-only' )}>{item.label}</span>
+                    <span className={cn("truncate text-[10px] font-black uppercase tracking-widest", !isExpanded && 'sr-only' )}>{item.label}</span>
                     </Link>
                 </TooltipTrigger>
                 <TooltipContent side="right">{item.label}</TooltipContent>
