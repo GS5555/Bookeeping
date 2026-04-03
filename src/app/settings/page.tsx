@@ -23,8 +23,8 @@ import { CompanySettingsForm } from './company-settings-form';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { UserNav } from '../users/page'; // We can re-use user management logic
 
 type Item = Category | SubCategory | Brand | HsnCode | Color | Courier | Company | ExpenseType | Warranty | HandPreference | EnquiryStatus | CustomerType | VendorType | EnquiryType | EnquirySource | FollowUpType;
 type ItemType = 'Category' | 'Sub-Category' | 'Brand' | 'Color' | 'Courier' | 'Company' | 'Expense Type' | 'Warranty' | 'Hand Preference' | 'Enquiry Status' | 'Customer Type' | 'Vendor Type' | 'Enquiry Type' | 'Enquiry Source' | 'Follow-up Type';
@@ -135,11 +135,11 @@ export default function SettingsPage() {
                                 <div className="md:col-span-2 grid grid-cols-2 gap-y-6 gap-x-4">
                                     <div className="space-y-1">
                                         <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Company Name</p>
-                                        <p className="text-sm font-black uppercase leading-tight">{companyDetails?.name || 'Whistling Consulting'}</p>
+                                        <p className="text-sm font-black uppercase leading-tight">{companyDetails?.name || 'Cricket Store Manager'}</p>
                                     </div>
                                     <div className="space-y-1">
                                         <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Short Name</p>
-                                        <p className="text-sm font-black uppercase">{companyDetails?.shortName || 'WCG'}</p>
+                                        <p className="text-sm font-black uppercase">{companyDetails?.shortName || 'CSM'}</p>
                                     </div>
                                     <div className="space-y-1">
                                         <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">GSTIN</p>
@@ -179,9 +179,11 @@ export default function SettingsPage() {
                             </h3>
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Local Cache and Cloud Analysis.</p>
                         </div>
-                        <Button variant="outline" size="sm" className="h-9 font-black uppercase tracking-widest text-[9px]">
-                            <LineChart className="mr-2 h-3 w-3" />
-                            Analytics
+                        <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase tracking-widest text-[9px]">
+                            <Link href="/settings/storage-analytics">
+                                <LineChart className="mr-2 h-3 w-3" />
+                                Analytics
+                            </Link>
                         </Button>
                     </div>
 
@@ -278,7 +280,6 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="users" className="m-0">
-            {/* Using the logic from the existing users page but embedded here */}
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
                     <div className="space-y-1">
@@ -286,8 +287,6 @@ export default function SettingsPage() {
                         <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Manage staff access and account permissions.</p>
                     </div>
                 </div>
-                {/* Integration of the core user management components would go here */}
-                {/* For MVP, we point to the main users dashboard if needed, or simply render it */}
                 <Card className="border-none shadow-lg">
                     <CardHeader className="bg-muted/10">
                         <CardTitle className="text-sm font-black uppercase tracking-widest">Active System Users</CardTitle>

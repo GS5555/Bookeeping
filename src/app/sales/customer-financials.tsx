@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -86,7 +85,7 @@ export function CustomerFinancials({ sales, customers, companyDetails }: Custome
             onOpenChange={(open) => !open && setSelectedCustomerData(null)}
         />
         
-        <Card className="border-2 shadow-sm h-full flex flex-col">
+        <Card className="border-2 shadow-sm h-full flex flex-col min-w-0">
             <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
                 <div className="space-y-1">
                     <CardTitle className="text-lg font-black uppercase tracking-tight">Customer Accounts</CardTitle>
@@ -110,7 +109,7 @@ export function CustomerFinancials({ sales, customers, companyDetails }: Custome
                     </Select>
                 </div>
             </CardHeader>
-            <CardContent className="pt-6 flex-1">
+            <CardContent className="pt-6 flex-1 min-w-0">
                 {filteredData.length > 0 ? (
                     <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                         {filteredData.map(data => (
