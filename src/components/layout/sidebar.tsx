@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import {
@@ -60,7 +59,6 @@ export const navItems = [
   { href: '/reports', icon: LineChart, label: 'Reports', roles: ['admin', 'viewer'] },
   { href: '/accounting', icon: Scale, label: 'Accounting', roles: ['admin', 'viewer'] },
   { href: '/support', icon: Ticket, label: 'Support', roles: ['admin', 'editor'] },
-  { href: '/users', icon: Users2, label: 'Users', roles: ['admin'] },
   { href: '/settings', icon: Settings, label: 'Settings', roles: ['admin'] },
   { href: '/ai-insights', icon: Bot, label: 'Gemini Chat', roles: ['admin', 'editor'] },
 ];
@@ -101,22 +99,22 @@ export function Sidebar() {
         <Link
             href="/"
             className={cn(
-                "group flex h-9 items-center gap-2 font-semibold transition-all duration-200",
-                isExpanded ? "w-full self-start px-2" : "self-center justify-center w-9 shrink-0 rounded-full bg-primary md:h-8 md:w-8"
+                "group flex h-12 items-center gap-3 transition-all duration-200",
+                isExpanded ? "w-full self-start px-4" : "self-center justify-center w-10 shrink-0 rounded-full md:h-10 md:w-10"
             )}
         >
             {isExpanded ? (
-                <div className='flex items-center gap-2 w-full min-w-0 pr-4'>
+                <div className='flex items-center gap-3 w-full min-w-0'>
                   {showLogo ? (
-                     <div className="relative h-8 w-8 shrink-0">
-                        <Image src={companyDetails.logoUrl!} alt={displayName} fill className="rounded-sm object-contain" />
+                     <div className="relative h-10 w-10 shrink-0">
+                        <Image src={companyDetails.logoUrl!} alt={displayName} fill className="rounded-md object-contain" />
                      </div>
                   ) : (
-                    <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{initials}</AvatarFallback>
+                    <Avatar className="h-10 w-10 shrink-0">
+                        <AvatarFallback className="bg-primary text-primary-foreground font-black text-xs uppercase">{initials}</AvatarFallback>
                     </Avatar>
                   )}
-                  <span className="text-xs font-black text-foreground truncate uppercase tracking-tighter shrink leading-none max-w-[140px]">
+                  <span className="text-sm font-bold text-foreground truncate uppercase tracking-tight leading-tight max-w-[160px]">
                     {displayName}
                   </span>
                 </div>
@@ -126,17 +124,17 @@ export function Sidebar() {
                         <TooltipTrigger asChild>
                             <span className="flex items-center justify-center">
                             {showLogo ? (
-                                <div className="relative h-6 w-6">
+                                <div className="relative h-8 w-8">
                                     <Image src={companyDetails.logoUrl!} alt={displayName} fill className="rounded-sm object-contain" />
                                 </div>
                             ) : (
-                                <Avatar className="h-8 w-8">
-                                    <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{initials}</AvatarFallback>
+                                <Avatar className="h-10 w-10">
+                                    <AvatarFallback className="bg-primary text-primary-foreground font-black text-xs uppercase">{initials}</AvatarFallback>
                                 </Avatar>
                             )}
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent side="right" className="font-black uppercase tracking-widest text-[10px]">{displayName}</TooltipContent>
+                        <TooltipContent side="right" className="font-bold text-xs">{displayName}</TooltipContent>
                     </Tooltip>
                  </TooltipProvider>
             )}
@@ -178,16 +176,16 @@ export function Sidebar() {
                     <Link
                     href={item.href}
                     className={cn(
-                        'flex h-9 items-center justify-start gap-3 rounded-lg px-2 text-muted-foreground transition-colors hover:text-foreground md:h-8',
+                        'flex h-10 items-center justify-start gap-3 rounded-lg px-3 text-muted-foreground transition-colors hover:text-foreground',
                         pathname === item.href && 'bg-accent text-accent-foreground',
-                        isExpanded ? 'w-full' : 'w-9 justify-center'
+                        isExpanded ? 'w-full' : 'w-10 justify-center'
                     )}
                     >
                     <item.icon className="h-5 w-5 shrink-0" />
-                    <span className={cn("truncate text-[10px] font-black uppercase tracking-widest", !isExpanded && 'sr-only' )}>{item.label}</span>
+                    <span className={cn("truncate text-sm font-medium", !isExpanded && 'sr-only' )}>{item.label}</span>
                     </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="font-bold uppercase text-[10px] tracking-widest">{item.label}</TooltipContent>
+                <TooltipContent side="right" className="font-medium text-xs">{item.label}</TooltipContent>
                 </Tooltip>
             ))}
             </nav>

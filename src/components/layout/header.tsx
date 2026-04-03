@@ -1,4 +1,3 @@
-
 'use client';
 import React from 'react';
 import {
@@ -42,8 +41,8 @@ const MobileCompanyLogo = () => {
 
     if (isCompanyLoading || !companyDetails) {
         return (
-             <div className="flex items-center gap-2 text-lg font-semibold">
-                <Avatar className="h-8 w-8">
+             <div className="flex items-center gap-3 text-lg font-semibold">
+                <Avatar className="h-10 w-10">
                     <AvatarFallback>CS</AvatarFallback>
                 </Avatar>
                 <span>Cricket Store</span>
@@ -54,15 +53,15 @@ const MobileCompanyLogo = () => {
     const showLogo = companyDetails.displayLogo && companyDetails.logoUrl;
 
     return (
-         <Link href="/" className="flex items-center gap-2 text-lg font-semibold max-w-[85%]">
+         <Link href="/" className="flex items-center gap-3 text-lg font-semibold max-w-[85%]">
             {showLogo ? (
-                <Image src={companyDetails.logoUrl!} alt={companyDetails.name} width={32} height={32} className="rounded-sm object-contain shrink-0" />
+                <Image src={companyDetails.logoUrl!} alt={companyDetails.name} width={40} height={40} className="rounded-md object-contain shrink-0" />
             ) : (
-                <Avatar className="h-8 w-8 shrink-0">
+                <Avatar className="h-10 w-10 shrink-0">
                     <AvatarFallback className="bg-primary text-primary-foreground font-bold">{companyDetails.shortName || companyDetails.name.charAt(0)}</AvatarFallback>
                 </Avatar>
             )}
-            <span className="truncate text-sm font-black uppercase tracking-tighter leading-none pr-4">
+            <span className="truncate text-sm font-black uppercase tracking-tight leading-tight pr-4">
                 {companyDetails.name}
             </span>
         </Link>
@@ -75,7 +74,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     const { openMobile, setOpenMobile } = useSidebar();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
       <Sheet open={openMobile} onOpenChange={setOpenMobile}>
         <SheetTrigger asChild>
           <Button size="icon" variant="outline" className="sm:hidden">
@@ -92,7 +91,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                         key={item.href}
                         href={item.href}
                         onClick={() => setOpenMobile(false)}
-                        className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground text-sm font-bold uppercase tracking-tight"
+                        className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground text-sm font-medium"
                       >
                         <item.icon className="h-5 w-5" />
                         {item.label}

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,6 +32,7 @@ const formSchema = z.object({
   gstin: z.string().optional().default(""),
   email: z.string().email().or(z.literal("")).optional().default(""),
   phone: z.string().optional().default(""),
+  website: z.string().optional().default(""),
   logoUrl: z.string().optional().default(""),
   displayLogo: z.boolean().default(true),
   invoicePrefix: z.string().optional().default("INV"),
@@ -58,7 +58,7 @@ export function CompanySettingsForm({ onSaveSuccess }: CompanySettingsFormProps)
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "", shortName: "", address: "", gstin: "", email: "", phone: "",
+      name: "", shortName: "", address: "", gstin: "", email: "", phone: "", website: "",
       logoUrl: "", displayLogo: true, invoicePrefix: "INV", invoiceTerms: "", poTerms: ""
     }
   });
@@ -72,6 +72,7 @@ export function CompanySettingsForm({ onSaveSuccess }: CompanySettingsFormProps)
         gstin: company.gstin || "",
         email: company.email || "",
         phone: company.phone || "",
+        website: company.website || "",
         logoUrl: company.logoUrl || "",
         displayLogo: company.displayLogo ?? true,
         invoicePrefix: company.invoicePrefix || "INV",
@@ -118,20 +119,20 @@ export function CompanySettingsForm({ onSaveSuccess }: CompanySettingsFormProps)
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 animate-in fade-in zoom-in-95 duration-200">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="name" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Company Full Name</FormLabel>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Company Full Name</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="shortName" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Short Name / Initials</FormLabel>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Short Name / Initials</FormLabel>
                   <FormControl><Input {...field} placeholder="e.g. CS" /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -140,30 +141,40 @@ export function CompanySettingsForm({ onSaveSuccess }: CompanySettingsFormProps)
 
             <FormField control={form.control} name="address" render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Business Address</FormLabel>
+                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Business Address</FormLabel>
                 <FormControl><Textarea {...field} className="min-h-[100px]" /></FormControl>
                 <FormMessage />
               </FormItem>
             )} />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="gstin" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">GSTIN</FormLabel>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">GSTIN</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
+              <FormField control={form.control} name="website" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Website URL</FormLabel>
+                  <FormControl><Input {...field} placeholder="e.g. www.business.com" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="email" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Contact Email</FormLabel>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Contact Email</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="phone" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Phone Number</FormLabel>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Phone Number</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -173,7 +184,7 @@ export function CompanySettingsForm({ onSaveSuccess }: CompanySettingsFormProps)
 
           <div className="space-y-6">
             <div className="p-6 border-2 border-dashed rounded-xl flex flex-col items-center gap-4 bg-muted/10">
-              <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Brand Logo</FormLabel>
+              <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Brand Logo</FormLabel>
               <div className="relative h-32 w-32 border bg-background rounded-lg overflow-hidden group">
                 {form.watch('logoUrl') ? (
                   <Image src={form.watch('logoUrl')} alt="Logo" fill className="object-contain p-2" />
@@ -190,9 +201,9 @@ export function CompanySettingsForm({ onSaveSuccess }: CompanySettingsFormProps)
             
             <FormField control={form.control} name="invoicePrefix" render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Invoice Prefix</FormLabel>
+                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice Prefix</FormLabel>
                 <FormControl><Input {...field} /></FormControl>
-                <FormDescription className="text-[10px]">e.g. INV, BILL, or CS</FormDescription>
+                <FormDescription className="text-[9px]">e.g. INV, BILL, or CS</FormDescription>
                 <FormMessage />
               </FormItem>
             )} />
@@ -204,23 +215,23 @@ export function CompanySettingsForm({ onSaveSuccess }: CompanySettingsFormProps)
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <FormField control={form.control} name="invoiceTerms" render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Invoice Terms & Conditions</FormLabel>
+              <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice Terms & Conditions</FormLabel>
               <FormControl><Textarea {...field} className="min-h-[150px] text-xs font-mono" /></FormControl>
-              <FormDescription className="text-[10px]">One condition per line.</FormDescription>
+              <FormDescription className="text-[9px]">One condition per line.</FormDescription>
               <FormMessage />
             </FormItem>
           )} />
           <FormField control={form.control} name="poTerms" render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs font-black uppercase tracking-widest text-muted-foreground">Purchase Order Terms</FormLabel>
+              <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Purchase Order Terms</FormLabel>
               <FormControl><Textarea {...field} className="min-h-[150px] text-xs font-mono" /></FormControl>
-              <FormDescription className="text-[10px]">One condition per line.</FormDescription>
+              <FormDescription className="text-[9px]">One condition per line.</FormDescription>
               <FormMessage />
             </FormItem>
           )} />
         </div>
 
-        <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest shadow-lg">
+        <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest bg-orange-500 hover:bg-orange-600 text-white shadow-lg">
           <Save className="mr-2 h-4 w-4" /> Save Company Profile
         </Button>
       </form>

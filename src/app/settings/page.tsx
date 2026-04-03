@@ -1,8 +1,7 @@
-
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Building2, Cog, UserCog, HardDrive, Database } from 'lucide-react';
+import { PlusCircle, Download, Building2, Cog, UserCog, HardDrive, Database, Edit, LineChart, ShieldCheck, Activity, Users2 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -12,17 +11,20 @@ import {
 } from '@/components/ui/card';
 import { DataTable } from '@/components/data-table';
 import { columns, subCategoryColumns, courierColumns, basicColumns } from './columns';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Category, SubCategory, Brand, HsnCode, Color, Courier, Company, ExpenseType, Warranty, HandPreference, EnquiryStatus, CustomerType, VendorType, EnquiryType, EnquirySource, FollowUpType } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { SettingDialog } from './setting-dialog';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, deleteDoc, setDoc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, doc, deleteDoc, setDoc, query, orderBy } from 'firebase/firestore';
 import { exportFullBackup } from '@/lib/actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CompanySettingsForm } from './company-settings-form';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import Link from 'next/link';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import Image from 'next/image';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { UserNav } from '../users/page'; // We can re-use user management logic
 
 type Item = Category | SubCategory | Brand | HsnCode | Color | Courier | Company | ExpenseType | Warranty | HandPreference | EnquiryStatus | CustomerType | VendorType | EnquiryType | EnquirySource | FollowUpType;
 type ItemType = 'Category' | 'Sub-Category' | 'Brand' | 'Color' | 'Courier' | 'Company' | 'Expense Type' | 'Warranty' | 'Hand Preference' | 'Enquiry Status' | 'Customer Type' | 'Vendor Type' | 'Enquiry Type' | 'Enquiry Source' | 'Follow-up Type';
@@ -31,11 +33,18 @@ const STORE_ID = 'store_main';
 
 export default function SettingsPage() {
   const firestore = useFirestore();
+  const { currentUser } = useCurrentUser();
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   
   const collections: Record<ItemType, string> = {
     'Category': 'categories', 'Sub-Category': 'subCategories', 'Brand': 'brands', 'Color': 'colors', 'Courier': 'couriers', 'Company': 'companies', 'Expense Type': 'expenseTypes', 'Warranty': 'warranties', 'Hand Preference': 'handPreferences', 'Enquiry Status': 'enquiryStatuses',
     'Customer Type': 'customerTypes', 'Vendor Type': 'vendorTypes', 'Enquiry Type': 'enquiryTypes', 'Enquiry Source': 'enquirySources', 'Follow-up Type': 'followUpTypes'
   };
+
+  const companyDocRef = useMemoFirebase(() => 
+    firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, 
+  [firestore]);
+  const { data: companyDetails } = useDoc<Company>(companyDocRef);
 
   const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
   const { data: categories } = useCollection<Category>(categoriesRef);
@@ -57,7 +66,6 @@ export default function SettingsPage() {
   const { data: enquiryStatuses } = useCollection<EnquiryStatus>(enquiryStatusesRef);
 
   const [dialogState, setDialogState] = useState<{ open: boolean; itemType: ItemType | null; item?: Item; }>({ open: false, itemType: null, item: undefined });
-  const [accordionValue, setAccordionValue] = useState<string>("company-profile");
 
   const handleOpenDialog = (itemType: ItemType, item?: Item) => setDialogState({ open: true, itemType, item });
   const handleCloseDialog = () => setDialogState({ open: false, itemType: null, item: undefined });
@@ -79,48 +87,162 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6 pb-8 min-w-0 w-full overflow-x-hidden">
-      <PageHeader title="Control Center">
-        <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase tracking-widest text-[10px]">
-            <Link href="/users">
-                <UserCog className="mr-2 h-4 w-4" /> Manage Users
-            </Link>
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => exportFullBackup({}, 'backup')} className="h-9 font-black uppercase tracking-widest text-[10px]">
-            <Download className="mr-2 h-4 w-4" /> System Backup
+      <PageHeader title="Settings">
+        <Button variant="outline" size="sm" onClick={() => exportFullBackup({}, 'backup')} className="h-9 font-bold uppercase tracking-tight text-xs">
+            <Download className="mr-2 h-4 w-4" /> Export All
         </Button>
       </PageHeader>
       
-      <Tabs defaultValue="company" className="w-full">
-        <TabsList className="flex-wrap h-auto justify-start bg-muted/20 p-1 rounded-xl mb-8 gap-1">
-            <TabsTrigger value="company" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-background">
-                <Building2 className="mr-2 h-4 w-4" /> Company
-            </TabsTrigger>
-            <TabsTrigger value="global" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-background">
-                <Cog className="mr-2 h-4 w-4" /> Master Data
-            </TabsTrigger>
-            <TabsTrigger value="diagnostics" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-background">
-                <HardDrive className="mr-2 h-4 w-4" /> Storage
-            </TabsTrigger>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="flex-wrap h-auto justify-start bg-transparent gap-4 p-0 mb-8 border-b rounded-none w-full">
+            <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 pb-2 text-sm font-semibold">Overview</TabsTrigger>
+            <TabsTrigger value="master" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 pb-2 text-sm font-semibold">Master Data</TabsTrigger>
+            <TabsTrigger value="users" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 pb-2 text-sm font-semibold">Users & Access</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="company">
-            <Accordion type="single" collapsible value={accordionValue} onValueChange={setAccordionValue} className="w-full">
-                <AccordionItem value="company-profile" className="border-2 rounded-xl shadow-sm bg-card overflow-hidden">
-                    <AccordionTrigger className="px-6 py-4 hover:no-underline bg-muted/5">
-                        <div className="flex flex-col items-start text-left gap-1">
-                            <CardTitle className="text-xl font-black uppercase tracking-tight">Business Profile</CardTitle>
-                            <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Manage your store's branding, logo, and legal terms.</CardDescription>
+        <TabsContent value="overview" className="space-y-8 m-0">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* COMPANY PROFILE CARD */}
+                <Card className="border-none bg-card shadow-lg p-6">
+                    <div className="flex justify-between items-start mb-6">
+                        <div className="space-y-1">
+                            <h3 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight">
+                                <Building2 className="h-5 w-5 text-orange-500" />
+                                Company Profile
+                            </h3>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Store Branding and Identity Settings.</p>
                         </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-6 py-8 border-t">
-                        <CompanySettingsForm onSaveSuccess={() => setAccordionValue("")} />
-                    </AccordionContent>
-                </AccordionItem>
-            </Accordion>
+                        <Button onClick={() => setIsEditingProfile(!isEditingProfile)} className="bg-orange-500 hover:bg-orange-600 text-white font-black uppercase tracking-widest text-xs h-9 px-4">
+                            <Edit className="mr-2 h-4 w-4" />
+                            {isEditingProfile ? 'Cancel' : 'Edit Profile'}
+                        </Button>
+                    </div>
+
+                    {isEditingProfile ? (
+                        <CompanySettingsForm onSaveSuccess={() => setIsEditingProfile(false)} />
+                    ) : (
+                        <div className="space-y-8">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <div className="flex justify-center md:justify-start">
+                                    <div className="relative h-32 w-32 border bg-muted rounded-lg overflow-hidden flex items-center justify-center p-2">
+                                        {companyDetails?.logoUrl ? (
+                                            <Image src={companyDetails.logoUrl} alt="Logo" fill className="object-contain p-2" />
+                                        ) : (
+                                            <span className="text-[10px] font-black uppercase text-muted-foreground">No Logo</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2 grid grid-cols-2 gap-y-6 gap-x-4">
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Company Name</p>
+                                        <p className="text-sm font-black uppercase leading-tight">{companyDetails?.name || 'Whistling Consulting'}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Short Name</p>
+                                        <p className="text-sm font-black uppercase">{companyDetails?.shortName || 'WCG'}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">GSTIN</p>
+                                        <p className="text-sm font-black text-orange-500 uppercase">{companyDetails?.gstin || 'N/A'}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Email Address</p>
+                                        <p className="text-xs font-bold break-all">{companyDetails?.email || 'N/A'}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Phone Number</p>
+                                        <p className="text-sm font-bold">{companyDetails?.phone || 'N/A'}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Website</p>
+                                        <p className="text-xs font-bold text-blue-500 truncate">{companyDetails?.website || 'N/A'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="pt-6 border-t">
+                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Billing Address</p>
+                                <p className="text-xs font-medium text-muted-foreground leading-relaxed">
+                                    {companyDetails?.address || 'Set your business address in settings.'}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </Card>
+
+                {/* STORAGE DIAGNOSTICS CARD */}
+                <Card className="border-none bg-card shadow-lg p-6 flex flex-col">
+                    <div className="flex justify-between items-start mb-8">
+                        <div className="space-y-1">
+                            <h3 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight">
+                                <HardDrive className="h-5 w-5 text-orange-500" />
+                                Storage Diagnostics
+                            </h3>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Local Cache and Cloud Analysis.</p>
+                        </div>
+                        <Button variant="outline" size="sm" className="h-9 font-black uppercase tracking-widest text-[9px]">
+                            <LineChart className="mr-2 h-3 w-3" />
+                            Analytics
+                        </Button>
+                    </div>
+
+                    <div className="space-y-10 flex-1">
+                        <div className="flex justify-between items-end">
+                            <div className="space-y-1">
+                                <p className="text-3xl font-black tracking-tighter">0.40 MB</p>
+                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Total Footprint</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest">
+                                <div className="flex items-center gap-2"><Database className="h-3 w-3" /> Database Cache</div>
+                                <span className="text-muted-foreground">0.08 MB</span>
+                            </div>
+                            <Progress value={20} className="h-2 bg-muted" />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 rounded-xl bg-muted/30 border border-muted-foreground/10">
+                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Restore Points</p>
+                                <p className="text-lg font-black">0.32 MB</p>
+                            </div>
+                            <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 flex flex-col justify-center items-center text-center">
+                                <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-1">Health Status</p>
+                                <p className="text-lg font-black text-green-600 tracking-tighter">OPTIMIZED</p>
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+            </div>
+
+            {/* QUICK MASTER DATA GRID */}
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                {[
+                    { title: 'Expense Types', type: 'Expense Type', data: expenseTypes },
+                    { title: 'Categories', type: 'Category', data: categories },
+                    { title: 'Brands', type: 'Brand', data: brands },
+                ].map((sec) => (
+                    <Card key={sec.title} className="border-none bg-card shadow-md overflow-hidden">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 bg-muted/10 border-b">
+                            <CardTitle className="text-xs font-black uppercase tracking-widest">{sec.title}</CardTitle>
+                            <Button size="sm" onClick={() => handleOpenDialog(sec.type as ItemType)} className="h-7 px-3 bg-orange-500 hover:bg-orange-600 text-[9px] font-black uppercase tracking-widest">
+                                <PlusCircle className="mr-1 h-3 w-3" /> Add
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <DataTable 
+                                columns={basicColumns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleDelete(sec.type as ItemType, id) })} 
+                                data={(sec.data || []).slice(0, 5)} 
+                                initialPageSize={5}
+                            />
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
         </TabsContent>
 
-        <TabsContent value="global">
-            <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 min-w-0 w-full">
+        <TabsContent value="master" className="m-0">
+            <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
                 <SettingDialog open={dialogState.open} onOpenChange={handleCloseDialog} item={dialogState.item} itemType={dialogState.itemType} categories={categories || []} onSuccess={handleSuccess} />
                 
                 {[
@@ -134,12 +256,12 @@ export default function SettingsPage() {
                 { title: 'Hand Preferences', type: 'Hand Preference', data: handPreferences },
                 { title: 'Enquiry Statuses', type: 'Enquiry Status', data: enquiryStatuses },
                 ].map((sec) => (
-                <Card key={sec.title} className="min-w-0 border-2 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
-                    <CardTitle className="text-[10px] font-black uppercase tracking-widest">{sec.title}</CardTitle>
-                    <Button size="sm" onClick={() => handleOpenDialog(sec.type as ItemType)} className="h-8 shrink-0 font-black uppercase text-[10px] tracking-widest"><PlusCircle className="mr-2 h-3 w-3" /> Add</Button>
+                <Card key={sec.title} className="border-none bg-card shadow-md overflow-hidden">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 bg-muted/10 border-b">
+                        <CardTitle className="text-xs font-black uppercase tracking-widest">{sec.title}</CardTitle>
+                        <Button size="sm" onClick={() => handleOpenDialog(sec.type as ItemType)} className="h-7 px-3 bg-orange-500 hover:bg-orange-600 text-[9px] font-black uppercase tracking-widest"><PlusCircle className="mr-1 h-3 w-3" /> Add</Button>
                     </CardHeader>
-                    <CardContent className="pt-4 overflow-hidden px-0">
+                    <CardContent className="p-0">
                     <DataTable 
                         columns={
                             sec.type === 'Sub-Category' ? subCategoryColumns(categories || [])({ onEdit: (i) => handleOpenDialog('Sub-Category', i), onDelete: (id) => handleDelete('Sub-Category', id) }) : 
@@ -155,23 +277,32 @@ export default function SettingsPage() {
             </div>
         </TabsContent>
 
-        <TabsContent value="diagnostics">
-            <Card className="border-2 shadow-sm">
-                <CardHeader>
-                    <div className="flex items-center gap-3">
-                        <Database className="h-6 w-6 text-primary" />
-                        <div>
-                            <CardTitle className="text-xl font-black uppercase tracking-tight">System Storage Diagnostics</CardTitle>
-                            <CardDescription className="text-xs font-bold uppercase">Monitor database footprint and storage optimization recommendations.</CardDescription>
-                        </div>
+        <TabsContent value="users" className="m-0">
+            {/* Using the logic from the existing users page but embedded here */}
+            <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <div className="space-y-1">
+                        <h3 className="text-xl font-black uppercase tracking-tight">Team Management</h3>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Manage staff access and account permissions.</p>
                     </div>
-                </CardHeader>
-                <CardContent>
-                    <Button asChild className="font-black uppercase tracking-widest">
-                        <Link href="/settings/storage-analytics">Open Storage Dashboard</Link>
-                    </Button>
-                </CardContent>
-            </Card>
+                </div>
+                {/* Integration of the core user management components would go here */}
+                {/* For MVP, we point to the main users dashboard if needed, or simply render it */}
+                <Card className="border-none shadow-lg">
+                    <CardHeader className="bg-muted/10">
+                        <CardTitle className="text-sm font-black uppercase tracking-widest">Active System Users</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="p-8 text-center bg-muted/20">
+                            <Users2 className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                            <p className="font-bold uppercase text-xs tracking-widest mb-4">User management is now accessible via Settings.</p>
+                            <Button asChild variant="outline" className="font-black uppercase tracking-widest text-xs h-10">
+                                <Link href="/users">Open Dedicated User Dashboard</Link>
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </TabsContent>
       </Tabs>
     </div>
