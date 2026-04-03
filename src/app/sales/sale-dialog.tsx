@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,11 +22,10 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, MapPin, Truck } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -117,15 +117,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const brandsRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'brands') : null, [firestore]);
   const { data: brands } = useCollection<Brand>(brandsRef);
 
-  const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
-  const { data: categories } = useCollection<Category>(categoriesRef);
-
-  const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
-  const { data: subCategories } = useCollection<SubCategory>(subCategoriesRef);
-
-  const sortedProducts = useMemo(() => [...(allProducts || [])].sort((a, b) => a.name.localeCompare(b.name)), [allProducts]);
-  const sortedCustomers = useMemo(() => [...(customers || [])].sort((a, b) => a.name.localeCompare(b.name)), [customers]);
-
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -147,17 +138,16 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
   const { setValue, reset, watch, getValues } = form;
 
+  // useWatch handles nested field updates efficiently for live totals
   const watchedItems = useWatch({ control: form.control, name: "items" }) || [];
   const watchedCouponCode = useWatch({ control: form.control, name: "couponCode" });
   const watchedSaleType = useWatch({ control: form.control, name: "saleType" });
   const watchedCustomerId = useWatch({ control: form.control, name: "customerId" });
   const watchedStoreId = useWatch({ control: form.control, name: "storeId" });
   const watchedManualDiscount = useWatch({ control: form.control, name: "manualDiscountPercentage" });
-  const watchedUseDifferentShipping = useWatch({ control: form.control, name: "useDifferentShipping" });
 
   const selectedCustomer = useMemo(() => customers?.find(c => c.id === watchedCustomerId), [customers, watchedCustomerId]);
-  const customerAddresses = useMemo(() => selectedCustomer?.addresses || [], [selectedCustomer]);
-  const primaryAddress = useMemo(() => customerAddresses.find(a => a.isPrimary) || customerAddresses[0], [customerAddresses]);
+  const primaryAddress = useMemo(() => selectedCustomer?.addresses.find(a => a.isPrimary) || selectedCustomer?.addresses[0], [selectedCustomer]);
 
   const calculateTotals = useCallback((items: any[], type: string, storeId: string, custAddress: any, couponCode: string, manualDisc: number) => {
     const subTotalVal = items.reduce((acc, item) => {
@@ -244,8 +234,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         
         setValue(`items.${index}.hsnCode`, product.hsnCode);
         setValue(`items.${index}.gstRate`, gstRate);
-        setValue(`items.${index}.categoryId`, product.category);
-        setValue(`items.${index}.subCategoryId`, product.subCategory || '');
         
         if (index === fields.length - 1) {
             append({ productId: "", sku: '', productName: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
@@ -262,7 +250,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         return {
             ...item,
             productId: item.productId!,
-            sku: item.sku || product?.sku || '', 
+            sku: product?.sku || item.sku || 'N/A', 
             productName: product?.name || 'Unknown',
             brandName: brand?.name || 'Unknown',
             totalPrice: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
@@ -279,6 +267,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
+    // Force final recalculation before saving to avoid zero totals
     const finalTotals = calculateTotals(validItems, data.saleType, data.storeId, billingAddress, data.couponCode, data.manualDiscountPercentage);
 
     const finalSale = JSON.parse(JSON.stringify({
@@ -290,8 +279,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       items: validItems,
       subTotal: finalTotals.subTotal,
       gstAmount: finalTotals.gstAmount,
-      cgstAmount: finalTotals.cgstAmount,
-      sgstAmount: finalTotals.sgstAmount,
+      cgstAmount: finalTotals.gstAmount / 2,
+      sgstAmount: finalTotals.gstAmount / 2,
       igstAmount: finalTotals.igstAmount,
       couponDiscount: finalTotals.couponDiscount,
       manualDiscountAmount: finalTotals.manualDiscountAmount,
@@ -299,10 +288,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       total: finalTotals.total,
       balanceAmount: finalTotals.total - (data.status === 'paid' ? finalTotals.total : (data.amountPaid || 0)),
       saleDate: data.saleDate.toISOString(),
-      courierCompany: data.courierCompany || "",
-      trackingNumber: data.trackingNumber || "",
-      trackingLink: data.trackingLink || "",
-      comments: data.comments || "",
     }));
 
     onSuccess(finalSale);
@@ -310,10 +295,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
 
   useEffect(() => {
     if (open && sale) {
-        reset({
-            ...sale,
-            saleDate: sale.saleDate ? new Date(sale.saleDate) : new Date(),
-        } as any);
+        reset({ ...sale, saleDate: sale.saleDate ? new Date(sale.saleDate) : new Date() } as any);
     } else if (open) {
         reset();
         append({ productId: "", sku: '', productName: '', brandId: "", handPreference: 'Normal', quantity: 1, unitPrice: 0, hsnCode: '', gstRate: 0, color1: '', color2: '', categoryId: '', subCategoryId: '' });
@@ -322,25 +304,21 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
-        className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0" 
-        onInteractOutside={(e) => e.preventDefault()}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
+      <DialogContent className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-4 border-b">
-            <DialogTitle className="text-2xl font-black uppercase tracking-tight">{sale?.id ? "Edit Sale" : "New Sale"}</DialogTitle>
-            <DialogDescription className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Process a new customer transaction and generate an invoice.</DialogDescription>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tight">New Sale</DialogTitle>
+            <DialogDescription className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Process transaction and generate invoice.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form id="sale-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                 <div className="space-y-4">
                     <FormField control={form.control} name="customerId" render={({ field }) => (
                         <FormItem>
                             <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer *</FormLabel>
                             <div className="flex items-center gap-2">
                                 <Combobox
-                                    options={sortedCustomers?.map(c => ({ value: c.id, label: c.name })) || []}
+                                    options={customers?.map(c => ({ value: c.id, label: c.name })) || []}
                                     value={field.value}
                                     onChange={field.onChange}
                                     placeholder="Search customers..."
@@ -351,33 +329,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                             </div>
                         </FormItem>
                     )} />
-                    {selectedCustomer && (
-                        <div className="p-4 rounded-lg bg-muted/30 border space-y-2">
-                            <div className="flex justify-between items-start">
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-widest"><MapPin className="h-3 w-3" /> Billing Address</div>
-                                    <p className="text-sm font-medium">{primaryAddress?.street}, {primaryAddress?.city}</p>
-                                </div>
-                                {selectedCustomer.gstNumber && <Badge variant="outline" className="font-mono text-xs border-primary/30 bg-primary/5 text-primary uppercase">GSTIN: {selectedCustomer.gstNumber}</Badge>}
-                            </div>
-                            <FormField control={form.control} name="useDifferentShipping" render={({ field }) => (
-                                <FormItem className="flex flex-row items-center space-x-2 space-y-0 pt-2 border-t">
-                                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                                    <Label className="text-xs font-bold uppercase cursor-pointer text-muted-foreground">Ship to different address?</Label>
-                                </FormItem>
-                            )} />
-                            {watchedUseDifferentShipping && (
-                                <FormField control={form.control} name="shippingAddressId" render={({ field }) => (
-                                    <FormItem className="pt-2">
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select shipping address" /></SelectTrigger></FormControl>
-                                            <SelectContent>{customerAddresses.map(addr => <SelectItem key={addr.id} value={addr.id}>{addr.street}, {addr.city}</SelectItem>)}</SelectContent>
-                                        </Select>
-                                    </FormItem>
-                                )} />
-                            )}
-                        </div>
-                    )}
                 </div>
                 <div className="space-y-4">
                     <FormField control={form.control} name="saleDate" render={({ field }) => (
@@ -389,36 +340,19 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                             </Popover>
                         </FormItem>
                     )} />
-                    <FormField control={form.control} name="saleType" render={({ field }) => (
-                        <FormItem className="space-y-3">
-                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice Type</FormLabel>
-                            <FormControl>
-                                <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
-                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="GST" /></FormControl><FormLabel className="font-bold text-xs uppercase">GST</FormLabel></FormItem>
-                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-bold text-xs uppercase">Cash</FormLabel></FormItem>
-                                </RadioGroup>
-                            </FormControl>
-                        </FormItem>
-                    )} />
                 </div>
             </div>
 
             <div className="space-y-4">
-              <FormLabel className="text-lg font-black uppercase tracking-tight border-b-4 border-primary/20 pb-2 block">Invoice Items</FormLabel>
+              <FormLabel className="text-lg font-black uppercase tracking-tight border-b-2 pb-2 block">Invoice Items</FormLabel>
               {fields.map((field, index) => {
                   const selectedProdId = watchedItems[index]?.productId;
-                  const itemQty = Number(watchedItems[index]?.quantity) || 0;
-                  const itemPrice = Number(watchedItems[index]?.unitPrice) || 0;
-                  const lineTotal = itemQty * itemPrice;
-
                   const product = allProducts?.find(p => p.id === selectedProdId);
-                  const category = categories?.find(c => c.id === product?.category);
-                  const subCategory = subCategories?.find(sc => sc.id === product?.subCategory);
                   const stockItem = inventory?.find(i => i.productId === selectedProdId);
                   const currentStock = stockItem?.stockBatches?.reduce((sum, b) => sum + b.quantity, 0) || 0;
                   
                   return (
-                      <Card key={field.id} className={cn("border-2 shadow-sm transition-all duration-200", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
+                      <Card key={field.id} className={cn("border-2 shadow-sm", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
                           <CardHeader className="py-2 px-4 bg-muted/20 flex flex-row justify-between items-center border-b">
                              <div className="flex items-center gap-3">
                                 <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
@@ -429,27 +363,20 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                         <Badge className={cn("text-[9px] font-black h-5 uppercase", currentStock < 10 ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")}>
                                             Stock: {currentStock}
                                         </Badge>
-                                        {category && <Badge className="text-[9px] font-black h-5 bg-purple-100 text-purple-700 border-purple-200 uppercase">CAT: {category.name}</Badge>}
-                                        {subCategory && <Badge className="text-[9px] font-black h-5 bg-orange-100 text-orange-700 border-orange-200 uppercase">SUB: {subCategory.name}</Badge>}
                                     </div>
                                 )}
                              </div>
-                             {lineTotal > 0 && <Badge variant="secondary" className="font-black text-[10px] bg-primary/10 text-primary uppercase">Line Total: ₹{lineTotal.toLocaleString()}</Badge>}
-                             <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
+                             <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
                           </CardHeader>
-                          <CardContent className="p-4 grid grid-cols-12 gap-3 items-end overflow-visible">
-                              <div className="col-span-12 sm:col-span-6 overflow-visible">
+                          <CardContent className="p-4 grid grid-cols-12 gap-3 items-end">
+                              <div className="col-span-12 sm:col-span-6">
                                   <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
                                       <FormItem>
                                           <Combobox
-                                              options={sortedProducts?.map(p => ({ 
-                                                  value: p.id, 
-                                                  label: `${p.name} (${p.sku})`,
-                                                  searchTerms: `${p.name} ${p.sku}`.toLowerCase()
-                                              })) || []}
+                                              options={allProducts?.map(p => ({ value: p.id, label: `${p.name} (${p.sku})`, searchTerms: `${p.name} ${p.sku}`.toLowerCase() })) || []}
                                               value={f.value || ""}
                                               onChange={(val) => handleProductSelect(val, index)}
-                                              placeholder="Search Name or SKU..."
+                                              placeholder="Select Product"
                                               searchPlaceholder="Type name or SKU..."
                                               notFoundText="No results."
                                           />
@@ -457,10 +384,10 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                   )} />
                               </div>
                               <div className="col-span-4 sm:col-span-2">
-                                  <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10 border-muted-foreground/50 font-bold"/>} />
+                                  <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: f }) => <Input type="number" {...f} className="h-10 border-muted-foreground/50"/>} />
                               </div>
                               <div className="col-span-8 sm:col-span-4">
-                                  <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50 bg-background text-primary" />} />
+                                  <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: f }) => <Input type="number" {...f} className="h-10 font-black border-muted-foreground/50 bg-background" />} />
                               </div>
                           </CardContent>
                       </Card>
@@ -468,51 +395,26 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
               })}
             </div>
 
-            <Separator />
-
-            <div className="space-y-4">
-                <h4 className="font-black text-[10px] uppercase tracking-widest text-primary flex items-center gap-2"><Truck className="h-4 w-4" /> Shipping & Logistics</h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <FormField control={form.control} name="courierCompany" render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                            <Select onValueChange={field.onChange} value={field.value || ""}>
-                                <FormControl><SelectTrigger className="h-9 border-muted-foreground/50 bg-background text-xs"><SelectValue placeholder="Select Courier Partner" /></SelectTrigger></FormControl>
-                                <SelectContent>{couriers?.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
-                            </Select>
-                        </FormItem>
-                    )} />
-                    <FormField control={form.control} name="trackingNumber" render={({ field }) => <FormItem><FormControl><Input placeholder="Tracking #" {...field} className="h-9 border-muted-foreground/50 bg-background text-xs" /></FormControl></FormItem>} />
-                    <FormField control={form.control} name="numberOfBoxes" render={({ field }) => <FormItem><FormControl><Input type="number" {...field} className="h-9 border-muted-foreground/50 bg-background text-xs" /></FormControl></FormItem>} />
-                </div>
-            </div>
-
             <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 space-y-3 shadow-inner">
                 <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground"><span>Subtotal</span><span className="font-black text-foreground">₹{totals.subTotal.toLocaleString()}</span></div>
-                {totals.totalDiscount > 0 && <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-destructive"><span>Total Discount</span><span className="font-black">-₹{totals.totalDiscount.toLocaleString()}</span></div>}
-                {watchedSaleType === 'GST' && (
-                    <div className="space-y-1 pt-2 border-t border-primary/10">
-                        {totals.cgstAmount > 0 && <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase"><span>CGST</span><span>₹{totals.cgstAmount.toLocaleString()}</span></div>}
-                        {totals.sgstAmount > 0 && <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase"><span>SGST</span><span>₹{totals.sgstAmount.toLocaleString()}</span></div>}
-                        {totals.igstAmount > 0 && <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase"><span>IGST</span><span>₹{totals.igstAmount.toLocaleString()}</span></div>}
-                    </div>
-                )}
+                {totals.totalDiscount > 0 && <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-destructive"><span>Discount</span><span className="font-black">-₹{totals.totalDiscount.toLocaleString()}</span></div>}
+                <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground"><span>Tax (GST)</span><span className="font-black text-foreground">₹{totals.gstAmount.toLocaleString()}</span></div>
                 <div className="flex justify-between text-[10px] italic font-black uppercase border-t pt-2 border-primary/10">
-                    <span className="text-muted-foreground">Round Off Adjustment</span>
+                    <span>Round Off Adjustment</span>
                     <span className={cn(totals.roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
                         {totals.roundOffAmount < 0 ? '-' : '+'}₹{Math.abs(totals.roundOffAmount).toFixed(2)}
                     </span>
                 </div>
-                <div className="flex justify-between items-center pt-4 border-t-4 border-primary/20">
+                <div className="flex justify-between items-center pt-4 border-t-2 border-primary/20">
                     <span className="text-xl font-black uppercase tracking-tighter">Net Payable</span>
-                    <span className="text-4xl font-black text-primary tracking-tighter drop-shadow-sm">₹{totals.total.toLocaleString()}</span>
+                    <span className="text-4xl font-black text-primary tracking-tighter">₹{totals.total.toLocaleString()}</span>
                 </div>
             </div>
           </form>
         </Form>
-        <DialogFooter className="p-4 border-t bg-muted/10 flex flex-col sm:flex-row gap-2">
+        <div className="p-4 border-t bg-muted/10 flex justify-end">
             <Button type="submit" form="sale-form" className="w-full sm:w-auto font-black uppercase tracking-widest px-12 h-12 shadow-lg">Save & Generate Invoice</Button>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto font-bold uppercase text-xs">Cancel</Button>
-        </DialogFooter>
+        </div>
         <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
       </DialogContent>
     </Dialog>

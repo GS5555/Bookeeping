@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import {
@@ -93,51 +94,53 @@ export function Sidebar() {
     }
     
     const showLogo = companyDetails.displayLogo && companyDetails.logoUrl;
+    const displayName = companyDetails.name || 'Store Manager';
+    const initials = companyDetails.shortName || displayName.substring(0, 2).toUpperCase();
 
     return (
         <Link
             href="/"
             className={cn(
                 "group flex h-9 items-center gap-2 font-semibold transition-all duration-200",
-                isExpanded ? "w-full self-start px-2 overflow-hidden" : "self-center justify-center w-9 shrink-0 rounded-full bg-primary md:h-8 md:w-8"
+                isExpanded ? "w-full self-start px-2" : "self-center justify-center w-9 shrink-0 rounded-full bg-primary md:h-8 md:w-8"
             )}
         >
             {isExpanded ? (
                 <div className='flex items-center gap-2 w-full min-w-0 pr-4'>
                   {showLogo ? (
                      <div className="relative h-8 w-8 shrink-0">
-                        <Image src={companyDetails.logoUrl!} alt={companyDetails.name} fill className="rounded-sm object-contain" />
+                        <Image src={companyDetails.logoUrl!} alt={displayName} fill className="rounded-sm object-contain" />
                      </div>
                   ) : (
                     <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback className="bg-primary text-primary-foreground font-bold text-[10px]">{companyDetails.shortName || companyDetails.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{initials}</AvatarFallback>
                     </Avatar>
                   )}
-                  <span className="text-sm font-black text-foreground truncate uppercase tracking-tighter shrink leading-none">
-                    {companyDetails.name}
+                  <span className="text-xs font-black text-foreground truncate uppercase tracking-tighter shrink leading-none max-w-[140px]">
+                    {displayName}
                   </span>
                 </div>
             ) : (
                  <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <span>
+                            <span className="flex items-center justify-center">
                             {showLogo ? (
                                 <div className="relative h-6 w-6">
-                                    <Image src={companyDetails.logoUrl!} alt={companyDetails.name} fill className="rounded-sm object-contain" />
+                                    <Image src={companyDetails.logoUrl!} alt={displayName} fill className="rounded-sm object-contain" />
                                 </div>
                             ) : (
                                 <Avatar className="h-8 w-8">
-                                    <AvatarFallback className="bg-primary text-primary-foreground font-bold text-[10px]">{companyDetails.shortName || companyDetails.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                    <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{initials}</AvatarFallback>
                                 </Avatar>
                             )}
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent side="right">{companyDetails.name}</TooltipContent>
+                        <TooltipContent side="right" className="font-black uppercase tracking-widest text-[10px]">{displayName}</TooltipContent>
                     </Tooltip>
                  </TooltipProvider>
             )}
-            <span className="sr-only">{companyDetails.name}</span>
+            <span className="sr-only">{displayName}</span>
         </Link>
     );
   }
@@ -155,7 +158,7 @@ export function Sidebar() {
               <Button
                 variant="outline"
                 size="icon"
-                className={cn("h-9 w-9 md:h-8 md:w-8", isExpanded && "self-start ml-2")}
+                className={cn("h-9 w-9 md:h-8 md:w-8 transition-all", isExpanded && "self-start ml-2")}
                 onClick={() => toggleSidebar()}
               >
                 <PanelLeft className="h-5 w-5" />
@@ -184,7 +187,7 @@ export function Sidebar() {
                     <span className={cn("truncate text-[10px] font-black uppercase tracking-widest", !isExpanded && 'sr-only' )}>{item.label}</span>
                     </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">{item.label}</TooltipContent>
+                <TooltipContent side="right" className="font-bold uppercase text-[10px] tracking-widest">{item.label}</TooltipContent>
                 </Tooltip>
             ))}
             </nav>

@@ -71,8 +71,9 @@ export default function InvoicePage() {
     const termsAndConditions = companyDetails.invoiceTerms?.split('\n').filter(t => t.trim() !== '') || [];
     const totalAmount = sale.total;
     
+    // Explicit Round Off logic for legacy or new records
     const rawTotal = (sale.subTotal || 0) + (sale.gstAmount || 0) - (sale.couponDiscount || 0) - (sale.manualDiscountAmount || 0);
-    const roundOffAmount = sale.roundOffAmount !== undefined ? sale.roundOffAmount : (sale.total - rawTotal);
+    const roundOffAmount = sale.roundOffAmount !== undefined ? sale.roundOffAmount : (totalAmount - rawTotal);
 
     return (
         <div className="min-h-screen bg-white p-4 sm:p-8 flex flex-col items-center">
@@ -216,12 +217,14 @@ export default function InvoicePage() {
                             </div>
                         )}
                         
-                        <div className="flex justify-between text-[10px] font-black uppercase italic border-t pt-2 border-gray-200">
-                            <span className="text-gray-500">Round Off Adjustment</span>
-                            <span className={cn(roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
-                                {roundOffAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(roundOffAmount))}
-                            </span>
-                        </div>
+                        {Math.abs(roundOffAmount) > 0.01 && (
+                            <div className="flex justify-between text-[10px] font-black uppercase italic border-t pt-2 border-gray-200">
+                                <span className="text-gray-500">Round Off Adjustment</span>
+                                <span className={cn(roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
+                                    {roundOffAmount < 0 ? '-' : '+'}{formatCurrency(Math.abs(roundOffAmount))}
+                                </span>
+                            </div>
+                        )}
                         
                         <div className="flex justify-between items-center pt-4 border-t-2 border-gray-900 mt-2">
                             <span className="text-sm font-black text-gray-900 uppercase tracking-widest">Grand Total</span>

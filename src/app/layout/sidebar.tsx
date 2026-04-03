@@ -8,7 +8,6 @@ import {
   LineChart,
   Package,
   PanelLeft,
-  PercentSquare,
   Scale,
   Settings,
   ShoppingCart,
@@ -17,7 +16,6 @@ import {
   Users2,
   Wallet,
   Wrench,
-  ShieldCheck,
   UserPlus,
   FileText,
   HelpCircle,
@@ -95,29 +93,30 @@ export function Sidebar() {
     }
     
     const showLogo = companyDetails.displayLogo && companyDetails.logoUrl;
-    const shortName = companyDetails.shortName || companyDetails.name.substring(0, 2).toUpperCase();
+    const displayName = companyDetails.name || 'Store Manager';
+    const initials = companyDetails.shortName || displayName.substring(0, 2).toUpperCase();
 
     return (
         <Link
             href="/"
             className={cn(
                 "group flex h-9 items-center gap-2 font-semibold transition-all duration-200",
-                isExpanded ? "w-full self-start px-2 overflow-hidden" : "self-center justify-center w-9 shrink-0 rounded-full bg-primary md:h-8 md:w-8"
+                isExpanded ? "w-full self-start px-2" : "self-center justify-center w-9 shrink-0 rounded-full bg-primary md:h-8 md:w-8"
             )}
         >
             {isExpanded ? (
                 <div className='flex items-center gap-2 w-full min-w-0 pr-2'>
                   {showLogo ? (
                      <div className="relative h-8 w-8 shrink-0">
-                        <Image src={companyDetails.logoUrl!} alt={companyDetails.name} fill className="rounded-sm object-contain" />
+                        <Image src={companyDetails.logoUrl!} alt={displayName} fill className="rounded-sm object-contain" />
                      </div>
                   ) : (
                     <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{shortName}</AvatarFallback>
+                        <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{initials}</AvatarFallback>
                     </Avatar>
                   )}
-                  <span className="text-xs font-black text-foreground truncate uppercase tracking-tighter shrink leading-none max-w-[120px]">
-                    {companyDetails.name}
+                  <span className="text-xs font-black text-foreground truncate uppercase tracking-tighter shrink leading-none max-w-[140px]">
+                    {displayName}
                   </span>
                 </div>
             ) : (
@@ -127,20 +126,20 @@ export function Sidebar() {
                             <span className="flex items-center justify-center">
                             {showLogo ? (
                                 <div className="relative h-6 w-6">
-                                    <Image src={companyDetails.logoUrl!} alt={companyDetails.name} fill className="rounded-sm object-contain" />
+                                    <Image src={companyDetails.logoUrl!} alt={displayName} fill className="rounded-sm object-contain" />
                                 </div>
                             ) : (
                                 <Avatar className="h-8 w-8">
-                                    <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{shortName}</AvatarFallback>
+                                    <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{initials}</AvatarFallback>
                                 </Avatar>
                             )}
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent side="right" className="font-black uppercase tracking-widest text-[10px]">{companyDetails.name}</TooltipContent>
+                        <TooltipContent side="right" className="font-black uppercase tracking-widest text-[10px]">{displayName}</TooltipContent>
                     </Tooltip>
                  </TooltipProvider>
             )}
-            <span className="sr-only">{companyDetails.name}</span>
+            <span className="sr-only">{displayName}</span>
         </Link>
     );
   }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,7 +40,11 @@ const formSchema = z.object({
   poTerms: z.string().optional().default(""),
 });
 
-export function CompanySettingsForm() {
+interface CompanySettingsFormProps {
+    onSaveSuccess?: () => void;
+}
+
+export function CompanySettingsForm({ onSaveSuccess }: CompanySettingsFormProps) {
   const firestore = useFirestore();
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -102,6 +107,7 @@ export function CompanySettingsForm() {
       const docRef = doc(firestore, 'settings', 'global', 'companies', 'main_company');
       await setDoc(docRef, { ...values, id: 'main_company' }, { merge: true });
       toast({ title: "Profile Updated", description: "Company settings have been saved successfully." });
+      onSaveSuccess?.();
     } catch (error) {
       console.error(error);
       toast({ title: "Save Failed", variant: "destructive" });

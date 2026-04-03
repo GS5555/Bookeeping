@@ -1,7 +1,8 @@
+
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, Building2, Cog, UserCog } from 'lucide-react';
+import { PlusCircle, Download, Building2, Cog, UserCog, HardDrive, Database } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -10,7 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { DataTable } from '@/components/data-table';
-import { columns, subCategoryColumns, courierColumns } from './columns';
+import { columns, subCategoryColumns, courierColumns, basicColumns } from './columns';
 import { useState } from 'react';
 import { Category, SubCategory, Brand, HsnCode, Color, Courier, Company, ExpenseType, Warranty, HandPreference, EnquiryStatus, CustomerType, VendorType, EnquiryType, EnquirySource, FollowUpType } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
@@ -20,6 +21,7 @@ import { collection, doc, deleteDoc, setDoc } from 'firebase/firestore';
 import { exportFullBackup } from '@/lib/actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CompanySettingsForm } from './company-settings-form';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Link from 'next/link';
 
 type Item = Category | SubCategory | Brand | HsnCode | Color | Courier | Company | ExpenseType | Warranty | HandPreference | EnquiryStatus | CustomerType | VendorType | EnquiryType | EnquirySource | FollowUpType;
@@ -47,8 +49,15 @@ export default function SettingsPage() {
   const { data: couriers } = useCollection<Courier>(couriersRef);
   const expenseTypesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'expenseTypes') : null, [firestore]);
   const { data: expenseTypes } = useCollection<ExpenseType>(expenseTypesRef);
+  const warrantiesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'warranties') : null, [firestore]);
+  const { data: warranties } = useCollection<Warranty>(warrantiesRef);
+  const handPreferencesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'handPreferences') : null, [firestore]);
+  const { data: handPreferences } = useCollection<HandPreference>(handPreferencesRef);
+  const enquiryStatusesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'enquiryStatuses') : null, [firestore]);
+  const { data: enquiryStatuses } = useCollection<EnquiryStatus>(enquiryStatusesRef);
 
   const [dialogState, setDialogState] = useState<{ open: boolean; itemType: ItemType | null; item?: Item; }>({ open: false, itemType: null, item: undefined });
+  const [accordionValue, setAccordionValue] = useState<string>("company-profile");
 
   const handleOpenDialog = (itemType: ItemType, item?: Item) => setDialogState({ open: true, itemType, item });
   const handleCloseDialog = () => setDialogState({ open: false, itemType: null, item: undefined });
@@ -69,7 +78,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 sm:gap-8 pb-8 min-w-0 w-full overflow-x-hidden">
+    <div className="flex flex-col gap-6 pb-8 min-w-0 w-full overflow-x-hidden">
       <PageHeader title="Control Center">
         <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase tracking-widest text-[10px]">
             <Link href="/users">
@@ -82,25 +91,32 @@ export default function SettingsPage() {
       </PageHeader>
       
       <Tabs defaultValue="company" className="w-full">
-        <TabsList className="grid grid-cols-2 w-full sm:w-[400px] mb-8 bg-muted/20 p-1 rounded-xl">
-            <TabsTrigger value="company" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                <Building2 className="mr-2 h-4 w-4" /> Company Profile
+        <TabsList className="flex-wrap h-auto justify-start bg-muted/20 p-1 rounded-xl mb-8 gap-1">
+            <TabsTrigger value="company" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-background">
+                <Building2 className="mr-2 h-4 w-4" /> Company
             </TabsTrigger>
-            <TabsTrigger value="global" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <TabsTrigger value="global" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-background">
                 <Cog className="mr-2 h-4 w-4" /> Master Data
+            </TabsTrigger>
+            <TabsTrigger value="diagnostics" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-background">
+                <HardDrive className="mr-2 h-4 w-4" /> Storage
             </TabsTrigger>
         </TabsList>
 
         <TabsContent value="company">
-            <Card className="border-2 shadow-sm">
-                <CardHeader className="border-b bg-muted/5">
-                    <CardTitle className="text-xl font-black uppercase tracking-tight">Business Profile</CardTitle>
-                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Manage your store's branding, logo, and legal terms.</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-8">
-                    <CompanySettingsForm />
-                </CardContent>
-            </Card>
+            <Accordion type="single" collapsible value={accordionValue} onValueChange={setAccordionValue} className="w-full">
+                <AccordionItem value="company-profile" className="border-2 rounded-xl shadow-sm bg-card overflow-hidden">
+                    <AccordionTrigger className="px-6 py-4 hover:no-underline bg-muted/5">
+                        <div className="flex flex-col items-start text-left gap-1">
+                            <CardTitle className="text-xl font-black uppercase tracking-tight">Business Profile</CardTitle>
+                            <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Manage your store's branding, logo, and legal terms.</CardDescription>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-6 py-8 border-t">
+                        <CompanySettingsForm onSaveSuccess={() => setAccordionValue("")} />
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
         </TabsContent>
 
         <TabsContent value="global">
@@ -113,7 +129,10 @@ export default function SettingsPage() {
                 { title: 'Sub-Categories', type: 'Sub-Category', data: subCategories },
                 { title: 'Brands', type: 'Brand', data: brands },
                 { title: 'Colors', type: 'Color', data: colors },
-                { title: 'Couriers', type: 'Courier', data: couriers }
+                { title: 'Couriers', type: 'Courier', data: couriers },
+                { title: 'Warranties', type: 'Warranty', data: warranties },
+                { title: 'Hand Preferences', type: 'Hand Preference', data: handPreferences },
+                { title: 'Enquiry Statuses', type: 'Enquiry Status', data: enquiryStatuses },
                 ].map((sec) => (
                 <Card key={sec.title} className="min-w-0 border-2 shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
@@ -122,13 +141,37 @@ export default function SettingsPage() {
                     </CardHeader>
                     <CardContent className="pt-4 overflow-hidden px-0">
                     <DataTable 
-                        columns={sec.type === 'Sub-Category' ? subCategoryColumns(categories || [])({ onEdit: (i) => handleOpenDialog('Sub-Category', i), onDelete: (id) => handleDelete('Sub-Category', id) }) : sec.type === 'Courier' ? courierColumns({ onEdit: (i) => handleOpenDialog('Courier', i as Courier), onDelete: (id) => handleDelete('Courier', id) }) : columns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleDelete(sec.type as ItemType, id) })} 
+                        columns={
+                            sec.type === 'Sub-Category' ? subCategoryColumns(categories || [])({ onEdit: (i) => handleOpenDialog('Sub-Category', i), onDelete: (id) => handleDelete('Sub-Category', id) }) : 
+                            sec.type === 'Courier' ? courierColumns({ onEdit: (i) => handleOpenDialog('Courier', i as Courier), onDelete: (id) => handleDelete('Courier', id) }) : 
+                            sec.type === 'Category' ? columns({ onEdit: (i) => handleOpenDialog('Category', i), onDelete: (id) => handleDelete('Category', id) }) :
+                            basicColumns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleDelete(sec.type as ItemType, id) })
+                        } 
                         data={sec.data || []} 
                     />
                     </CardContent>
                 </Card>
                 ))}
             </div>
+        </TabsContent>
+
+        <TabsContent value="diagnostics">
+            <Card className="border-2 shadow-sm">
+                <CardHeader>
+                    <div className="flex items-center gap-3">
+                        <Database className="h-6 w-6 text-primary" />
+                        <div>
+                            <CardTitle className="text-xl font-black uppercase tracking-tight">System Storage Diagnostics</CardTitle>
+                            <CardDescription className="text-xs font-bold uppercase">Monitor database footprint and storage optimization recommendations.</CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Button asChild className="font-black uppercase tracking-widest">
+                        <Link href="/settings/storage-analytics">Open Storage Dashboard</Link>
+                    </Button>
+                </CardContent>
+            </Card>
         </TabsContent>
       </Tabs>
     </div>
