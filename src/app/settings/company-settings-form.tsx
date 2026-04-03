@@ -22,6 +22,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { useEffect, useState, useRef } from "react";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { RefreshCw, Save, Upload } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
 
 const formSchema = z.object({

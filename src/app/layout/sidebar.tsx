@@ -116,7 +116,7 @@ export function Sidebar() {
                         <AvatarFallback className="bg-primary text-primary-foreground font-black text-[10px] uppercase">{shortName}</AvatarFallback>
                     </Avatar>
                   )}
-                  <span className="text-xs font-black text-foreground truncate uppercase tracking-tighter shrink leading-none">
+                  <span className="text-xs font-black text-foreground truncate uppercase tracking-tighter shrink leading-none max-w-[120px]">
                     {companyDetails.name}
                   </span>
                 </div>
