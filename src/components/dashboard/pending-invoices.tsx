@@ -24,7 +24,7 @@ export function PendingInvoices({ sales, customers }: PendingInvoicesProps) {
   const pendingSales = useMemo(() => {
     return sales
       .filter(s => {
-        // Fix: Use 'status' instead of 'invoiceStatus'
+        // Fix: Use standardized status and balance checks
         const isPending = s.status === 'pending' || (s.balanceAmount && s.balanceAmount > 0);
         const customerMatch = selectedCustomer === 'all' || s.customerId === selectedCustomer;
         return isPending && customerMatch;
@@ -33,7 +33,7 @@ export function PendingInvoices({ sales, customers }: PendingInvoicesProps) {
   }, [sales, selectedCustomer]);
 
   const customersWithPending = useMemo(() => {
-    const pendingIds = new Set(sales.filter(s => s.status !== 'paid').map(s => s.customerId));
+    const pendingIds = new Set(sales.filter(s => s.status === 'pending' || (s.balanceAmount && s.balanceAmount > 0)).map(s => s.customerId));
     return customers.filter(c => pendingIds.has(c.id));
   }, [sales, customers]);
 

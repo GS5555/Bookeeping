@@ -173,7 +173,7 @@ const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor
     }
 
     const head = [['Sr.', 'Description', 'SKU', 'HSN', 'GST %', 'Qty', 'Unit Cost', 'Total']];
-    const body = po.items.map((item, i) => [String(i+1), item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitCost), formatCurrency(item.totalCost)]);
+    const body = po.items.map((item, i) => [String(i+1), item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalCost)]);
 
     const footerStyles = { halign: 'right' as const };
     const totalFooterStyles = { ...footerStyles, fontStyle: 'bold' as const, fontSize: 11 };
@@ -285,6 +285,42 @@ const generateEnquiryDoc = (doc: jsPDF, enquiry: Enquiry, companyDetails: Compan
 // Public Actions
 // =================================================================================
 
+export const printContent = (doc: jsPDF) => {
+    const pdfDataUri = doc.output('datauristring');
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Print Document</title>
+                    <style>
+                        body { margin: 0; padding: 0; }
+                        iframe { width: 100%; height: 100%; border: none; }
+                    </style>
+                </head>
+                <body>
+                    <iframe src="${pdfDataUri}"></iframe>
+                    <script>
+                        setTimeout(() => {
+                            const iframe = document.querySelector('iframe');
+                            if (iframe && iframe.contentWindow) {
+                                iframe.contentWindow.focus();
+                                iframe.contentWindow.print();
+                            }
+                            setTimeout(() => window.close(), 500);
+                        }, 500);
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+    }
+};
+
+export const downloadPdf = (doc: jsPDF, filename: string) => {
+    doc.save(filename);
+};
+
 export const downloadInvoice = (sale: Sale, customers: Customer[], companyDetails: Company) => {
     const doc = new jsPDF();
     generateInvoiceDoc(doc, sale, customers, companyDetails).save(`invoice-${sale.invoiceSequence}.pdf`);
@@ -346,5 +382,36 @@ export const generateReturnSlipEmailBody = (saleReturn: SaleReturn, companyDetai
 export const generatePendingInvoicesEmailBody = (customer: Customer, pending: Sale[], companyDetails: Company) => "Pending Invoice List Attached";
 export const generateBirthdayGreetingEmailBody = (name: string, company: Company) => `Happy Birthday ${name}`;
 export const generateAnniversaryGreetingEmailBody = (name: string, company: Company) => `Happy Anniversary ${name}`;
-export const downloadBulkPurchaseOrders = (pos: any[], vendors: any[], company: any) => {};
-export const exportFullBackup = (data: any, name: string) => {};
+
+export const downloadBulkPurchaseOrders = (pos: any[], vendors: any[], company: any) => {
+    if (!pos || pos.length === 0) return;
+    const doc = new jsPDF();
+    pos.forEach((po, index) => {
+        if (index > 0) doc.addPage();
+        const vendor = vendors?.find(v => v.id === po.vendorId);
+        addCompanyHeader(doc, company);
+        doc.setFontSize(14).setFont('helvetica', 'bold').text(`PURCHASE ORDER: ${po.purchaseOrderNumber}`, 14, 45);
+        if (vendor) {
+            doc.setFontSize(10).setFont('helvetica', 'normal');
+            doc.text(`Vendor: ${vendor.name}`, 14, 55);
+            doc.text(`Date: ${new Date(po.orderDate).toLocaleDateString()}`, 14, 60);
+        }
+        const head = [['Item', 'Qty', 'Unit Cost', 'Total']];
+        const body = po.items.map((item: any, i: number) => [item.productName, String(item.quantity), `₹${item.unitCost}`, `₹${item.totalCost}`]);
+        (doc as any).autoTable({ startY: 70, head, body, theme: 'grid' });
+    });
+    doc.save(`purchase-orders-bulk-${Date.now()}.pdf`);
+};
+
+export const exportFullBackup = async (data: any, name: string) => {
+    const backupData = {
+        exportedAt: new Date().toISOString(),
+        data: data,
+        version: '1.0'
+    };
+    const jsonStr = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    saveAs(blob, `${name}_backup_${Date.now()}.json`);
+};
+
+export const exportWithDataValidation = (data: any, sheetName: string, validations: any, fileName: string) => {};

@@ -24,10 +24,10 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
     const customerData = useMemo(() => {
         if (!selectedCustomerId) return null;
         
-        const customerSales = sales.filter(s => s.customerId === selectedCustomerId && (s.invoiceStatus === 'Unpaid' || s.invoiceStatus === 'Partially Paid'));
+        const customerSales = sales.filter(s => s.customerId === selectedCustomerId && (s.status === 'pending' || (s.balanceAmount && s.balanceAmount > 0)));
         const customerReturns = returns.filter(r => r.customerId === selectedCustomerId);
         
-        const totalPending = customerSales.reduce((acc, s) => acc + (s.balanceAmount || s.totalAmount), 0);
+        const totalPending = customerSales.reduce((acc, s) => acc + (s.balanceAmount || s.total || 0), 0);
         const totalRefunded = customerReturns.reduce((acc, r) => acc + r.totalRefundAmount, 0);
         
         return {
@@ -43,7 +43,7 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
         if (!customerData || !selectedCustomerId) return;
         const customer = customers.find(c => c.id === selectedCustomerId);
         const exportData = [
-            ...customerData.sales.map(s => ({ Type: 'Invoice', Number: s.invoiceSequence, Date: format(new Date(s.saleDate), 'yyyy-MM-dd'), Amount: s.totalAmount, Balance: s.balanceAmount || s.totalAmount })),
+            ...customerData.sales.map(s => ({ Type: 'Invoice', Number: s.invoiceSequence, Date: format(new Date(s.saleDate), 'yyyy-MM-dd'), Amount: s.total || 0, Balance: s.balanceAmount || s.total || 0 })),
             ...customerData.returns.map(r => ({ Type: 'Return', Number: r.returnSequence, Date: format(new Date(r.returnDate), 'yyyy-MM-dd'), Amount: r.totalRefundAmount, Balance: 0 }))
         ];
         exportToExcel(exportData, `ledger_${customer?.name.replace(/\s+/g, '_')}`);
@@ -55,8 +55,8 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
         const title = `Pending Ledger: ${customer?.name}`;
         const headers = [['Type', 'No.', 'Date', 'Amount', 'Balance']];
         const body = [
-            ...customerData.sales.map(s => ['Invoice', s.invoiceSequence, format(new Date(s.saleDate), 'dd/MM/yy'), `Rs.${s.totalAmount.toLocaleString()}`, `Rs.${(s.balanceAmount || s.totalAmount).toLocaleString()}`]),
-            ...customerData.returns.map(r => ['Return', r.returnSequence, format(new Date(r.returnDate), 'dd/MM/yy'), `Rs.-${r.totalRefundAmount.toLocaleString()}`, '-'])
+            ...customerData.sales.map(s => ['Invoice', s.invoiceSequence, format(new Date(s.saleDate), 'dd/MM/yy'), `Rs.${(s.total || 0).toLocaleString()}`, `Rs.${(s.balanceAmount || s.total || 0).toLocaleString()}`]),
+            ...customerData.returns.map(r => ['Return', r.returnSequence, format(new Date(r.returnDate), 'dd/MM/yy'), `Rs.-${r.totalRefundAmount.toLocaleString()}`, '-'] as string[])
         ];
         downloadGenericReportPdf(title, headers, body, `ledger_${customer?.name.replace(/\s+/g, '_')}`);
     };
@@ -112,7 +112,7 @@ export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProp
                                             <TableCell className="font-medium text-xs"><Link href={`/invoice/${s.id}`} target="_blank" className="hover:underline text-primary">#{s.invoiceSequence}</Link></TableCell>
                                             <TableCell className="text-xs">Invoice</TableCell>
                                             <TableCell className="text-xs">{format(new Date(s.saleDate), 'dd MMM yy')}</TableCell>
-                                            <TableCell className="text-right font-black text-destructive text-xs"><FormattedNumberCell value={s.balanceAmount || s.totalAmount} /></TableCell>
+                                            <TableCell className="text-right font-black text-destructive text-xs"><FormattedNumberCell value={s.balanceAmount || s.total || 0} /></TableCell>
                                         </TableRow>
                                     ))}
                                     {customerData?.returns.map(r => (
