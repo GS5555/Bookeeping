@@ -1,4 +1,3 @@
-
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
@@ -65,7 +64,11 @@ export default function MakeAdminPage() {
   }, [isAuthLoading, checkAdminStatus]);
 
   const handleClaimAdmin = async () => {
-    if (!authUser || !firestore) return;
+    // Logic Gap Fix: Ensure user is logged in
+    if (!authUser || !firestore || !auth) {
+        toast({ title: "Auth Error", description: "You must be logged in to claim this role.", variant: "destructive" });
+        return;
+    }
 
     setIsProcessing(true);
     const adminInitDocRef = doc(firestore, '_init', 'admin');
@@ -81,17 +84,19 @@ export default function MakeAdminPage() {
         transaction.update(userDocRef, { role: 'admin', isApproved: true });
       });
       
+      // Logic Gap Fix: Await the server action correctly
       const claimResult = await setAdminClaim(authUser.uid);
-      if (!claimResult.success) {
-          throw new Error(claimResult.error || "Failed to set custom admin claim.");
+      if (!claimResult || !claimResult.success) {
+          throw new Error(claimResult?.error || "Failed to set custom admin claim.");
       }
 
       toast({
         title: "Success! You are now an administrator.",
-        description: "Please log out and log back in for the new role to take full effect.",
+        description: "Logging out to refresh your security session. Please log back in.",
       });
 
-      if (auth) await signOut(auth);
+      // Logic Gap Fix: Force logout to refresh the user's JWT token
+      await signOut(auth);
       router.push('/login');
 
     } catch (error: any) {
@@ -122,7 +127,7 @@ export default function MakeAdminPage() {
                 <UserCheck className="h-10 w-10 text-green-500" />
                 <h3 className="font-semibold">You are an Administrator</h3>
                 <p className="text-sm text-muted-foreground">You already have full administrative privileges.</p>
-                <Button onClick={() => router.push('/users')} className="mt-4">Manage Users</Button>
+                <Button onClick={() => router.push('/settings')} className="mt-4">Go to Settings</Button>
             </div>
         );
     }

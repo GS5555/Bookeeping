@@ -1,4 +1,3 @@
-
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -114,7 +113,9 @@ export default function PurchasesPage() {
                 const isGst = po.purchaseType === 'GST';
                 const numberField = isGst ? 'lastGstPoNumber' : 'lastCashPoNumber';
                 const prefix = isGst ? 'POGST' : 'POCSH';
-                const lastNumber = companyData[numberField] || 0;
+                
+                // Data Integrity Fix: Ensure numbering fields default to 0
+                const lastNumber = (companyData && companyData[numberField]) ? Number(companyData[numberField]) : 0;
                 const newNumber = lastNumber + 1;
                 const purchaseOrderNumber = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
 

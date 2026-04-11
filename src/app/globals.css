@@ -37,24 +37,24 @@
   }
 
   .dark {
-    --background: 220 18% 12%; /* Dark Blue-Gray */
-    --foreground: 210 20% 90%; /* Light Gray */
-    --card: 220 18% 16%; /* Slightly Lighter Card Background */
+    --background: 220 18% 12%;
+    --foreground: 210 20% 90%;
+    --card: 220 18% 16%;
     --card-foreground: 210 20% 90%;
     --popover: 220 18% 12%;
     --popover-foreground: 210 20% 90%;
-    --primary: 33 94% 58%; /* Warm Orange */
-    --primary-foreground: 220 18% 12%; /* Dark Blue for text on orange button */
+    --primary: 33 94% 58%;
+    --primary-foreground: 220 18% 12%;
     --secondary: 220 18% 20%;
     --secondary-foreground: 210 20% 90%;
     --muted: 220 18% 20%;
     --muted-foreground: 210 20% 60%;
     --accent: 160 70% 45%;
     --accent-foreground: 160 70% 98%;
-    --destructive: 25 95% 53%; /* Bright Orange for destructive actions */
+    --destructive: 25 95% 53%;
     --destructive-foreground: 0 0% 98%;
     --border: 220 18% 20%;
-    --input: 210 20% 85%; /* Light Gray for input fields */
+    --input: 210 20% 85%;
     --ring: 160 70% 45%;
     --chart-1: 205 80% 70%;
     --chart-2: 160 70% 55%;

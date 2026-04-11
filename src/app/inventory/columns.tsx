@@ -119,15 +119,18 @@ export const columns = (options: {
     id: "potentialProfit",
     header: "Profit / Qty",
     cell: ({ row }) => {
+        // Performance Fix: Harden math to handle missing values gracefully
         const item = row.original;
-        const totalCost = (Number(item.purchasePrice) || 0) + (Number(item.miscellaneousCost) || 0);
+        const purchase = Number(item.purchasePrice) || 0;
+        const misc = Number(item.miscellaneousCost) || 0;
+        const totalCost = purchase + misc;
         const gstRate = Number(item.gstRate) || 0;
         const sellingPrice = Number(item.sellingPrice) || 0;
         
-        const preGstSellingPrice = sellingPrice / (1 + gstRate / 100);
+        // Prevent division by zero and handle 0 rate
+        const preGstSellingPrice = gstRate > 0 ? (sellingPrice / (1 + gstRate / 100)) : sellingPrice;
         
         let profit = preGstSellingPrice - totalCost;
-        
         const color = profit >= 0 ? 'text-green-600' : 'text-destructive';
         
         return <FormattedNumberCell value={profit} className={color} options={{ maximumFractionDigits: 0 }} />
