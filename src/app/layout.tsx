@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Analytics } from '@/components/analytics';
 import { FirebaseClientProvider } from '@/firebase';
-import { AppShell } from '@/app/layout/app-shell';
+import { AppShell } from '@/components/layout/app-shell';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from "@/components/ui/toaster";
 
