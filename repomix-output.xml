@@ -61,6 +61,7 @@ src/
       page.tsx
     actions/
       admin.ts
+      chat.ts
     add-customer/
       actions.ts
       customer-form.tsx
@@ -432,6 +433,14 @@ export async function setAdminClaim(userId: string): Promise<{ success: boolean;
     // Simulate a successful operation for the local dev environment
     return { success: true };
 }
+</file>
+
+<file path="src/app/actions/chat.ts">
+'use server';
+/**
+ * @fileOverview Bridge for chat actions.
+ */
+export { sendChatMessage } from '@/ai/flows/chat';
 </file>
 
 <file path="src/app/add-customer/customer-form.tsx">
@@ -7857,234 +7866,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
 }
 </file>
 
-<file path="src/components/chat/chat-widget.tsx">
-'use client';
-import { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { MessageSquare, X, Send, Bot } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
-import { ChatMessage, Message } from './chat-message';
-import { OfflineForm } from './offline-form';
-import { sendChatMessage } from '@/app/actions/chat';
-
-export function ChatWidget() {
-    const [isOpen, setIsOpen] = useState(false);
-    const [isOnline, setIsOnline] = useState(true);
-    const [isLoading, setIsLoading] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([
-        { from: 'bot', text: 'Hello! How can I help you today?' }
-    ]);
-    const [input, setInput] = useState('');
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    useEffect(scrollToBottom, [messages]);
-
-    const handleSend = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!input.trim() || isLoading) return;
-
-        const userMessage: Message = { from: 'user', text: input };
-        setMessages(prev => [...prev, userMessage]);
-        setInput('');
-        setIsLoading(true);
-
-        try {
-            const botReply = await sendChatMessage(input);
-            const botMessage: Message = { from: 'bot', text: botReply };
-            setMessages(prev => [...prev, botMessage]);
-        } catch (error) {
-             const errorMessage: Message = { from: 'bot', text: 'Sorry, something went wrong.' };
-             setMessages(prev => [...prev, errorMessage]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <>
-            <div className="fixed bottom-4 right-4 z-50">
-                <Button onClick={() => setIsOpen(!isOpen)} size="icon" className="rounded-full w-14 h-14 shadow-lg">
-                    {isOpen ? <X className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />}
-                </Button>
-            </div>
-            
-            {isOpen && (
-                <div className="fixed bottom-20 right-4 z-50">
-                    <Card className="w-80 h-[30rem] flex flex-col shadow-2xl">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Bot className="h-6 w-6 text-primary" />
-                                <div>
-                                    <CardTitle>AI Assistant</CardTitle>
-                                    <CardDescription className={cn("text-xs", isOnline ? 'text-green-500' : 'text-muted-foreground')}>
-                                        {isOnline ? 'Online' : 'We are away'}
-                                    </CardDescription>
-                                </div>
-                            </div>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsOnline(!isOnline)}>
-                                <div className={cn("w-2 h-2 rounded-full", isOnline ? 'bg-green-500' : 'bg-gray-400')}></div>
-                            </Button>
-                        </CardHeader>
-                        
-                        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {isOnline ? (
-                                <>
-                                    {messages.map((msg, index) => (
-                                        <ChatMessage key={index} message={msg} />
-                                    ))}
-                                    {isLoading && <ChatMessage message={{ from: 'bot', text: 'Typing...' }} />}
-                                    <div ref={messagesEndRef} />
-                                </>
-                            ) : (
-                                <OfflineForm />
-                            )}
-                        </CardContent>
-
-                        {isOnline && (
-                             <CardFooter>
-                                <form onSubmit={handleSend} className="flex w-full items-center space-x-2">
-                                    <Input 
-                                        value={input}
-                                        onChange={(e) => setInput(e.target.value)}
-                                        placeholder="Type a message..." 
-                                        disabled={isLoading} 
-                                    />
-                                    <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
-                                        <Send className="h-4 w-4" />
-                                    </Button>
-                                </form>
-                            </CardFooter>
-                        )}
-                    </Card>
-                </div>
-            )}
-        </>
-    )
-}
-</file>
-
-<file path="src/components/chat/offline-form.tsx">
-'use client';
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle2, RefreshCw } from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { toast } from '@/hooks/use-toast';
-
-const issueTypes = ['Billing', 'Technical Support', 'Sales Inquiry', 'General Question', 'Other'];
-
-export function OfflineForm() {
-    const [isSubmitted, setIsSubmitted] = useState(false);
-    const [captcha, setCaptcha] = useState('');
-    const [userInput, setUserInput] = useState('');
-
-    const generateCaptcha = () => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        let captchaText = '';
-        for (let i = 0; i < 6; i++) {
-            captchaText += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        setCaptcha(captchaText);
-    }
-
-    useEffect(() => {
-        generateCaptcha();
-    }, []);
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (userInput.toLowerCase() !== captcha.toLowerCase()) {
-            toast({
-                title: "Error",
-                description: "CAPTCHA does not match. Please try again.",
-                variant: "destructive",
-            });
-            generateCaptcha();
-            setUserInput('');
-            return;
-        }
-        setIsSubmitted(true);
-    };
-
-    if (isSubmitted) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-                <CheckCircle2 className="h-12 w-12 text-green-500 mb-4" />
-                <h3 className="font-semibold">Message Sent!</h3>
-                <p className="text-sm text-muted-foreground">Thanks for reaching out. We'll get back to you as soon as possible.</p>
-            </div>
-        )
-    }
-
-    return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-                We're currently offline. Please leave a message and we'll get back to you.
-            </p>
-            <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" placeholder="Your Name" required />
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="Your Email" required />
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="issue">Issue</Label>
-                 <Select required>
-                    <SelectTrigger id="issue">
-                        <SelectValue placeholder="Select an issue" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {issueTypes.map(issue => (
-                            <SelectItem key={issue} value={issue.toLowerCase().replace(' ', '-')}>{issue}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="message">Message</Label>
-                <Textarea id="message" placeholder="Your Message" required />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="captcha">CAPTCHA</Label>
-                <div className="flex items-center gap-2">
-                    <div className="px-4 py-2 rounded-md bg-muted font-mono tracking-widest select-none w-full text-center">
-                        {captcha}
-                    </div>
-                     <Button type="button" variant="ghost" size="icon" onClick={generateCaptcha}>
-                        <RefreshCw className="h-4 w-4" />
-                    </Button>
-                </div>
-                <Input
-                    id="captcha"
-                    placeholder="Enter the text above"
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    required
-                />
-            </div>
-            <Button type="submit" className="w-full">Send Message</Button>
-        </form>
-    );
-}
-</file>
-
 <file path="src/components/dashboard/event-reminders.tsx">
 'use client';
 
@@ -14062,123 +13843,6 @@ export const ai = genkit({
 });
 </file>
 
-<file path="src/app/accounting/page.tsx">
-'use client';
-
-import { PageHeader } from '@/components/layout/page-header';
-import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
-import { GenericChart } from '@/components/dashboard/generic-chart';
-import type { ChartConfig } from '@/components/ui/chart';
-import { useMemo } from 'react';
-import { Sale, Product, Expense } from '@/lib/types';
-import { Scale, TrendingUp, TrendingDown, CircleDollarSign, Banknote } from 'lucide-react';
-import { format, getMonth } from 'date-fns';
-import { useIsMounted } from '@/hooks/use-is-mounted';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
-
-const STORE_ID = 'store_main';
-
-export default function AccountingPage() {
-    const firestore = useFirestore();
-    const isMounted = useIsMounted();
-
-    const salesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'sales') : null, [firestore]);
-    const { data: sales } = useCollection<Sale>(salesRef);
-
-    const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
-    const { data: expenses } = useCollection<Expense>(expensesRef);
-    
-    const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
-    const { data: products } = useCollection<Product>(productsRef);
-
-    const { totalRevenue, totalCogs, grossProfit, totalExpenses, netProfit } = useMemo(() => {
-        const relevantSales = sales || [];
-        const relevantExpenses = expenses || [];
-
-        // Fix: Use 'total' instead of 'totalAmount' to match Sale interface
-        const totalRevenue = relevantSales.reduce((acc, sale) => acc + (sale.total || 0), 0);
-        
-        const totalCogs = relevantSales.reduce((acc, sale) => {
-            const saleCogs = sale.items.reduce((itemAcc, item) => {
-                return itemAcc + (item.costOfGoodsSold || 0);
-            }, 0);
-            return acc + saleCogs;
-        }, 0);
-
-        const grossProfit = totalRevenue - totalCogs;
-        const totalExpensesValue = relevantExpenses.reduce((acc, expense) => acc + (expense.amount || 0), 0);
-        const netProfit = grossProfit - totalExpensesValue;
-
-        return { totalRevenue, totalCogs, grossProfit, totalExpenses: totalExpensesValue, netProfit };
-    }, [sales, expenses, products]);
-
-    const summaryData: SummaryCardData[] = useMemo(() => [
-        { title: "Total Revenue", value: isMounted ? `₹${totalRevenue.toLocaleString('en-IN')}` : "₹...", icon: CircleDollarSign },
-        { title: "Cost of Goods Sold", value: isMounted ? `₹${totalCogs.toLocaleString('en-IN')}` : "₹...", icon: TrendingDown },
-        { title: "Gross Profit", value: isMounted ? `₹${grossProfit.toLocaleString('en-IN')}` : "₹...", icon: TrendingUp },
-        { title: "Operating Expenses", value: isMounted ? `₹${totalExpenses.toLocaleString('en-IN')}` : "₹...", icon: Banknote },
-        { title: "Net Profit", value: isMounted ? `₹${netProfit.toLocaleString('en-IN')}` : "₹...", icon: Scale, description: `After all costs & expenses` },
-    ], [totalRevenue, totalCogs, grossProfit, totalExpenses, netProfit, isMounted]);
-    
-    const profitChartData = useMemo(() => {
-        const relevantSales = sales || [];
-        const relevantExpenses = expenses || [];
-        
-        const monthlyData: Record<number, { revenue: number; cogs: number; expenses: number }> = {};
-        
-        relevantSales.forEach(sale => {
-            const month = getMonth(new Date(sale.saleDate));
-            if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
-            
-            // Fix: Use 'total' instead of 'totalAmount'
-            monthlyData[month].revenue += (sale.total || 0);
-            
-            const saleCogs = sale.items.reduce((acc, item) => {
-                 return acc + (item.costOfGoodsSold || 0);
-            }, 0);
-            monthlyData[month].cogs += saleCogs;
-        });
-
-        relevantExpenses.forEach(expense => {
-            const month = getMonth(new Date(expense.expenseDate));
-            if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
-            monthlyData[month].expenses += expense.amount;
-        });
-        
-        return Object.entries(monthlyData).map(([monthIndex, data]) => ({
-            name: format(new Date(2024, parseInt(monthIndex)), 'MMM'),
-            Revenue: data.revenue,
-            NetProfit: data.revenue - data.cogs - data.expenses
-        })).sort((a,b) => new Date(`2024 ${a.name}`).getMonth() - new Date(`2024 ${b.name}`).getMonth());
-
-    }, [sales, expenses, products]);
-
-    const chartConfig: ChartConfig = {
-        Revenue: { label: 'Revenue', color: 'hsl(var(--chart-1))' },
-        NetProfit: { label: 'Net Profit', color: 'hsl(var(--chart-3))' },
-    };
-
-    return (
-        <>
-            <PageHeader title="Accounting Overview" />
-            <div className="flex flex-col gap-8">
-                <PageSummary cards={summaryData} />
-                 <GenericChart
-                    title="Financial Performance"
-                    description="Monthly revenue and net profit overview."
-                    data={profitChartData}
-                    dataKeyX="name"
-                    dataKeysY={['Revenue', 'NetProfit']}
-                    chartConfig={chartConfig}
-                    yAxisFormatter={(value) => `₹${value / 1000}k`}
-                />
-            </div>
-        </>
-    );
-}
-</file>
-
 <file path="src/app/add-customer/page.tsx">
 'use client';
 import { useState, useEffect } from 'react';
@@ -16866,553 +16530,6 @@ export default function RepairsPage() {
 }
 </file>
 
-<file path="src/app/reports/columns.tsx">
-"use client"
-
-import { ColumnDef } from "@tanstack/react-table"
-import { Sale, Expense, InventoryItem, PurchaseOrder, SaleReturn, StockTransfer, Customer, Store, Vendor, PriceHistoryEntry, Quotation, Enquiry } from "@/lib/types"
-import { Button, buttonVariants } from "@/components/ui/button"
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { MoreHorizontal, Mail, Printer, FileDown } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { useState, useEffect } from "react"
-import { Skeleton } from "@/components/ui/skeleton"
-import Link from "next/link"
-import { cn } from "@/lib/utils"
-import { FormattedNumberCell } from "@/components/formatted-number-cell"
-import { downloadReturnSlip } from "@/lib/actions"
-import { Badge } from "@/components/ui/badge"
-
-const FormattedDateCell = ({ date }: { date?: string | Date}) => {
-  const [hasMounted, setHasMounted] = useState(false);
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
-
-  if (!hasMounted || !date) {
-    return <Skeleton className="h-4 w-[65px]" />;
-  }
-  return <span>{new Date(date).toLocaleDateString('en-IN')}</span>;
-}
-
-
-export const salesReportColumns: ColumnDef<any>[] = [
-  {
-    accessorKey: "invoiceSequence",
-    header: "Invoice #",
-    cell: ({ row }) => (
-        <Link 
-            href={`/invoice/${row.original.id}`}
-            target="_blank"
-            className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto font-normal")}
-        >
-            #{row.getValue("invoiceSequence")}
-        </Link>
-    )
-  },
-  {
-    accessorKey: "saleDate",
-    header: "Date",
-    cell: ({ row }) => <FormattedDateCell date={row.original.saleDate} />
-  },
-  {
-    accessorKey: "customerName",
-    header: "Customer",
-    cell: ({ row }) => (
-        <Link 
-            href={`/customer/${row.original.customerId}`}
-            target="_blank"
-            className="hover:underline text-primary"
-        >
-            {row.getValue("customerName")}
-        </Link>
-    )
-  },
-  {
-    accessorKey: "storeName",
-    header: "Store",
-  },
-   {
-    accessorKey: "categoryName",
-    header: "Category",
-  },
-  {
-    accessorKey: "subCategoryName",
-    header: "Sub-Category",
-  },
-  {
-    accessorKey: "saleType",
-    header: "Type",
-  },
-  {
-    accessorKey: "paymentMethod",
-    header: "Payment Mode",
-  },
-  {
-    header: "Items",
-    cell: ({ row }) => row.original.items.length
-  },
-  {
-    /* Fix: Use 'total' instead of 'totalAmount' */
-    accessorKey: "total",
-    header: "Total",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.total} />,
-  },
-  {
-    accessorKey: "amountPaid",
-    header: "Amount Paid",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.amountPaid || 0} />,
-  },
-  {
-    accessorKey: "balanceAmount",
-    header: "Balance",
-    cell: ({ row }) => {
-        const balance = row.original.balanceAmount || 0;
-        return <FormattedNumberCell value={balance} className={cn(balance > 0 && "text-destructive")} />
-    },
-  },
-  {
-    accessorKey: "warrantyExpiryDate",
-    header: "Warranty Expires",
-    cell: ({ row }) => row.original.warrantyExpiryDate ? <FormattedDateCell date={row.original.warrantyExpiryDate} /> : 'N/A',
-  },
-]
-
-export const gstReportColumns: ColumnDef<any>[] = [
-  {
-    accessorKey: "invoiceSequence",
-    header: "Invoice #",
-    cell: ({ row }) => (
-        <Link 
-            href={`/invoice/${row.original.id}`}
-            target="_blank"
-            className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto font-normal")}
-        >
-            #{row.getValue("invoiceSequence")}
-        </Link>
-    )
-  },
-  {
-    accessorKey: "saleDate",
-    header: "Date",
-    cell: ({ row }) => <FormattedDateCell date={row.original.saleDate} />
-  },
-  {
-    accessorKey: "customerName",
-    header: "Customer",
-  },
-  {
-    accessorKey: "subTotal",
-    header: "Subtotal",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.subTotal} />,
-  },
-  {
-    accessorKey: "cgstAmount",
-    header: "CGST",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.cgstAmount} />,
-  },
-  {
-    accessorKey: "sgstAmount",
-    header: "SGST",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.sgstAmount} />,
-  },
-  {
-    accessorKey: "igstAmount",
-    header: "IGST",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.igstAmount} />,
-  },
-  {
-    /* Fix: Use 'total' instead of 'totalAmount' */
-    accessorKey: "total",
-    header: "Total",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.total} />,
-  },
-]
-
-const ReturnActionsCell = ({ saleReturn, customers, stores, companyDetails }: { saleReturn: SaleReturn, customers: Customer[], stores: Store[], companyDetails: Company | null }) => {
-    return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
-                    <span className="sr-only">Open menu</span>
-                    <MoreHorizontal className="h-4 w-4" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => window.open(`/return-slip/${saleReturn.id}`, '_blank')}>
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print Slip
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => companyDetails && downloadReturnSlip(saleReturn, customers, stores, companyDetails)}>
-                    <FileDown className="mr-2 h-4 w-4" />
-                    Download PDF
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
-    )
-}
-
-export const returnsReportColumns = (options: { customers: Customer[], stores: Store[], companyDetails: Company | null }): ColumnDef<any>[] => [
-  {
-    accessorKey: "returnDate",
-    header: "Return Date",
-    cell: ({ row }) => <FormattedDateCell date={row.getValue("returnDate")} />,
-  },
-  {
-    accessorKey: "returnSequence",
-    header: "Return Slip #",
-    cell: ({ row }) => (
-      <Link
-        href={`/return-slip/${row.original.id}`}
-        target="_blank"
-        className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto font-normal")}
-      >
-        {row.getValue("returnSequence")}
-      </Link>
-    ),
-  },
-  {
-    accessorKey: "originalInvoiceSequence",
-    header: "Original Invoice #",
-    cell: ({ row }) => (
-      <Link
-        href={`/invoice/${row.original.originalSaleId}`}
-        target="_blank"
-        className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto font-normal")}
-      >
-        #{row.getValue("originalInvoiceSequence")}
-      </Link>
-    )
-  },
-  {
-    accessorKey: "customerName",
-    header: "Customer",
-  },
-    {
-    accessorKey: "storeName",
-    header: "Store",
-  },
-  {
-    header: "Items Returned",
-    cell: ({ row }) => row.original.items.reduce((sum: number, item: any) => sum + item.sellableQuantity + item.unsellableQuantity, 0)
-  },
-  {
-    accessorKey: "totalRefundAmount",
-    header: "Refund Amount",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.totalRefundAmount} />,
-  },
-  {
-      id: "reason",
-      header: "Reason",
-      cell: ({ row }) => {
-          const reasons = row.original.items
-            .map((item: any) => item.reason)
-            .filter(Boolean)
-            .join(', ');
-          return <span className="truncate">{reasons || 'N/A'}</span>;
-      }
-  },
-  {
-    id: "actions",
-    cell: ({ row }) => <ReturnActionsCell saleReturn={row.original} customers={options.customers} stores={options.stores} companyDetails={options.companyDetails} />,
-  }
-]
-
-
-export const expensesReportColumns: ColumnDef<any>[] = [
-  {
-    accessorKey: "date",
-    header: "Date",
-    cell: ({ row }) => <FormattedDateCell date={row.getValue("date")} />
-  },
-  {
-    accessorKey: "companyName",
-    header: "Company",
-  },
-  {
-    accessorKey: "expenseType",
-    header: "Type",
-    cell: ({ row }) => row.original.expenseType || 'N/A'
-  },
-  {
-    accessorKey: "category",
-    header: "Category",
-  },
-  {
-    accessorKey: "description",
-    header: "Description",
-  },
-  {
-    accessorKey: "vendor",
-    header: "Vendor",
-    cell: ({row}) => row.original.vendor || 'N/A'
-  },
-  {
-    accessorKey: "amount",
-    header: "Amount",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.amount} />,
-  },
-]
-
-export const inventoryReportColumns: ColumnDef<any>[] = [
-  {
-    accessorKey: "name",
-    header: "Product",
-  },
-  {
-    accessorKey: "sku",
-    header: "SKU",
-  },
-  {
-    accessorKey: "storeName",
-    header: "Store",
-  },
-  {
-    accessorKey: "quantity",
-    header: "Quantity",
-  },
-  {
-    accessorKey: "sellingPrice",
-    header: "Price (Unit)",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.sellingPrice} />,
-  },
-  {
-    id: 'totalValue',
-    header: "Total Value",
-    cell: ({ row }) => {
-        const total = row.original.quantity * row.original.sellingPrice;
-        return <FormattedNumberCell value={total} />
-    }
-  },
-]
-
-export const purchaseReportColumns: ColumnDef<any>[] = [
-  {
-    accessorKey: "purchaseOrderNumber",
-    header: "PO #",
-     cell: ({ row }) => {
-        const po = row.original;
-        return (
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                         <Link
-                            href={`/purchase-order/${po.id}`}
-                            target="_blank"
-                            className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto font-normal")}
-                        >
-                            {po.purchaseOrderNumber}
-                        </Link>
-                    </TooltipTrigger>
-                     {po.comments && (
-                        <TooltipContent>
-                            <p>{po.comments}</p>
-                        </TooltipContent>
-                    )}
-                </Tooltip>
-            </TooltipProvider>
-        )
-     }
-  },
-  {
-    accessorKey: "orderDate",
-    header: "Date",
-    cell: ({ row }) => <FormattedDateCell date={row.original.orderDate} />
-  },
-  {
-    accessorKey: "vendorName",
-    header: "Vendor",
-  },
-  {
-    accessorKey: "deliveryStoreName",
-    header: "Delivery Store",
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-  },
-  {
-    accessorKey: "totalAmount",
-    header: "Total",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.totalAmount} />,
-  },
-  {
-    accessorKey: "amountPaid",
-    header: "Amount Paid",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.amountPaid || 0} />,
-  },
-  {
-    accessorKey: "balanceAmount",
-    header: "Balance",
-    cell: ({ row }) => {
-        const balance = row.original.balanceAmount || 0;
-        return <FormattedNumberCell value={balance} className={cn(balance > 0 && "text-destructive")} />
-    },
-  },
-]
-
-export const stockTransferColumns: ColumnDef<any>[] = [
-  {
-    accessorKey: "date",
-    header: "Date",
-    cell: ({ row }) => <FormattedDateCell date={row.getValue("date")} />,
-  },
-  {
-    accessorKey: "productName",
-    header: "Product",
-  },
-  {
-    accessorKey: "fromStoreName",
-    header: "From Store",
-  },
-  {
-    accessorKey: "toStoreName",
-    header: "To Store",
-  },
-  {
-    accessorKey: "quantity",
-    header: "Quantity",
-    cell: ({ row }) => `${row.original.quantity} units`,
-  },
-  {
-    accessorKey: "notes",
-    header: "Notes",
-    cell: ({ row }) => <span className="truncate">{row.original.notes || 'N/A'}</span>,
-  },
-]
-
-export const priceHistoryReportColumns: ColumnDef<(PriceHistoryEntry & { productName: string; sku: string; })>[] = [
-    {
-        accessorKey: "date",
-        header: "Date Changed",
-        cell: ({ row }) => <FormattedDateCell date={row.original.date} />,
-    },
-    {
-        accessorKey: "productName",
-        header: "Product Name",
-    },
-    {
-        accessorKey: "sku",
-        header: "SKU",
-    },
-    {
-        accessorKey: "purchasePrice",
-        header: "Purchase Price",
-        cell: ({ row }) => <FormattedNumberCell value={row.original.purchasePrice} />,
-    },
-    {
-        accessorKey: "sellingPrice",
-        header: "Selling Price",
-        cell: ({ row }) => <FormattedNumberCell value={row.original.sellingPrice} />,
-    },
-];
-
-export const quotationsReportColumns: ColumnDef<any>[] = [
-  {
-    accessorKey: "quotationNumber",
-    header: "Quotation #",
-    cell: ({ row }) => (
-      <Link
-        href={`/quotation/${row.original.id}`}
-        target="_blank"
-        className={cn(buttonVariants({ variant: 'link' }), 'p-0 h-auto font-normal')}
-      >
-        {row.getValue("quotationNumber")}
-      </Link>
-    ),
-  },
-  {
-    accessorKey: "date",
-    header: "Date",
-    cell: ({ row }) => <FormattedDateCell date={row.original.date} />,
-  },
-  {
-    accessorKey: "customerName",
-    header: "Customer",
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-  },
-  {
-    header: "Items",
-    cell: ({ row }) => row.original.items.length,
-  },
-  {
-    accessorKey: "totalAmount",
-    header: "Total",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.totalAmount} />,
-  },
-];
-
-const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    'New': 'secondary',
-    'Follow-up': 'default',
-    'Converted': 'outline',
-    'Rejected': 'destructive',
-    'Not Interested': 'destructive',
-    'Scheduled Callback': 'default',
-    'Will Decide Later': 'default',
-}
-
-export const enquiriesReportColumns: ColumnDef<Enquiry>[] = [
-  {
-    accessorKey: "enquiryNumber",
-    header: "Enquiry #",
-  },
-  {
-    accessorKey: "date",
-    header: "Date",
-    cell: ({ row }) => <FormattedDateCell date={row.getValue("date")} />
-  },
-  {
-    accessorKey: "customerName",
-    header: "Customer",
-  },
-  {
-    accessorKey: "enquiry",
-    header: "Enquiry",
-    cell: ({row}) => (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <p className="truncate max-w-xs">{row.getValue("enquiry")}</p>
-                </TooltipTrigger>
-                <TooltipContent>
-                    <p className="max-w-xs">{row.getValue("enquiry")}</p>
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
-    )
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        return <Badge variant={statusVariant[status] || 'default'}>{status}</Badge>;
-    }
-  },
-  {
-    accessorKey: 'followUps',
-    header: 'Follow-ups',
-    cell: ({ row }) => (row.original.followUps?.length || 0).toString(),
-  },
-];
-</file>
-
 <file path="src/app/sales/columns.tsx">
 "use client"
 
@@ -17992,6 +17109,234 @@ export default function UsersPageContainer() {
     }
 
     return <AccessDenied />;
+}
+</file>
+
+<file path="src/components/chat/chat-widget.tsx">
+'use client';
+import { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { MessageSquare, X, Send, Bot } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { ChatMessage, Message } from './chat-message';
+import OfflineForm from './offline-form';
+import { sendChatMessage } from '@/ai/flows/chat';
+
+export function ChatWidget() {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isOnline, setIsOnline] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+    const [messages, setMessages] = useState<Message[]>([
+        { from: 'bot', text: 'Hello! How can I help you today?' }
+    ]);
+    const [input, setInput] = useState('');
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    useEffect(scrollToBottom, [messages]);
+
+    const handleSend = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!input.trim() || isLoading) return;
+
+        const userMessage: Message = { from: 'user', text: input };
+        setMessages(prev => [...prev, userMessage]);
+        setInput('');
+        setIsLoading(true);
+
+        try {
+            const botReply = await sendChatMessage(input);
+            const botMessage: Message = { from: 'bot', text: botReply };
+            setMessages(prev => [...prev, botMessage]);
+        } catch (error) {
+             const errorMessage: Message = { from: 'bot', text: 'Sorry, something went wrong.' };
+             setMessages(prev => [...prev, errorMessage]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <>
+            <div className="fixed bottom-4 right-4 z-50">
+                <Button onClick={() => setIsOpen(!isOpen)} size="icon" className="rounded-full w-14 h-14 shadow-lg">
+                    {isOpen ? <X className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />}
+                </Button>
+            </div>
+            
+            {isOpen && (
+                <div className="fixed bottom-20 right-4 z-50">
+                    <Card className="w-80 h-[30rem] flex flex-col shadow-2xl">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Bot className="h-6 w-6 text-primary" />
+                                <div>
+                                    <CardTitle>AI Assistant</CardTitle>
+                                    <CardDescription className={cn("text-xs", isOnline ? 'text-green-500' : 'text-muted-foreground')}>
+                                        {isOnline ? 'Online' : 'We are away'}
+                                    </CardDescription>
+                                </div>
+                            </div>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsOnline(!isOnline)}>
+                                <div className={cn("w-2 h-2 rounded-full", isOnline ? 'bg-green-500' : 'bg-gray-400')}></div>
+                            </Button>
+                        </CardHeader>
+                        
+                        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {isOnline ? (
+                                <>
+                                    {messages.map((msg, index) => (
+                                        <ChatMessage key={index} message={msg} />
+                                    ))}
+                                    {isLoading && <ChatMessage message={{ from: 'bot', text: 'Typing...' }} />}
+                                    <div ref={messagesEndRef} />
+                                </>
+                            ) : (
+                                <OfflineForm />
+                            )}
+                        </CardContent>
+
+                        {isOnline && (
+                             <CardFooter>
+                                <form onSubmit={handleSend} className="flex w-full items-center space-x-2">
+                                    <Input 
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        placeholder="Type a message..." 
+                                        disabled={isLoading} 
+                                    />
+                                    <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
+                                        <Send className="h-4 w-4" />
+                                    </Button>
+                                </form>
+                            </CardFooter>
+                        )}
+                    </Card>
+                </div>
+            )}
+        </>
+    )
+}
+</file>
+
+<file path="src/components/chat/offline-form.tsx">
+'use client';
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { CheckCircle2, RefreshCw } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { toast } from '@/hooks/use-toast';
+
+const issueTypes = ['Billing', 'Technical Support', 'Sales Inquiry', 'General Question', 'Other'];
+
+export default function OfflineForm() {
+    const [isSubmitted, setIsSubmitted] = useState(false);
+    const [captcha, setCaptcha] = useState('');
+    const [userInput, setUserInput] = useState('');
+
+    const generateCaptcha = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let captchaText = '';
+        for (let i = 0; i < 6; i++) {
+            captchaText += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        setCaptcha(captchaText);
+    }
+
+    useEffect(() => {
+        generateCaptcha();
+    }, []);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (userInput.toLowerCase() !== captcha.toLowerCase()) {
+            toast({
+                title: "Error",
+                description: "CAPTCHA does not match. Please try again.",
+                variant: "destructive",
+            });
+            generateCaptcha();
+            setUserInput('');
+            return;
+        }
+        setIsSubmitted(true);
+    };
+
+    if (isSubmitted) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+                <CheckCircle2 className="h-12 w-12 text-green-500 mb-4" />
+                <h3 className="font-semibold">Message Sent!</h3>
+                <p className="text-sm text-muted-foreground">Thanks for reaching out. We'll get back to you as soon as possible.</p>
+            </div>
+        )
+    }
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+                We're currently offline. Please leave a message and we'll get back to you.
+            </p>
+            <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input id="name" placeholder="Your Name" required />
+            </div>
+             <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" placeholder="Your Email" required />
+            </div>
+             <div className="space-y-2">
+                <Label htmlFor="issue">Issue</Label>
+                 <Select required>
+                    <SelectTrigger id="issue">
+                        <SelectValue placeholder="Select an issue" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {issueTypes.map(issue => (
+                            <SelectItem key={issue} value={issue.toLowerCase().replace(' ', '-')}>{issue}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+             <div className="space-y-2">
+                <Label htmlFor="message">Message</Label>
+                <Textarea id="message" placeholder="Your Message" required />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="captcha">CAPTCHA</Label>
+                <div className="flex items-center gap-2">
+                    <div className="px-4 py-2 rounded-md bg-muted font-mono tracking-widest select-none w-full text-center">
+                        {captcha}
+                    </div>
+                     <Button type="button" variant="ghost" size="icon" onClick={generateCaptcha}>
+                        <RefreshCw className="h-4 w-4" />
+                    </Button>
+                </div>
+                <Input
+                    id="captcha"
+                    placeholder="Enter the text above"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    required
+                />
+            </div>
+            <Button type="submit" className="w-full">Send Message</Button>
+        </form>
+    );
 }
 </file>
 
@@ -20183,6 +19528,121 @@ function useToast() {
 export { useToast, toast }
 </file>
 
+<file path="src/app/accounting/page.tsx">
+'use client';
+
+import { PageHeader } from '@/components/layout/page-header';
+import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
+import { GenericChart } from '@/components/dashboard/generic-chart';
+import type { ChartConfig } from '@/components/ui/chart';
+import { useMemo } from 'react';
+import { Sale, Product, Expense } from '@/lib/types';
+import { Scale, TrendingUp, TrendingDown, CircleDollarSign, Banknote } from 'lucide-react';
+import { format, getMonth } from 'date-fns';
+import { useIsMounted } from '@/hooks/use-is-mounted';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+
+const STORE_ID = 'store_main';
+
+export default function AccountingPage() {
+    const firestore = useFirestore();
+    const isMounted = useIsMounted();
+
+    const salesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'sales') : null, [firestore]);
+    const { data: sales } = useCollection<Sale>(salesRef);
+
+    const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
+    const { data: expenses } = useCollection<Expense>(expensesRef);
+    
+    const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
+    const { data: products } = useCollection<Product>(productsRef);
+
+    const { totalRevenue, totalCogs, grossProfit, totalExpenses, netProfit } = useMemo(() => {
+        const relevantSales = sales || [];
+        const relevantExpenses = expenses || [];
+
+        const totalRevenue = relevantSales.reduce((acc, sale) => acc + (sale.total || 0), 0);
+        
+        const totalCogs = relevantSales.reduce((acc, sale) => {
+            const saleCogs = sale.items.reduce((itemAcc, item) => {
+                return itemAcc + (item.costOfGoodsSold || 0);
+            }, 0);
+            return acc + saleCogs;
+        }, 0);
+
+        const grossProfit = totalRevenue - totalCogs;
+        const totalExpensesValue = relevantExpenses.reduce((acc, expense) => acc + (expense.amount || 0), 0);
+        const netProfit = grossProfit - totalExpensesValue;
+
+        return { totalRevenue, totalCogs, grossProfit, totalExpenses: totalExpensesValue, netProfit };
+    }, [sales, expenses]);
+
+    const summaryData: SummaryCardData[] = useMemo(() => [
+        { title: "Total Revenue", value: isMounted ? `₹${totalRevenue.toLocaleString('en-IN')}` : "₹...", icon: CircleDollarSign },
+        { title: "Cost of Goods Sold", value: isMounted ? `₹${totalCogs.toLocaleString('en-IN')}` : "₹...", icon: TrendingDown },
+        { title: "Gross Profit", value: isMounted ? `₹${grossProfit.toLocaleString('en-IN')}` : "₹...", icon: TrendingUp },
+        { title: "Operating Expenses", value: isMounted ? `₹${totalExpenses.toLocaleString('en-IN')}` : "₹...", icon: Banknote },
+        { title: "Net Profit", value: isMounted ? `₹${netProfit.toLocaleString('en-IN')}` : "₹...", icon: Scale, description: `After all costs & expenses` },
+    ], [totalRevenue, totalCogs, grossProfit, totalExpenses, netProfit, isMounted]);
+    
+    const profitChartData = useMemo(() => {
+        const relevantSales = sales || [];
+        const relevantExpenses = expenses || [];
+        
+        const monthlyData: Record<number, { revenue: number; cogs: number; expenses: number }> = {};
+        
+        relevantSales.forEach(sale => {
+            const month = getMonth(new Date(sale.saleDate));
+            if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
+            
+            monthlyData[month].revenue += (sale.total || 0);
+            
+            const saleCogs = sale.items.reduce((acc, item) => {
+                 return acc + (item.costOfGoodsSold || 0);
+            }, 0);
+            monthlyData[month].cogs += saleCogs;
+        });
+
+        relevantExpenses.forEach(expense => {
+            const month = getMonth(new Date(expense.date));
+            if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
+            monthlyData[month].expenses += expense.amount;
+        });
+        
+        return Object.entries(monthlyData).map(([monthIndex, data]) => ({
+            name: format(new Date(2024, parseInt(monthIndex)), 'MMM'),
+            Revenue: data.revenue,
+            NetProfit: data.revenue - data.cogs - data.expenses
+        })).sort((a,b) => new Date(`2024 ${a.name}`).getMonth() - new Date(`2024 ${b.name}`).getMonth());
+
+    }, [sales, expenses]);
+
+    const chartConfig: ChartConfig = {
+        Revenue: { label: 'Revenue', color: 'hsl(var(--chart-1))' },
+        NetProfit: { label: 'Net Profit', color: 'hsl(var(--chart-3))' },
+    };
+
+    return (
+        <>
+            <PageHeader title="Accounting Overview" />
+            <div className="flex flex-col gap-8">
+                <PageSummary cards={summaryData} />
+                 <GenericChart
+                    title="Financial Performance"
+                    description="Monthly revenue and net profit overview."
+                    data={profitChartData}
+                    dataKeyX="name"
+                    dataKeysY={['Revenue', 'NetProfit']}
+                    chartConfig={chartConfig}
+                    yAxisFormatter={(value) => `₹${value / 1000}k`}
+                />
+            </div>
+        </>
+    );
+}
+</file>
+
 <file path="src/app/add-customer/actions.ts">
 'use server';
 
@@ -21133,6 +20593,551 @@ export default function MakeAdminPage() {
     </>
   );
 }
+</file>
+
+<file path="src/app/reports/columns.tsx">
+"use client"
+
+import { ColumnDef } from "@tanstack/react-table"
+import { Sale, Expense, InventoryItem, PurchaseOrder, SaleReturn, StockTransfer, Customer, Store, Vendor, PriceHistoryEntry, Quotation, Enquiry } from "@/lib/types"
+import { Button, buttonVariants } from "@/components/ui/button"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { MoreHorizontal, Mail, Printer, FileDown } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { useState, useEffect } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
+import Link from "next/link"
+import { cn } from "@/lib/utils"
+import { FormattedNumberCell } from "@/components/formatted-number-cell"
+import { downloadReturnSlip } from "@/lib/actions"
+import { Badge } from "@/components/ui/badge"
+
+const FormattedDateCell = ({ date }: { date?: string | Date}) => {
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  if (!hasMounted || !date) {
+    return <Skeleton className="h-4 w-[65px]" />;
+  }
+  return <span>{new Date(date).toLocaleDateString('en-IN')}</span>;
+}
+
+
+export const salesReportColumns: ColumnDef<any>[] = [
+  {
+    accessorKey: "invoiceSequence",
+    header: "Invoice #",
+    cell: ({ row }) => (
+        <Link 
+            href={`/invoice/${row.original.id}`}
+            target="_blank"
+            className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto font-normal")}
+        >
+            #{row.getValue("invoiceSequence")}
+        </Link>
+    )
+  },
+  {
+    accessorKey: "saleDate",
+    header: "Date",
+    cell: ({ row }) => <FormattedDateCell date={row.original.saleDate} />
+  },
+  {
+    accessorKey: "customerName",
+    header: "Customer",
+    cell: ({ row }) => (
+        <Link 
+            href={`/customer/${row.original.customerId}`}
+            target="_blank"
+            className="hover:underline text-primary"
+        >
+            {row.getValue("customerName")}
+        </Link>
+    )
+  },
+  {
+    accessorKey: "storeName",
+    header: "Store",
+  },
+   {
+    accessorKey: "categoryName",
+    header: "Category",
+  },
+  {
+    accessorKey: "subCategoryName",
+    header: "Sub-Category",
+  },
+  {
+    accessorKey: "saleType",
+    header: "Type",
+  },
+  {
+    accessorKey: "paymentMethod",
+    header: "Payment Mode",
+  },
+  {
+    header: "Items",
+    cell: ({ row }) => row.original.items.length
+  },
+  {
+    accessorKey: "total",
+    header: "Total",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.total} />,
+  },
+  {
+    accessorKey: "amountPaid",
+    header: "Amount Paid",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.amountPaid || 0} />,
+  },
+  {
+    accessorKey: "balanceAmount",
+    header: "Balance",
+    cell: ({ row }) => {
+        const balance = row.original.balanceAmount || 0;
+        return <FormattedNumberCell value={balance} className={cn(balance > 0 && "text-destructive")} />
+    },
+  },
+  {
+    accessorKey: "warrantyExpiryDate",
+    header: "Warranty Expires",
+    cell: ({ row }) => row.original.warrantyExpiryDate ? <FormattedDateCell date={row.original.warrantyExpiryDate} /> : 'N/A',
+  },
+]
+
+export const gstReportColumns: ColumnDef<any>[] = [
+  {
+    accessorKey: "invoiceSequence",
+    header: "Invoice #",
+    cell: ({ row }) => (
+        <Link 
+            href={`/invoice/${row.original.id}`}
+            target="_blank"
+            className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto font-normal")}
+        >
+            #{row.getValue("invoiceSequence")}
+        </Link>
+    )
+  },
+  {
+    accessorKey: "saleDate",
+    header: "Date",
+    cell: ({ row }) => <FormattedDateCell date={row.original.saleDate} />
+  },
+  {
+    accessorKey: "customerName",
+    header: "Customer",
+  },
+  {
+    accessorKey: "subTotal",
+    header: "Subtotal",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.subTotal} />,
+  },
+  {
+    accessorKey: "cgstAmount",
+    header: "CGST",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.cgstAmount} />,
+  },
+  {
+    accessorKey: "sgstAmount",
+    header: "SGST",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.sgstAmount} />,
+  },
+  {
+    accessorKey: "igstAmount",
+    header: "IGST",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.igstAmount} />,
+  },
+  {
+    accessorKey: "total",
+    header: "Total",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.total} />,
+  },
+]
+
+const ReturnActionsCell = ({ saleReturn, customers, stores, companyDetails }: { saleReturn: SaleReturn, customers: Customer[], stores: Store[], companyDetails: Company | null }) => {
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                    <span className="sr-only">Open menu</span>
+                    <MoreHorizontal className="h-4 w-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => window.open(`/return-slip/${saleReturn.id}`, '_blank')}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print Slip
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => companyDetails && downloadReturnSlip(saleReturn, customers, stores, companyDetails)}>
+                    <FileDown className="mr-2 h-4 w-4" />
+                    Download PDF
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}
+
+export const returnsReportColumns = (options: { customers: Customer[], stores: Store[], companyDetails: Company | null }): ColumnDef<any>[] => [
+  {
+    accessorKey: "returnDate",
+    header: "Return Date",
+    cell: ({ row }) => <FormattedDateCell date={row.getValue("returnDate")} />,
+  },
+  {
+    accessorKey: "returnSequence",
+    header: "Return Slip #",
+    cell: ({ row }) => (
+      <Link
+        href={`/return-slip/${row.original.id}`}
+        target="_blank"
+        className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto font-normal")}
+      >
+        {row.getValue("returnSequence")}
+      </Link>
+    ),
+  },
+  {
+    accessorKey: "originalInvoiceSequence",
+    header: "Original Invoice #",
+    cell: ({ row }) => (
+      <Link
+        href={`/invoice/${row.original.originalSaleId}`}
+        target="_blank"
+        className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto font-normal")}
+      >
+        #{row.getValue("originalInvoiceSequence")}
+      </Link>
+    )
+  },
+  {
+    accessorKey: "customerName",
+    header: "Customer",
+  },
+    {
+    accessorKey: "storeName",
+    header: "Store",
+  },
+  {
+    header: "Items Returned",
+    cell: ({ row }) => row.original.items.reduce((sum: number, item: any) => sum + item.sellableQuantity + item.unsellableQuantity, 0)
+  },
+  {
+    accessorKey: "totalRefundAmount",
+    header: "Refund Amount",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.totalRefundAmount} />,
+  },
+  {
+      id: "reason",
+      header: "Reason",
+      cell: ({ row }) => {
+          const reasons = row.original.items
+            .map((item: any) => item.reason)
+            .filter(Boolean)
+            .join(', ');
+          return <span className="truncate">{reasons || 'N/A'}</span>;
+      }
+  },
+  {
+    id: "actions",
+    cell: ({ row }) => <ReturnActionsCell saleReturn={row.original} customers={options.customers} stores={options.stores} companyDetails={options.companyDetails} />,
+  }
+]
+
+
+export const expensesReportColumns: ColumnDef<any>[] = [
+  {
+    accessorKey: "date",
+    header: "Date",
+    cell: ({ row }) => <FormattedDateCell date={row.getValue("date")} />
+  },
+  {
+    accessorKey: "companyName",
+    header: "Company",
+  },
+  {
+    accessorKey: "expenseType",
+    header: "Type",
+    cell: ({ row }) => row.original.expenseType || 'N/A'
+  },
+  {
+    accessorKey: "category",
+    header: "Category",
+  },
+  {
+    accessorKey: "description",
+    header: "Description",
+  },
+  {
+    accessorKey: "vendor",
+    header: "Vendor",
+    cell: ({row}) => row.original.vendor || 'N/A'
+  },
+  {
+    accessorKey: "amount",
+    header: "Amount",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.amount} />,
+  },
+]
+
+export const inventoryReportColumns: ColumnDef<any>[] = [
+  {
+    accessorKey: "name",
+    header: "Product",
+  },
+  {
+    accessorKey: "sku",
+    header: "SKU",
+  },
+  {
+    accessorKey: "storeName",
+    header: "Store",
+  },
+  {
+    accessorKey: "quantity",
+    header: "Quantity",
+  },
+  {
+    accessorKey: "sellingPrice",
+    header: "Price (Unit)",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.sellingPrice} />,
+  },
+  {
+    id: 'totalValue',
+    header: "Total Value",
+    cell: ({ row }) => {
+        const total = row.original.quantity * row.original.sellingPrice;
+        return <FormattedNumberCell value={total} />
+    }
+  },
+]
+
+export const purchaseReportColumns: ColumnDef<any>[] = [
+  {
+    accessorKey: "purchaseOrderNumber",
+    header: "PO #",
+     cell: ({ row }) => {
+        const po = row.original;
+        return (
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                         <Link
+                            href={`/purchase-order/${po.id}`}
+                            target="_blank"
+                            className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto font-normal")}
+                        >
+                            {po.purchaseOrderNumber}
+                        </Link>
+                    </TooltipTrigger>
+                     {po.comments && (
+                        <TooltipContent>
+                            <p>{po.comments}</p>
+                        </TooltipContent>
+                    )}
+                </Tooltip>
+            </TooltipProvider>
+        )
+     }
+  },
+  {
+    accessorKey: "orderDate",
+    header: "Date",
+    cell: ({ row }) => <FormattedDateCell date={row.original.orderDate} />
+  },
+  {
+    accessorKey: "vendorName",
+    header: "Vendor",
+  },
+  {
+    accessorKey: "deliveryStoreName",
+    header: "Delivery Store",
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+  },
+  {
+    accessorKey: "totalAmount",
+    header: "Total",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.totalAmount} />,
+  },
+  {
+    accessorKey: "amountPaid",
+    header: "Amount Paid",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.amountPaid || 0} />,
+  },
+  {
+    accessorKey: "balanceAmount",
+    header: "Balance",
+    cell: ({ row }) => {
+        const balance = row.original.balanceAmount || 0;
+        return <FormattedNumberCell value={balance} className={cn(balance > 0 && "text-destructive")} />
+    },
+  },
+]
+
+export const stockTransferColumns: ColumnDef<any>[] = [
+  {
+    accessorKey: "date",
+    header: "Date",
+    cell: ({ row }) => <FormattedDateCell date={row.getValue("date")} />,
+  },
+  {
+    accessorKey: "productName",
+    header: "Product",
+  },
+  {
+    accessorKey: "fromStoreName",
+    header: "From Store",
+  },
+  {
+    accessorKey: "toStoreName",
+    header: "To Store",
+  },
+  {
+    accessorKey: "quantity",
+    header: "Quantity",
+    cell: ({ row }) => `${row.original.quantity} units`,
+  },
+  {
+    accessorKey: "notes",
+    header: "Notes",
+    cell: ({ row }) => <span className="truncate">{row.original.notes || 'N/A'}</span>,
+  },
+]
+
+export const priceHistoryReportColumns: ColumnDef<(PriceHistoryEntry & { productName: string; sku: string; })>[] = [
+    {
+        accessorKey: "date",
+        header: "Date Changed",
+        cell: ({ row }) => <FormattedDateCell date={row.original.date} />,
+    },
+    {
+        accessorKey: "productName",
+        header: "Product Name",
+    },
+    {
+        accessorKey: "sku",
+        header: "SKU",
+    },
+    {
+        accessorKey: "purchasePrice",
+        header: "Purchase Price",
+        cell: ({ row }) => <FormattedNumberCell value={row.original.purchasePrice} />,
+    },
+    {
+        accessorKey: "sellingPrice",
+        header: "Selling Price",
+        cell: ({ row }) => <FormattedNumberCell value={row.original.sellingPrice} />,
+    },
+];
+
+export const quotationsReportColumns: ColumnDef<any>[] = [
+  {
+    accessorKey: "quotationNumber",
+    header: "Quotation #",
+    cell: ({ row }) => (
+      <Link
+        href={`/quotation/${row.original.id}`}
+        target="_blank"
+        className={cn(buttonVariants({ variant: 'link' }), 'p-0 h-auto font-normal')}
+      >
+        {row.getValue("quotationNumber")}
+      </Link>
+    ),
+  },
+  {
+    accessorKey: "date",
+    header: "Date",
+    cell: ({ row }) => <FormattedDateCell date={row.original.date} />,
+  },
+  {
+    accessorKey: "customerName",
+    header: "Customer",
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+  },
+  {
+    header: "Items",
+    cell: ({ row }) => row.original.items.length,
+  },
+  {
+    accessorKey: "totalAmount",
+    header: "Total",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.totalAmount} />,
+  },
+];
+
+const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+    'New': 'secondary',
+    'Follow-up': 'default',
+    'Converted': 'outline',
+    'Rejected': 'destructive',
+    'Not Interested': 'destructive',
+    'Scheduled Callback': 'default',
+    'Will Decide Later': 'default',
+}
+
+export const enquiriesReportColumns: ColumnDef<Enquiry>[] = [
+  {
+    accessorKey: "enquiryNumber",
+    header: "Enquiry #",
+  },
+  {
+    accessorKey: "date",
+    header: "Date",
+    cell: ({ row }) => <FormattedDateCell date={row.getValue("date")} />
+  },
+  {
+    accessorKey: "customerName",
+    header: "Customer",
+  },
+  {
+    accessorKey: "enquiry",
+    header: "Enquiry",
+    cell: ({row}) => (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <p className="truncate max-w-xs">{row.getValue("enquiry")}</p>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p className="max-w-xs">{row.getValue("enquiry")}</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => {
+        const status = row.getValue("status") as string;
+        return <Badge variant={statusVariant[status] || 'default'}>{status}</Badge>;
+    }
+  },
+  {
+    accessorKey: 'followUps',
+    header: 'Follow-ups',
+    cell: ({ row }) => (row.original.followUps?.length || 0).toString(),
+  },
+];
 </file>
 
 <file path="src/app/sales/pending-invoices-dialog.tsx">
@@ -27000,7 +27005,15 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
 
       {open && (
         <div className="absolute top-full left-0 z-[100] w-full mt-1 rounded-md border bg-popover text-popover-foreground shadow-xl outline-none animate-in fade-in-0 zoom-in-95">
-          <Command shouldFilter={true} className="w-full">
+          <Command 
+            shouldFilter={true} 
+            className="w-full"
+            filter={(value, search) => {
+                const option = options.find(o => o.value === value);
+                const terms = (option?.searchTerms || option?.label || "").toLowerCase();
+                return terms.includes(search.toLowerCase()) ? 1 : 0;
+            }}
+          >
             <CommandInput 
               placeholder={searchPlaceholder} 
               autoFocus 
@@ -27013,7 +27026,7 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
                 {options.map((option) => (
                   <CommandItem
                     key={option.value}
-                    value={option.searchTerms || option.label}
+                    value={option.value}
                     onSelect={() => {
                       onChange(option.value === value ? "" : option.value)
                       setOpen(false)

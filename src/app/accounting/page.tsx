@@ -24,9 +24,6 @@ export default function AccountingPage() {
     const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
     const { data: expenses } = useCollection<Expense>(expensesRef);
     
-    const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
-    const { data: products } = useCollection<Product>(productsRef);
-
     const { totalRevenue, totalCogs, grossProfit, totalExpenses, netProfit } = useMemo(() => {
         const relevantSales = sales || [];
         const relevantExpenses = expenses || [];

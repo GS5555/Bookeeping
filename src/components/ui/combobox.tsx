@@ -36,6 +36,7 @@ interface ComboboxProps {
  */
 export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notFoundText, className, disabled }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
+  const [search, setSearch] = React.useState("")
   const containerRef = React.useRef<HTMLDivElement>(null)
 
   // Handle click outside to close the dropdown
@@ -53,6 +54,15 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
     return options.find((option) => option.value === value)?.label || ""
   }, [options, value])
 
+  const filteredOptions = React.useMemo(() => {
+    if (!search) return options;
+    const lowSearch = search.toLowerCase();
+    return options.filter(option => {
+        const terms = (option.searchTerms || option.label || "").toLowerCase();
+        return terms.includes(lowSearch);
+    });
+  }, [options, search]);
+
   return (
     <div className="relative w-full" ref={containerRef}>
       <Button
@@ -62,7 +72,10 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
         aria-expanded={open}
         className={cn("w-full justify-between h-10 px-3 font-normal bg-background border-muted-foreground/50", className)}
         disabled={disabled}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+            setOpen(!open);
+            if (!open) setSearch(""); // Reset search when opening
+        }}
       >
         <span className="truncate">
           {value ? selectedLabel : placeholder}
@@ -73,43 +86,42 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
       {open && (
         <div className="absolute top-full left-0 z-[100] w-full mt-1 rounded-md border bg-popover text-popover-foreground shadow-xl outline-none animate-in fade-in-0 zoom-in-95">
           <Command 
-            shouldFilter={true} 
+            shouldFilter={false} // Disable internal filtering to use our manual filter
             className="w-full"
-            filter={(value, search) => {
-                const option = options.find(o => o.value === value);
-                const terms = (option?.searchTerms || option?.label || "").toLowerCase();
-                return terms.includes(search.toLowerCase()) ? 1 : 0;
-            }}
           >
             <CommandInput 
               placeholder={searchPlaceholder} 
               autoFocus 
+              onValueChange={setSearch}
               onPointerDown={(e) => e.currentTarget.focus()}
               className="h-10"
             />
             <CommandList className="max-h-[250px] overflow-y-auto overflow-x-hidden p-1">
-              <CommandEmpty className="py-6 text-center text-sm">{notFoundText}</CommandEmpty>
-              <CommandGroup>
-                {options.map((option) => (
-                  <CommandItem
-                    key={option.value}
-                    value={option.value}
-                    onSelect={() => {
-                      onChange(option.value === value ? "" : option.value)
-                      setOpen(false)
-                    }}
-                    className="flex items-center justify-between cursor-pointer"
-                  >
-                    <span className="truncate">{option.label}</span>
-                    <Check
-                      className={cn(
-                        "h-4 w-4 ml-2",
-                        value === option.value ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {filteredOptions.length === 0 ? (
+                <CommandEmpty className="py-6 text-center text-sm">{notFoundText}</CommandEmpty>
+              ) : (
+                <CommandGroup>
+                  {filteredOptions.map((option) => (
+                    <CommandItem
+                      key={option.value}
+                      value={option.value}
+                      onSelect={() => {
+                        onChange(option.value === value ? "" : option.value)
+                        setOpen(false)
+                      }}
+                      className="flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="truncate">{option.label}</span>
+                      <Check
+                        className={cn(
+                          "h-4 w-4 ml-2",
+                          value === option.value ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
             </CommandList>
           </Command>
         </div>

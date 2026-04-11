@@ -104,8 +104,8 @@ export default function Dashboard() {
     const purchasesThisMonth = (purchaseOrders || []).filter(p => new Date(p.orderDate) >= currentMonthStart);
     const purchasesLastMonth = (purchaseOrders || []).filter(p => isWithinInterval(new Date(p.orderDate), { start: lastMonthStart, end: lastMonthEnd }));
 
-    const expensesThisMonth = (expenses || []).filter(e => new Date(e.expenseDate) >= currentMonthStart);
-    const expensesLastMonth = (expenses || []).filter(e => isWithinInterval(new Date(e.expenseDate), { start: lastMonthStart, end: lastMonthEnd }));
+    const expensesThisMonth = (expenses || []).filter(e => new Date(e.date) >= currentMonthStart);
+    const expensesLastMonth = (expenses || []).filter(e => isWithinInterval(new Date(e.date), { start: lastMonthStart, end: lastMonthEnd }));
 
     const totalSales = salesThisMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const totalSalesLastMonth = salesLastMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
@@ -243,7 +243,7 @@ export default function Dashboard() {
             <CardHeader>
                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                     <div><CardTitle>Customer Sale History</CardTitle><CardDescription>Select a customer to view history.</CardDescription></div>
-                    <div className="w-full max-w-sm"><Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}><SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger><SelectContent>{safeCustomers.map(customer => (<SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>))}</SelectContent></Select></div>
+                    <div className="w-full max-w-sm"><Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}><SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger><SelectContent>{safeCustomers.map(customer => (<SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>))}</SelectItem></Select></div>
                 </div>
             </CardHeader>
             <CardContent>
