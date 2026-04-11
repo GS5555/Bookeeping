@@ -419,7 +419,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         <div className="p-4 border-t bg-muted/10 flex justify-end">
             <Button type="submit" form="sale-form" className="w-full sm:w-auto font-black uppercase tracking-widest px-12 h-12 shadow-lg">Save & Generate Invoice</Button>
         </div>
-        <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
+        <CustomerDialog open={isCustomerDialogOpen} onOpenChange={isCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
       </DialogContent>
     </Dialog>
   );

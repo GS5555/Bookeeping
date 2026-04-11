@@ -126,8 +126,11 @@ export const columns = (options: {
         const gstRate = Number(item.gstRate) || 0;
         const sellingPrice = Number(item.sellingPrice) || 0;
         
+        // Safety guard against division by zero or NaN
         const preGstSellingPrice = gstRate > 0 ? (sellingPrice / (1 + gstRate / 100)) : sellingPrice;
         let profit = preGstSellingPrice - totalCost;
+        
+        if (isNaN(profit)) profit = 0;
         const color = profit >= 0 ? 'text-green-600' : 'text-destructive';
         
         return <FormattedNumberCell value={profit} className={color} options={{ maximumFractionDigits: 0 }} />
