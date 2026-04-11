@@ -116,20 +116,16 @@ export default function Dashboard() {
     const totalExpenses = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
     const totalExpensesLastMonth = expensesLastMonth.reduce((sum, expense) => sum + expense.amount, 0);
     
-    const calcPercentageChange = (current: number, previous: number) => {
-      if (previous === 0) {
-        return current > 0 ? 100 : 0;
-      }
+    const calcChange = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
       return ((current - previous) / previous) * 100;
     };
 
     return { 
-        totalSales, 
-        totalPurchases, 
-        totalExpenses, 
-        salesChange: calcPercentageChange(totalSales, totalSalesLastMonth),
-        purchasesChange: calcPercentageChange(totalPurchases, totalPurchasesLastMonth),
-        expensesChange: calcPercentageChange(totalExpenses, totalExpensesLastMonth)
+        totalSales, totalPurchases, totalExpenses, 
+        salesChange: calcChange(totalSales, totalSalesLastMonth),
+        purchasesChange: calcChange(totalPurchases, totalPurchasesLastMonth),
+        expensesChange: calcChange(totalExpenses, totalExpensesLastMonth)
     };
   }, [safeSales, purchaseOrders, expenses]);
 
@@ -139,10 +135,8 @@ export default function Dashboard() {
       const month = format(new Date(sale.saleDate), 'MMM');
       monthlySales[month] = (monthlySales[month] || 0) + (sale.total || 0);
     });
-
     const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     return monthOrder.map(month => ({ name: month, total: monthlySales[month] || 0 }));
-    
   }, [safeSales]);
 
   const customerHistory = useMemo(() => {
@@ -150,196 +144,88 @@ export default function Dashboard() {
     return safeSales.filter(s => s.customerId === selectedHistoryCustomer);
   }, [selectedHistoryCustomer, safeSales]);
 
-
-  const salesChartConfig: ChartConfig = {
-    total: {
-      label: 'Sales',
-      color: 'hsl(var(--chart-1))',
-    },
-  };
+  const salesChartConfig: ChartConfig = { total: { label: 'Sales', color: 'hsl(var(--chart-1))' } };
   
-    const handleSaleSuccess = async (sale: Sale) => {
-        if (!firestore || !currentUser) {
-            toast({ title: "Error", description: "System is initializing. Please wait.", variant: "destructive" });
-            return;
-        }
-
-        try {
-            await runTransaction(firestore, async (transaction) => {
-                const companyRef = doc(firestore, 'settings', 'global', 'companies', 'main_company');
-                const companyDoc = await transaction.get(companyRef);
-                
-                let companyData;
-                if (!companyDoc.exists()) {
-                    companyData = {
-                        id: 'main_company',
-                        name: 'Cricket Store',
-                        shortName: 'CS',
-                        invoicePrefix: 'INV',
-                        lastInvoiceNumber: 0,
-                        lastBillNumber: 0,
-                    };
-                    transaction.set(companyRef, companyData);
-                } else {
-                    companyData = companyDoc.data();
-                }
-                
-                const isGst = sale.saleType === 'GST';
-                const numberField = isGst ? 'lastInvoiceNumber' : 'lastBillNumber';
-                const prefix = isGst ? (companyData.invoicePrefix || 'INV') : 'BILL';
-                const lastNumber = companyData[numberField] || 0;
-                const newNumber = lastNumber + 1;
-                const invoiceSequence = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
-                
-                const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
-                
-                const finalSaleData = JSON.parse(JSON.stringify({
-                    ...sale,
-                    id: saleDocRef.id,
-                    invoiceSequence,
-                    dueDate: addDays(new Date(sale.saleDate), 30).toISOString(),
-                    createdBy: currentUser.id,
-                    createdByName: currentUser.displayName,
-                }));
-
-                transaction.set(saleDocRef, finalSaleData);
-                transaction.update(companyRef, { [numberField]: newNumber });
-            });
-            toast({ title: "Success!", description: `Invoice created successfully!` });
-            setIsSaleDialogOpen(false);
-        } catch (error) {
-            console.error("Sale transaction failed:", error);
-            toast({ 
-                title: "Sale Creation Failed", 
-                description: (error as Error).message || "An unexpected error occurred while saving the sale.", 
-                variant: "destructive" 
-            });
-        }
-  };
-
-  const handlePurchaseSuccess = async (po: PurchaseOrder) => {
+  const handleSaleSuccess = async (sale: Sale) => {
     if (!firestore || !currentUser) return;
     try {
-      const docRef = doc(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'));
-      
-      const finalPoData = JSON.parse(JSON.stringify({ 
-          ...po, 
-          id: docRef.id,
-          createdBy: currentUser.id,
-          createdByName: currentUser.displayName
-      }));
-
-      await setDoc(docRef, finalPoData);
-      setIsPurchaseDialogOpen(false);
-      toast({ title: "Success!", description: `Purchase Order #${po.purchaseOrderNumber} created.` });
-    } catch(e) {
-      console.error(e);
-      toast({ title: "Error", description: "Failed to create purchase order.", variant: "destructive" });
+        await runTransaction(firestore, async (transaction) => {
+            const companyRef = doc(firestore, 'settings', 'global', 'companies', 'main_company');
+            const companyDoc = await transaction.get(companyRef);
+            let companyData = companyDoc.exists() ? companyDoc.data() : { lastInvoiceNumber: 0, lastBillNumber: 0 };
+            
+            const isGst = sale.saleType === 'GST';
+            const numberField = isGst ? 'lastInvoiceNumber' : 'lastBillNumber';
+            const prefix = isGst ? (companyData.invoicePrefix || 'INV') : 'BILL';
+            const newNumber = (companyData[numberField] || 0) + 1;
+            const invoiceSequence = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
+            
+            const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
+            const finalSaleData = JSON.parse(JSON.stringify({
+                ...sale,
+                id: saleDocRef.id,
+                invoiceSequence,
+                dueDate: addDays(new Date(sale.saleDate), 30).toISOString(),
+                createdBy: currentUser.id,
+                createdByName: currentUser.displayName,
+            }));
+            transaction.set(saleDocRef, finalSaleData);
+            transaction.update(companyRef, { [numberField]: newNumber });
+        });
+        toast({ title: "Success!", description: `Invoice created.` });
+        setIsSaleDialogOpen(false);
+    } catch (error) {
+        console.error(error);
+        toast({ title: "Sale Creation Failed", variant: "destructive" });
     }
   };
 
-  const handleProductSuccess = async (product: Product) => {
-    if(!firestore) return;
+  const handleStockUpdateSuccess = async ({ productId, storeId, quantity, vendorId, purchasePrice }: StockFormValues) => {
+    if (!firestore) return;
     try {
-      const docRef = doc(firestore, 'stores', STORE_ID, 'products', product.id);
-      await setDoc(docRef, product, { merge: true });
-      setIsProductDialogOpen(false);
-      toast({ title: "Success!", description: `Product ${product.name} created.` });
-    } catch(e) {
-      console.error(e);
-      toast({ title: "Error", description: "Failed to save product", variant: "destructive" });
-    }
-  };
+        const inventoryCollectionRef = collection(firestore, 'stores', storeId, 'inventoryItems');
+        const q = query(inventoryCollectionRef, where("productId", "==", productId));
+        const querySnapshot = await getDocs(q);
 
-  const handleCustomerSuccess = async (customer: Customer) => {
-     if(!firestore) return;
-     try {
-        const docRef = doc(firestore, 'stores', STORE_ID, 'customers', customer.id);
-        await setDoc(docRef, customer, { merge: true });
-        setIsCustomerDialogOpen(false);
-        toast({ title: "Success!", description: `Customer ${customer.name} created.` });
-     } catch (e) {
-        // use toast for errors only
-        toast({ title: "Error", description: "Failed to save customer", variant: "destructive" });
-     }
-  };
-
-  const handleExpenseSuccess = async (expense: Expense) => {
-    if(!firestore) return;
-    try {
-        const docRef = doc(firestore, 'stores', STORE_ID, 'expenses', expense.id);
-        await setDoc(docRef, expense, { merge: true });
-        setIsExpenseDialogOpen(false);
-        toast({ title: "Success!", description: `Expense recorded.` });
+        if (!querySnapshot.empty) {
+            const inventoryDoc = querySnapshot.docs[0];
+            const existingBatches = inventoryDoc.data().stockBatches || [];
+            const newBatch = {
+                date: new Date().toISOString(),
+                quantity: quantity,
+                purchasePrice: purchasePrice,
+                vendorId: vendorId,
+            };
+            await updateDoc(inventoryDoc.ref, { 
+                stockBatches: [...existingBatches, newBatch],
+                lastStockUpdate: new Date().toISOString()
+            });
+            toast({ title: "Stock Updated!", description: `Stock adjusted by ${quantity}.` });
+        } else {
+            const productDetails = products?.find(p => p.id === productId);
+            if (productDetails) {
+                const newInvDocRef = doc(inventoryCollectionRef);
+                await setDoc(newInvDocRef, {
+                    id: newInvDocRef.id,
+                    productId: productDetails.id,
+                    storeId: storeId,
+                    stockBatches: [{
+                        date: new Date().toISOString(),
+                        quantity: quantity,
+                        purchasePrice: purchasePrice,
+                        vendorId: vendorId,
+                    }],
+                    locationComment: 'N/A',
+                    lastStockUpdate: new Date().toISOString(),
+                });
+                toast({ title: "Stock Entry Created!", description: `${quantity} units added.` });
+            }
+        }
     } catch(e) {
         console.error(e);
-        toast({ title: "Error", description: "Failed to save expense", variant: "destructive" });
+        toast({ title: "Error", description: "Failed to update stock.", variant: "destructive" });
     }
-  };
-
-  const handleStockUpdateSuccess = async ({ productId, storeId, quantity }: StockFormValues) => {
-        if (!firestore) return;
-        try {
-            const inventoryCollectionRef = collection(firestore, 'stores', storeId, 'inventoryItems');
-            const q = query(inventoryCollectionRef, where("productId", "==", productId));
-            const querySnapshot = await getDocs(q);
-
-            if (!querySnapshot.empty) {
-                const inventoryDoc = querySnapshot.docs[0];
-                const newQuantity = inventoryDoc.data().quantity + quantity;
-                await updateDoc(inventoryDoc.ref, { 
-                    quantity: newQuantity,
-                    lastStockUpdate: new Date().toISOString()
-                });
-                toast({ title: "Stock Updated!", description: `Stock adjusted by ${quantity}.` });
-            } else {
-                 const productDetails = products?.find(p => p.id === productId);
-                 if(productDetails) {
-                    const newInvDocRef = doc(inventoryCollectionRef);
-                    await setDoc(newInvDocRef, {
-                        ...productDetails,
-                        id: newInvDocRef.id,
-                        productId: productDetails.id,
-                        storeId: storeId,
-                        quantity: quantity,
-                        locationComment: 'N/A',
-                        lastStockUpdate: new Date().toISOString(),
-                    });
-                    toast({ title: "Stock Entry Created!", description: `${quantity} units added.` });
-                }
-            }
-        } catch(e) {
-            console.error(e);
-            toast({ title: "Error", description: "Failed to update stock.", variant: "destructive" });
-        }
-        setIsStockDialogOpen(false);
-    }
-
-  const handleQuotationSuccess = async (quotation: Quotation) => {
-    if (!firestore || !currentUser) return;
-    try {
-        const quotationDocRef = doc(firestore, 'stores', STORE_ID, 'quotations', quotation.id);
-        const finalQuotation: Quotation = { ...quotation, createdBy: currentUser.id };
-        await setDoc(quotationDocRef, finalQuotation, { merge: true });
-        setIsQuotationDialogOpen(false);
-        toast({ title: 'Success!', description: 'Quotation saved successfully.' });
-    } catch (error) {
-        console.error("Error saving quotation:", error);
-        toast({ title: 'Error', description: 'Could not save quotation.', variant: "destructive" });
-    }
-  };
-
-  const handleEnquirySuccess = async (enquiry: Enquiry) => {
-      if (!firestore) return;
-      try {
-          const enquiryDocRef = doc(firestore, 'stores', STORE_ID, 'enquiries', enquiry.id);
-          await setDoc(enquiryDocRef, enquiry, { merge: true });
-          setIsEnquiryDialogOpen(false);
-          toast({ title: "Success!", description: "Enquiry saved successfully." });
-      } catch (error) {
-          console.error("Error saving enquiry:", error);
-          toast({ title: "Error", description: "Could not save enquiry.", variant: "destructive" });
-      }
+    setIsStockDialogOpen(false);
   }
 
   return (
@@ -347,101 +233,37 @@ export default function Dashboard() {
       <PageHeader title="Dashboard" />
       <ShareDialog open={isShareDialogOpen} onOpenChange={closeShareDialog} shareData={shareDialogData} />
       <div className="flex flex-1 flex-col gap-4 md:gap-8">
-        <QuickActions
-            onNewSale={() => setIsSaleDialogOpen(true)}
-            onNewPurchase={() => setIsPurchaseDialogOpen(true)}
-            onAddProduct={() => setIsProductDialogOpen(true)}
-            onAddCustomer={() => setIsCustomerDialogOpen(true)}
-            onAddExpense={() => setIsExpenseDialogOpen(true)}
-            onNewStockEntry={() => setIsStockDialogOpen(true)}
-            onNewEnquiry={() => setIsEnquiryDialogOpen(true)}
-            onNewQuotation={() => setIsQuotationDialogOpen(true)}
-        />
-        
+        <QuickActions onNewSale={() => setIsSaleDialogOpen(true)} onNewPurchase={() => setIsPurchaseDialogOpen(true)} onAddProduct={() => setIsProductDialogOpen(true)} onAddCustomer={() => setIsCustomerDialogOpen(true)} onAddExpense={() => setIsExpenseDialogOpen(true)} onNewStockEntry={() => setIsStockDialogOpen(true)} onNewEnquiry={() => setIsEnquiryDialogOpen(true)} onNewQuotation={() => setIsQuotationDialogOpen(true)} />
         <StatsCards stats={dynamicStats} />
-
         <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Sales</CardTitle>
-                  <CardDescription>
-                  Your most recent transactions.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <RecentSales sales={sales || []} />
-              </CardContent>
-            </Card>
+            <Card><CardHeader><CardTitle>Recent Sales</CardTitle><CardDescription>Latest transactions.</CardDescription></CardHeader><CardContent><RecentSales sales={sales || []} /></CardContent></Card>
             <EventReminders customers={customers || []} vendors={vendors || []} />
         </div>
-        
         <Card>
             <CardHeader>
                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                    <div>
-                        <CardTitle>Customer Sale History</CardTitle>
-                        <CardDescription>Select a customer to view history.</CardDescription>
-                    </div>
-                    <div className="w-full max-w-sm">
-                         <Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select customer..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {safeCustomers.map(customer => (
-                                    <SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <div><CardTitle>Customer Sale History</CardTitle><CardDescription>Select a customer to view history.</CardDescription></div>
+                    <div className="w-full max-w-sm"><Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}><SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger><SelectContent>{safeCustomers.map(customer => (<SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>))}</SelectContent></Select></div>
                 </div>
             </CardHeader>
             <CardContent>
                 {selectedHistoryCustomer ? (
-                    <DataTable 
-                        columns={salesColumns({ 
-                            onDelete: () => {}, 
-                            products: safeProducts, 
-                            customers: safeCustomers, 
-                            onEdit: () => {},
-                            onShare: (sale) => {
-                                if (!companyDetails) return;
-                                const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`);
-                                openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text});
-                            }
-                        })} 
-                        data={customerHistory} 
-                    />
+                    <DataTable columns={salesColumns({ onDelete: () => {}, products: safeProducts, customers: safeCustomers, onEdit: () => {}, onShare: (sale) => { if (!companyDetails) return; const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`); openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text}); } })} data={customerHistory} />
                 ) : (
-                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
-                        <Users className="mx-auto h-12 w-12 opacity-20" />
-                        <p className="mt-4 text-xs font-medium uppercase tracking-widest">Select a customer to see history</p>
-                    </div>
+                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg"><Users className="mx-auto h-12 w-12 opacity-20" /><p className="mt-4 text-xs font-medium uppercase tracking-widest">Select a customer</p></div>
                 )}
             </CardContent>
         </Card>
-
-        <GenericChart
-          title="Sales Overview"
-          description="Monthly sales trends."
-          data={salesChartData}
-          dataKeyX="name"
-          dataKeysY={['total']}
-          chartConfig={salesChartConfig}
-          chartType="bar"
-          yAxisFormatter={(value) => `₹${value / 1000}K`}
-          categorical={true}
-        />
+        <GenericChart title="Sales Overview" description="Monthly sales trends." data={salesChartData} dataKeyX="name" dataKeysY={['total']} chartConfig={salesChartConfig} chartType="bar" yAxisFormatter={(v) => `₹${v / 1000}K`} categorical={true} />
       </div>
-      
       <SaleDialog open={isSaleDialogOpen} onOpenChange={setIsSaleDialogOpen} onSuccess={handleSaleSuccess} />
-      <PurchaseOrderDialog open={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen} onSuccess={handlePurchaseSuccess} />
-      <ProductDialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen} product={undefined} onSuccess={handleProductSuccess} />
-      <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={handleCustomerSuccess} />
-      <ExpenseDialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen} onSuccess={handleExpenseSuccess} />
+      <PurchaseOrderDialog open={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen} onSuccess={(po) => setIsPurchaseDialogOpen(false)} />
+      <ProductDialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen} product={undefined} onSuccess={(p) => setIsProductDialogOpen(false)} />
+      <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => setIsCustomerDialogOpen(false)} />
+      <ExpenseDialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen} onSuccess={(e) => setIsExpenseDialogOpen(false)} />
       <StockDialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen} onSuccess={handleStockUpdateSuccess} />
-      <EnquiryDialog open={isEnquiryDialogOpen} onOpenChange={setIsEnquiryDialogOpen} onSuccess={handleEnquirySuccess} />
-      <QuotationDialog open={isQuotationDialogOpen} onOpenChange={setIsQuotationDialogOpen} onSuccess={handleQuotationSuccess} />
+      <EnquiryDialog open={isEnquiryDialogOpen} onOpenChange={setIsEnquiryDialogOpen} onSuccess={(e) => setIsEnquiryDialogOpen(false)} />
+      <QuotationDialog open={isQuotationDialogOpen} onOpenChange={setIsQuotationDialogOpen} onSuccess={(q) => setIsQuotationDialogOpen(false)} />
     </>
   );
 }

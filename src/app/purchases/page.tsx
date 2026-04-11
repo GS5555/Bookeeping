@@ -29,7 +29,6 @@ import { useShareDialog } from '@/hooks/use-share-dialog';
 import { ShareDialog } from '@/components/share-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-// TODO: Implement a store selection mechanism
 const STORE_ID = 'store_main';
 
 export default function PurchasesPage() {
@@ -97,7 +96,7 @@ export default function PurchasesPage() {
         setIsUpdateStatusDialogOpen(true);
     }
     
-    const handleSuccess = async (po: Omit<PurchaseOrder, 'id' | 'purchaseOrderNumber'>) => {
+    const handleSuccess = async (po: Omit<PurchaseOrder, 'id'| 'purchaseOrderNumber'>) => {
         if (!firestore || !currentUser || !products) {
             toast({ title: "Error", description: "Core data is not loaded yet.", variant: "destructive" });
             return;
@@ -114,7 +113,6 @@ export default function PurchasesPage() {
                 const numberField = isGst ? 'lastGstPoNumber' : 'lastCashPoNumber';
                 const prefix = isGst ? 'POGST' : 'POCSH';
                 
-                // Data Integrity Fix: Ensure numbering fields default to 0
                 const lastNumber = (companyData && companyData[numberField]) ? Number(companyData[numberField]) : 0;
                 const newNumber = lastNumber + 1;
                 const purchaseOrderNumber = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
@@ -128,7 +126,6 @@ export default function PurchasesPage() {
                     createdByName: currentUser.displayName || 'Unknown User'
                 } as PurchaseOrder;
 
-                // Price update logic
                 for (const item of finalPO.items) {
                     const product = products.find(p => p.id === item.productId);
                     if (product && product.purchasePrice !== item.unitCost) {
@@ -156,8 +153,8 @@ export default function PurchasesPage() {
                 description: `Purchase Order created successfully.`
             });
         } catch(error) {
-            console.error("Error creating PO and updating prices:", error);
-            toast({ title: "Error", description: (error as Error).message || "Could not create purchase order or update prices.", variant: "destructive" });
+            console.error("Error creating PO:", error);
+            toast({ title: "Error", description: (error as Error).message || "Could not create purchase order.", variant: "destructive" });
         }
     }
 
@@ -201,7 +198,6 @@ export default function PurchasesPage() {
             }
         }
 
-        // 2. Update Purchase Order
         const poDocRef = doc(firestore, 'stores', STORE_ID, 'purchaseOrders', purchaseOrder.id);
         const poToUpdate = { ...purchaseOrder };
         let totalOrdered = 0;
@@ -226,7 +222,6 @@ export default function PurchasesPage() {
         
         await batch.commit();
 
-        // 3. Close dialog and show toast
         setIsUpdateStatusDialogOpen(false);
         setEditingPO(undefined);
         toast({
@@ -309,7 +304,7 @@ export default function PurchasesPage() {
                 'Product Name': item.productName,
                 'SKU': products.find(p => p.id === item.productId)?.sku || '',
                 'Quantity': item.quantity,
-                'Unit Cost': item.unitCost,
+                'Unit Cost': item.unitPrice,
                 'Total Cost': item.totalCost,
                 'Comments': po.comments || '',
             }))

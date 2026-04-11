@@ -119,7 +119,6 @@ export const columns = (options: {
     id: "potentialProfit",
     header: "Profit / Qty",
     cell: ({ row }) => {
-        // Performance Fix: Harden math to handle missing values gracefully
         const item = row.original;
         const purchase = Number(item.purchasePrice) || 0;
         const misc = Number(item.miscellaneousCost) || 0;
@@ -127,9 +126,7 @@ export const columns = (options: {
         const gstRate = Number(item.gstRate) || 0;
         const sellingPrice = Number(item.sellingPrice) || 0;
         
-        // Prevent division by zero and handle 0 rate
         const preGstSellingPrice = gstRate > 0 ? (sellingPrice / (1 + gstRate / 100)) : sellingPrice;
-        
         let profit = preGstSellingPrice - totalCost;
         const color = profit >= 0 ? 'text-green-600' : 'text-destructive';
         
@@ -138,7 +135,7 @@ export const columns = (options: {
   },
   {
     accessorKey: "locationComment",
-    header: "Location in Store",
+    header: "Location",
   },
    {
     id: "adjustStock",

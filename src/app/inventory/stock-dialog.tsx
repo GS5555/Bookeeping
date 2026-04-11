@@ -78,14 +78,14 @@ export function StockDialog({ open, onOpenChange, onSuccess, inventoryItem }: St
   
   const watchedProductId = form.watch('productId');
   useEffect(() => {
-      if(watchedProductId) {
+      if(watchedProductId && !inventoryItem) {
         const product = allProducts?.find(p => p.id === watchedProductId);
         if (product) {
             form.setValue('purchasePrice', product.purchasePrice);
             if(product.vendorId) form.setValue('vendorId', product.vendorId);
         }
       }
-  }, [watchedProductId, allProducts, form]);
+  }, [watchedProductId, allProducts, form, inventoryItem]);
 
   const onSubmit = (data: StockFormValues) => {
     onSuccess(data);
@@ -97,13 +97,13 @@ export function StockDialog({ open, onOpenChange, onSuccess, inventoryItem }: St
       <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader className="p-6 border-b">
           <DialogTitle>{inventoryItem ? `Adjust Stock: ${inventoryItem.productName}` : 'New Stock Entry'}</DialogTitle>
-          <DialogDescription>Manually update inventory levels for a specific product.</DialogDescription>
+          <DialogDescription>Manually update inventory levels.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form id="stock-form" onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-6 space-y-4">
             <FormField control={form.control} name="productId" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Product <span className="text-destructive font-black">*</span></FormLabel>
+                  <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Product *</FormLabel>
                   <FormControl>
                       <Combobox
                           options={sortedProducts?.map(p => ({ value: p.id, label: `${p.name} (${p.sku})` })) || []}
@@ -120,7 +120,7 @@ export function StockDialog({ open, onOpenChange, onSuccess, inventoryItem }: St
             )}/>
             <FormField control={form.control} name="vendorId" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Vendor <span className="text-destructive font-black">*</span></FormLabel>
+                  <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Vendor *</FormLabel>
                   <FormControl>
                       <Combobox
                           options={sortedVendors?.map(v => ({ value: v.id, label: v.name })) || []}

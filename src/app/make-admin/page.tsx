@@ -33,23 +33,16 @@ export default function MakeAdminPage() {
     setIsLoading(true);
 
     try {
-        // 1. Check for custom admin claim on the token
         const idTokenResult = await getIdTokenResult(authUser);
         const userIsAdmin = idTokenResult.claims.admin === true;
         setIsAdmin(userIsAdmin);
 
-        // 2. Check if the admin role has ever been claimed in the system
         const adminInitDocRef = doc(firestore, '_init', 'admin');
         const docSnap = await getDoc(adminInitDocRef);
         setAdminRoleClaimed(docSnap.exists() && docSnap.data().claimed === true);
     } catch (error) {
         console.error("Error verifying admin status:", error);
-        toast({
-            title: "Error",
-            description: "Could not verify admin status. Please try again.",
-            variant: "destructive"
-        });
-        // Fail safe to prevent claim attempts on error
+        toast({ title: "Error", description: "Could not verify admin status.", variant: "destructive" });
         setIsAdmin(false);
         setAdminRoleClaimed(true);
     } finally {
@@ -64,7 +57,6 @@ export default function MakeAdminPage() {
   }, [isAuthLoading, checkAdminStatus]);
 
   const handleClaimAdmin = async () => {
-    // Logic Gap Fix: Ensure user is logged in
     if (!authUser || !firestore || !auth) {
         toast({ title: "Auth Error", description: "You must be logged in to claim this role.", variant: "destructive" });
         return;
@@ -84,98 +76,41 @@ export default function MakeAdminPage() {
         transaction.update(userDocRef, { role: 'admin', isApproved: true });
       });
       
-      // Logic Gap Fix: Await the server action correctly
       const claimResult = await setAdminClaim(authUser.uid);
       if (!claimResult || !claimResult.success) {
           throw new Error(claimResult?.error || "Failed to set custom admin claim.");
       }
 
-      toast({
-        title: "Success! You are now an administrator.",
-        description: "Logging out to refresh your security session. Please log back in.",
-      });
-
-      // Logic Gap Fix: Force logout to refresh the user's JWT token
+      toast({ title: "Success! You are now an administrator.", description: "Logging out to refresh your security session." });
       await signOut(auth);
       router.push('/login');
 
     } catch (error: any) {
       console.error("Failed to claim admin role:", error);
-      toast({
-        title: "Claim Failed",
-        description: error.message || "An error occurred. The admin role may have already been claimed.",
-        variant: "destructive",
-      });
-      setAdminRoleClaimed(true); // Update state to reflect claim attempt
+      toast({ title: "Claim Failed", description: error.message || "An error occurred.", variant: "destructive" });
+      setAdminRoleClaimed(true);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const renderContent = () => {
-    if (isLoading) {
-      return <FullPageLoader />;
-    }
-     if (!authUser) {
-      router.push('/login');
-      return <FullPageLoader />;
-    }
+  if (isLoading) return <FullPageLoader />;
+  if (!authUser) { router.push('/login'); return <FullPageLoader />; }
 
-    if (isAdmin) {
-         return (
-            <div className="flex flex-col items-center gap-2 text-center">
-                <UserCheck className="h-10 w-10 text-green-500" />
-                <h3 className="font-semibold">You are an Administrator</h3>
-                <p className="text-sm text-muted-foreground">You already have full administrative privileges.</p>
-                <Button onClick={() => router.push('/settings')} className="mt-4">Go to Settings</Button>
-            </div>
-        );
-    }
-    
-    if (adminRoleClaimed) {
-      return (
-        <div className="flex flex-col items-center gap-2 text-center">
-            <ShieldCheck className="h-10 w-10 text-primary" />
-            <h3 className="font-semibold">Administrator Role Claimed</h3>
-            <p className="text-sm text-muted-foreground">The primary administrator role for this application has already been assigned.</p>
-            <Button onClick={() => router.push('/')} className="mt-4">Go to Dashboard</Button>
-        </div>
-      );
-    }
-    
-    if (adminRoleClaimed === false) {
-       return (
-        <div className="flex flex-col items-center gap-4 text-center">
-            <ShieldAlert className="h-10 w-10 text-primary" />
-            <h3 className="font-semibold">Claim Administrator Role</h3>
-            <p className="text-sm text-muted-foreground">You are the first user. Click the button below to become the primary administrator for this application. This action can only be performed once.</p>
-            <Button onClick={handleClaimAdmin} disabled={isProcessing} className="mt-2">
-                {isProcessing ? 'Claiming...' : 'Claim Admin Role & Log Out'}
-            </Button>
-        </div>
-       );
-    }
-
-    return (
-        <div className="flex flex-col items-center gap-2 text-center text-destructive">
-            <ServerCrash className="h-10 w-10" />
-            <h3 className="font-semibold">Verification Failed</h3>
-            <p className="text-sm">Could not verify admin status. Please check your Firestore security rules for the `_init` collection.</p>
-        </div>
-    );
-  };
-  
   return (
     <>
       <PageHeader title="Setup Administrator" />
       <div className="flex justify-center items-start py-8">
         <Card className="w-full max-w-md">
-            <CardHeader>
-                <CardTitle>First Time Setup</CardTitle>
-                <CardDescription>Finalize the application setup by claiming the admin role.</CardDescription>
-            </CardHeader>
+            <CardHeader><CardTitle>First Time Setup</CardTitle><CardDescription>Finalize application setup.</CardDescription></CardHeader>
             <CardContent className="py-8">
-                {renderContent()}
+                {isAdmin ? (
+                    <div className="flex flex-col items-center gap-2 text-center"><UserCheck className="h-10 w-10 text-green-500" /><h3 className="font-semibold">You are an Administrator</h3><Button onClick={() => router.push('/settings')} className="mt-4">Go to Settings</Button></div>
+                ) : adminRoleClaimed ? (
+                    <div className="flex flex-col items-center gap-2 text-center"><ShieldCheck className="h-10 w-10 text-primary" /><h3 className="font-semibold">Administrator Role Claimed</h3><Button onClick={() => router.push('/')} className="mt-4">Go to Dashboard</Button></div>
+                ) : (
+                    <div className="flex flex-col items-center gap-4 text-center"><ShieldAlert className="h-10 w-10 text-primary" /><h3 className="font-semibold">Claim Administrator Role</h3><p className="text-sm text-muted-foreground">You are the first user. Click the button below to become the primary administrator.</p><Button onClick={handleClaimAdmin} disabled={isProcessing}>{isProcessing ? 'Claiming...' : 'Claim Admin Role & Log Out'}</Button></div>
+                )}
             </CardContent>
         </Card>
       </div>

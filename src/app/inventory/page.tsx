@@ -107,7 +107,7 @@ export default function InventoryPage() {
             if (product.isBundle && product.bundleItems && product.bundleItems.length > 0) {
                 const possibleBundles: number[] = product.bundleItems.map(bundleItem => {
                     const componentStock = inventoryMap[bundleItem.productId] || 0;
-                    if (bundleItem.quantity === 0) return Infinity; // Avoid division by zero
+                    if (bundleItem.quantity === 0) return Infinity;
                     return Math.floor(componentStock / bundleItem.quantity);
                 });
                 totalStock = Math.min(...possibleBundles);
@@ -158,71 +158,44 @@ export default function InventoryPage() {
             const q = query(inventoryCollectionRef, where("productId", "==", productId));
             const querySnapshot = await getDocs(q);
 
-            let invItemRef;
-            let currentBatches: InventoryItem['stockBatches'] = [];
-
             if (!querySnapshot.empty) {
                 const inventoryDoc = querySnapshot.docs[0];
-                invItemRef = inventoryDoc.ref;
-                currentBatches = inventoryDoc.data().stockBatches || [];
-            } else {
-                const productDetails = products?.find(p => p.id === productId);
-                if (productDetails) {
-                    invItemRef = doc(inventoryCollectionRef);
-                    await setDoc(invItemRef, {
-                        id: invItemRef.id,
-                        productId: productDetails.id,
-                        storeId: storeId,
-                        stockBatches: [],
-                        locationComment: 'N/A',
-                        lastStockUpdate: new Date().toISOString()
-                    });
-                } else {
-                    throw new Error("Could not find product details to create new inventory item.");
-                }
-            }
-            
-            if (quantity > 0) {
-                 currentBatches.push({
+                const existingBatches = inventoryDoc.data().stockBatches || [];
+                const newBatch = {
                     date: new Date().toISOString(),
                     quantity: quantity,
                     purchasePrice: purchasePrice,
                     vendorId: vendorId,
+                };
+                const updatedBatches = [...existingBatches, newBatch];
+                await updateDoc(inventoryDoc.ref, { 
+                    stockBatches: updatedBatches,
+                    lastStockUpdate: new Date().toISOString()
                 });
+                toast({ title: "Stock Updated!", description: `Stock adjusted by ${quantity}.` });
             } else {
-                // FIFO logic for manual reduction
-                let remainingToDecrement = Math.abs(quantity);
-                const sortedBatches = currentBatches.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-                for (const batch of sortedBatches) {
-                    if(remainingToDecrement <= 0) break;
-                    const amountToDecrement = Math.min(batch.quantity, remainingToDecrement);
-                    batch.quantity -= amountToDecrement;
-                    remainingToDecrement -= amountToDecrement;
+                const productDetails = products?.find(p => p.id === productId);
+                if (productDetails) {
+                    const newInvDocRef = doc(inventoryCollectionRef);
+                    await setDoc(newInvDocRef, {
+                        id: newInvDocRef.id,
+                        productId: productDetails.id,
+                        storeId: storeId,
+                        stockBatches: [{
+                            date: new Date().toISOString(),
+                            quantity: quantity,
+                            purchasePrice: purchasePrice,
+                            vendorId: vendorId,
+                        }],
+                        locationComment: 'N/A',
+                        lastStockUpdate: new Date().toISOString()
+                    });
+                    toast({ title: "Stock Entry Created!", description: `${quantity} units added.` });
                 }
-                 if(remainingToDecrement > 0) {
-                     throw new Error("Cannot reduce stock below zero.");
-                 }
-                currentBatches = sortedBatches.filter(b => b.quantity > 0);
             }
-
-            await updateDoc(invItemRef, { 
-                stockBatches: currentBatches,
-                lastStockUpdate: new Date().toISOString()
-            });
-
-            toast({
-                title: "Stock Updated!",
-                description: `Stock for product ID ${productId} has been adjusted.`
-            });
-
         } catch (error: any) {
             console.error("Error updating stock:", error);
-            toast({
-                title: "Error",
-                description: error.message || "Could not update stock.",
-                variant: "destructive",
-            })
+            toast({ title: "Error", description: error.message || "Could not update stock.", variant: "destructive" });
         }
         
         setIsStockDialogOpen(false);
@@ -230,10 +203,7 @@ export default function InventoryPage() {
     }
 
     const handleViewHistory = (item: InventoryDetail) => {
-        toast({
-            title: "Coming Soon!",
-            description: `History tracking for ${item.productName} is not yet implemented.`
-        })
+        toast({ title: "Coming Soon!", description: `History tracking for ${item.productName} is not yet implemented.` });
     }
 
     const handleEditProduct = (item: InventoryDetail) => {
@@ -253,10 +223,7 @@ export default function InventoryPage() {
             
             setIsProductDialogOpen(false);
             setEditingProduct(undefined);
-            toast({
-                title: "Product Updated!",
-                description: `${product.name} details have been saved.`
-            })
+            toast({ title: "Product Updated!", description: `${product.name} details have been saved.` });
         } catch (error) {
             console.error("Error updating product:", error);
             toast({ title: "Error", description: "Could not update product.", variant: "destructive" });
@@ -283,22 +250,16 @@ export default function InventoryPage() {
     };
 
     const handleDownloadSample = () => {
-        const sampleData = [
-         { sku: "KB-BAT-001", quantity: 15 },
-         { sku: "SG-BAL-001", quantity: 50 },
-        ];
+        const sampleData = [{ sku: "KB-BAT-001", quantity: 15 }, { sku: "SG-BAL-001", quantity: 50 }];
         exportToExcel(sampleData, 'inventory_update_sample');
     };
 
-    const handleImportClick = () => {
-        fileInputRef.current?.click();
-    };
+    const handleImportClick = () => fileInputRef.current?.click();
 
-const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file || !firestore) return;
 
-        // Fetch all products and inventory items to create local maps.
         const allProducts = products || [];
         const allInventory = inventory || [];
 
@@ -319,28 +280,15 @@ const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
                     return;
                 }
                 
-                const getHeader = (item: any, keys: string[]) => {
-                    for (const key of keys) {
-                        const itemKey = Object.keys(item).find(k => k.trim().toLowerCase() === key.toLowerCase());
-                        if (itemKey !== undefined && item[itemKey] !== null && item[itemKey] !== undefined) {
-                            return item[itemKey];
-                        }
-                    }
-                    return undefined;
-                };
-
                 const batch = writeBatch(firestore);
                 let totalUpdateCount = 0;
                 let totalCreateCount = 0;
-                const notFoundSkus: string[] = [];
 
                 for (const item of json) {
-                    const skuValue = getHeader(item, ['sku']);
-                    const quantity = getHeader(item, ['quantity']);
+                    const skuValue = item.sku || item.SKU;
+                    const quantity = item.quantity || item.Quantity;
 
-                    if (!skuValue || quantity === undefined) {
-                        continue; // Skip rows without SKU or Quantity
-                    }
+                    if (!skuValue || quantity === undefined) continue;
                     
                     const trimmedSku = String(skuValue).trim().toLowerCase();
                     const product = productSkuMap.get(trimmedSku);
@@ -353,67 +301,42 @@ const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
                             const newStockBatch = {
                                 date: new Date().toISOString(),
                                 quantity: Number(quantity),
-                                purchasePrice: product.purchasePrice, // Use product's current purchase price for this manual update
+                                purchasePrice: product.purchasePrice,
                                 vendorId: product.vendorId
                             };
-                            const updatedBatches = [...(existingInventory.stockBatches || []), newStockBatch];
-                            
-                            const invDocRef = doc(inventoryCollectionRef, existingInventory.id);
-                            batch.update(invDocRef, { 
-                                stockBatches: updatedBatches,
+                            batch.update(doc(inventoryCollectionRef, existingInventory.id), { 
+                                stockBatches: [...(existingInventory.stockBatches || []), newStockBatch],
                                 lastStockUpdate: new Date().toISOString()
                             });
                             totalUpdateCount++;
                         } else {
-                            // Create new inventory record with one batch
-                             const newStockBatch = {
-                                date: new Date().toISOString(),
-                                quantity: Number(quantity),
-                                purchasePrice: product.purchasePrice,
-                                vendorId: product.vendorId
-                            };
                             const newInvDocRef = doc(inventoryCollectionRef);
                             batch.set(newInvDocRef, {
                                 id: newInvDocRef.id,
                                 productId: product.id,
                                 storeId: STORE_ID,
-                                stockBatches: [newStockBatch],
+                                stockBatches: [{
+                                    date: new Date().toISOString(),
+                                    quantity: Number(quantity),
+                                    purchasePrice: product.purchasePrice,
+                                    vendorId: product.vendorId
+                                }],
                                 locationComment: 'N/A',
                                 lastStockUpdate: new Date().toISOString(),
                             });
                             totalCreateCount++;
                         }
-                    } else {
-                        notFoundSkus.push(String(skuValue).trim());
                     }
                 }
 
                 if (totalUpdateCount > 0 || totalCreateCount > 0) {
                     await batch.commit();
-                }
-                
-                const successMessage = [
-                    totalUpdateCount > 0 && `${totalUpdateCount} updated`,
-                    totalCreateCount > 0 && `${totalCreateCount} created`,
-                    notFoundSkus.length > 0 && `${notFoundSkus.length} SKUs not found`
-                ].filter(Boolean).join(', ');
-                
-                toast({
-                    title: "Import Complete!",
-                    description: successMessage || "No changes made.",
-                });
-                
-                if (notFoundSkus.length > 0) {
-                  console.warn("SKUs not found during import:", notFoundSkus);
+                    toast({ title: "Import Complete!", description: `${totalUpdateCount + totalCreateCount} items updated.` });
                 }
 
             } catch (error) {
                  console.error("Import Error:", error);
-                 toast({
-                    title: "Import Error",
-                    description: "Error processing file. Please ensure SKU and Quantity columns are correct.",
-                    variant: "destructive",
-                });
+                 toast({ title: "Import Error", description: "Error processing file.", variant: "destructive" });
             } finally {
                 if (event.target) event.target.value = '';
             }
@@ -422,187 +345,69 @@ const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     };
 
 
-    const lowStockInventory = useMemo(() => {
-        return inventoryDetails.filter(item => item.quantity < 10);
-    }, [inventoryDetails]);
+    const lowStockInventory = useMemo(() => inventoryDetails.filter(item => item.quantity < 10), [inventoryDetails]);
 
-    const { 
-        totalSKUs, 
-        totalQuantity, 
-        lowStockItems, 
-        inventoryValueBySellPrice, 
-        inventoryValueByLandedCost,
-        totalLandedPurchasePrice,
-        totalLandedMiscCost,
-        totalLandedGst
-    } = useMemo(() => {
+    const { totalSKUs, totalQuantity, lowStockItems, inventoryValueByLandedCost, inventoryValueBySellPrice } = useMemo(() => {
         const totalSKUs = products?.length || 0;
         const totalQuantity = inventoryDetails.reduce((acc, item) => acc + item.quantity, 0);
         const lowStockItems = inventoryDetails.filter(item => item.quantity < 10).length;
         
-        let totalLandedPurchasePrice = 0;
-        let totalLandedMiscCost = 0;
-        let totalLandedGst = 0;
-        let inventoryValueBySellPrice = 0;
+        let landedValue = 0;
+        let retailValue = 0;
 
         inventoryDetails.forEach(item => {
-            const purchasePrice = item.purchasePrice || 0;
-            const miscCost = item.miscellaneousCost || 0;
-            const gstRate = item.gstRate || 0;
+            const purchase = item.purchasePrice || 0;
+            const misc = item.miscellaneousCost || 0;
+            const gst = item.gstRate || 0;
             const quantity = item.quantity;
 
-            // Purchase value
-            const itemPurchaseValue = purchasePrice * quantity;
-            totalLandedPurchasePrice += itemPurchaseValue;
-
-            // Misc cost value
-            const itemMiscValue = miscCost * quantity;
-            totalLandedMiscCost += itemMiscValue;
-            
-            // GST value
-            const itemGstValue = (purchasePrice + miscCost) * (gstRate / 100) * quantity;
-            totalLandedGst += itemGstValue;
-            
-            // Retail value
-            const sellPrice = item.finalPrice && item.finalPrice > 0 ? item.finalPrice : item.sellingPrice;
-            inventoryValueBySellPrice += sellPrice * quantity;
+            landedValue += (purchase + misc) * (1 + (gst / 100)) * quantity;
+            retailValue += (item.finalPrice || item.sellingPrice) * quantity;
         });
 
-        const inventoryValueByLandedCost = totalLandedPurchasePrice + totalLandedMiscCost + totalLandedGst;
-
-        return { 
-            totalSKUs, 
-            totalQuantity, 
-            lowStockItems, 
-            inventoryValueBySellPrice, 
-            inventoryValueByLandedCost,
-            totalLandedPurchasePrice,
-            totalLandedMiscCost,
-            totalLandedGst
-        };
+        return { totalSKUs, totalQuantity, lowStockItems, inventoryValueByLandedCost: landedValue, inventoryValueBySellPrice: retailValue };
     }, [inventoryDetails, products]);
 
-    const summaryData: SummaryCardData[] = useMemo(() => {
-        const formatVal = (val: number) => isMounted ? `₹${(val / 1000).toFixed(1)}k` : '...';
-        return [
-            { title: "Total SKU", value: totalSKUs.toString(), icon: Box },
-            { title: "Total Quantity", value: isMounted ? totalQuantity.toLocaleString() : "...", icon: Package },
-            { 
-                title: "Inventory Landed Value", 
-                value: isMounted ? `₹${inventoryValueByLandedCost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹...', 
-                icon: LandPlot, 
-                description: `PP: ${formatVal(totalLandedPurchasePrice)} + Misc: ${formatVal(totalLandedMiscCost)} + GST: ${formatVal(totalLandedGst)}`
-            },
-            { 
-                title: "Inventory Retail Value", 
-                value: isMounted ? `₹${inventoryValueBySellPrice.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹...', 
-                icon: CircleDollarSign, 
-                description: `Landed: ${formatVal(inventoryValueByLandedCost)} + Profit` 
-            },
-            { title: "Low Stock Alert", value: lowStockItems.toString(), icon: TriangleAlert, description: "Items with < 10 units" },
-        ];
-    }, [
-        totalSKUs, totalQuantity, inventoryValueBySellPrice, inventoryValueByLandedCost, 
-        lowStockItems, isMounted, totalLandedPurchasePrice, totalLandedMiscCost, totalLandedGst
-    ]);
+    const summaryData: SummaryCardData[] = useMemo(() => [
+        { title: "Total SKU", value: totalSKUs.toString(), icon: Box },
+        { title: "Total Quantity", value: isMounted ? totalQuantity.toLocaleString() : "...", icon: Package },
+        { title: "Landed Value", value: isMounted ? `₹${inventoryValueByLandedCost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹...', icon: LandPlot },
+        { title: "Retail Value", value: isMounted ? `₹${inventoryValueBySellPrice.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '₹...', icon: CircleDollarSign },
+        { title: "Low Stock", value: lowStockItems.toString(), icon: TriangleAlert, description: "Items < 10 units" },
+    ], [totalSKUs, totalQuantity, inventoryValueByLandedCost, inventoryValueBySellPrice, lowStockItems, isMounted]);
 
   return (
     <div className="flex flex-col gap-6 sm:gap-8 pb-8 min-w-0 w-full overflow-x-hidden">
       <PageHeader title="Inventory">
         <input type="file" ref={fileInputRef} onChange={handleFileImport} style={{ display: 'none' }} accept=".xlsx, .xls, .csv" />
-        <Button variant="outline" onClick={handleImportClick} size="sm" className="h-9">
-            <Upload className="mr-2 h-4 w-4" /> Import
-        </Button>
-        <Button variant="outline" onClick={handleExport} size="sm" className="h-9">
-            <Download className="mr-2 h-4 w-4" /> Export
-        </Button>
-        <Button variant="outline" onClick={handleDownloadSample} size="sm" className="h-9">
-            <FileText className="mr-2 h-4 w-4" /> Sample
-        </Button>
-        <Button variant="outline" disabled size="sm" className="h-9">
-          <Move className="mr-2 h-4 w-4" />
-          Transfer Stock
-        </Button>
-        <Button onClick={handleNewStockEntry} size="sm" className="h-9">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          New Stock Entry
-        </Button>
+        <Button variant="outline" onClick={handleImportClick} size="sm" className="h-9"><Upload className="mr-2 h-4 w-4" /> Import</Button>
+        <Button variant="outline" onClick={handleExport} size="sm" className="h-9"><Download className="mr-2 h-4 w-4" /> Export</Button>
+        <Button onClick={handleNewStockEntry} size="sm" className="h-9"><PlusCircle className="mr-2 h-4 w-4" /> New Stock Entry</Button>
       </PageHeader>
       
       <div className="flex flex-col gap-8 min-w-0 w-full">
         <PageSummary cards={summaryData} />
-
-        <StockDialog
-            open={isStockDialogOpen}
-            onOpenChange={setIsStockDialogOpen}
-            onSuccess={handleStockUpdate}
-            inventoryItem={adjustingItem}
-        />
-        <ProductDialog
-            open={isProductDialogOpen}
-            onOpenChange={setIsProductDialogOpen}
-            product={editingProduct}
-            onSuccess={handleProductUpdateSuccess}
-        />
+        <StockDialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen} onSuccess={handleStockUpdate} inventoryItem={adjustingItem} />
+        <ProductDialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen} product={editingProduct} onSuccess={handleProductUpdateSuccess} />
+        
         <Card className="min-w-0 border-2 shadow-sm">
           <CardHeader className="pb-4">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                <div>
-                  <CardTitle>Inventory Management</CardTitle>
-                  <CardDescription>
-                    Track and manage all your product stock levels.
-                  </CardDescription>
-                </div>
-                <div className="relative w-full sm:max-w-xs">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search by name or SKU..."
-                        className="pl-8"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </div>
+                <div><CardTitle>Inventory Management</CardTitle><CardDescription>Track and manage product stock levels.</CardDescription></div>
+                <div className="relative w-full sm:max-w-xs"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input placeholder="Search name or SKU..." className="pl-8" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t mt-4">
-                <Select value={categoryFilter} onValueChange={(value) => {setCategoryFilter(value); setSubCategoryFilter('all');}}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Filter by Category..." /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
-                        {categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select value={subCategoryFilter} onValueChange={setSubCategoryFilter} disabled={!categoryFilter || categoryFilter === 'all' || filteredSubCategories.length === 0}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Filter by Sub-Category..." /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Sub-Categories</SelectItem>
-                        {filteredSubCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
+                <Select value={categoryFilter} onValueChange={(v) => {setCategoryFilter(v); setSubCategoryFilter('all');}}><SelectTrigger className="h-9"><SelectValue placeholder="Category..." /></SelectTrigger><SelectContent><SelectItem value="all">All Categories</SelectItem>{categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select>
+                <Select value={subCategoryFilter} onValueChange={setSubCategoryFilter} disabled={categoryFilter === 'all'}><SelectTrigger className="h-9"><SelectValue placeholder="Sub-Category..." /></SelectTrigger><SelectContent><SelectItem value="all">All Sub-Categories</SelectItem>{filteredSubCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}</SelectContent></Select>
             </div>
           </CardHeader>
-          <CardContent className="pt-0 overflow-hidden">
-            <DataTable 
-                columns={columns({ onAdjustStock: handleAdjustStock, onViewHistory: handleViewHistory, onEditProduct: handleEditProduct })} 
-                data={inventoryDetails} 
-                initialPageSize={100}
-            />
-          </CardContent>
+          <CardContent className="pt-0 overflow-hidden"><DataTable columns={columns({ onAdjustStock: handleAdjustStock, onViewHistory: handleViewHistory, onEditProduct: handleEditProduct })} data={inventoryDetails} initialPageSize={100} /></CardContent>
         </Card>
 
         {lowStockInventory.length > 0 && (
             <Card className="min-w-0 border-2 shadow-sm border-destructive/20">
-              <CardHeader className="pb-4 border-b">
-                <CardTitle className="flex items-center gap-2 text-destructive">
-                    <TriangleAlert />
-                    Low Inventory Alerts
-                </CardTitle>
-                <CardDescription>
-                  These items are running low. Consider reordering soon.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4 overflow-hidden">
-                <DataTable columns={columns({ onAdjustStock: handleAdjustStock, onViewHistory: handleViewHistory, onEditProduct: handleEditProduct })} data={lowStockInventory} />
-              </CardContent>
+              <CardHeader className="pb-4 border-b"><CardTitle className="flex items-center gap-2 text-destructive"><TriangleAlert />Low Inventory Alerts</CardTitle><CardDescription>Items running low.</CardDescription></CardHeader>
+              <CardContent className="pt-4 overflow-hidden"><DataTable columns={columns({ onAdjustStock: handleAdjustStock, onViewHistory: handleViewHistory, onEditProduct: handleEditProduct })} data={lowStockInventory} /></CardContent>
             </Card>
         )}
       </div>
