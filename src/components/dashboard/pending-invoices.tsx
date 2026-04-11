@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -95,7 +94,7 @@ export function PendingInvoices({ sales, customers }: PendingInvoicesProps) {
                             </div>
                             <div className="ml-auto text-right">
                                 {/* Fix: Use 'total' instead of 'totalAmount' */}
-                                <p className="font-medium text-sm">₹{sale.total.toLocaleString()}</p>
+                                <p className="font-medium text-sm">₹{(sale.total || 0).toLocaleString()}</p>
                                 <Badge variant={statusVariant[sale.status]} className="text-[10px] h-5 px-1.5 uppercase">{sale.status}</Badge>
                             </div>
                         </div>
