@@ -2994,789 +2994,6 @@ export function PriceHistoryDialog({ product, open, onOpenChange }: PriceHistory
 }
 </file>
 
-<file path="src/app/products/product-dialog.tsx">
-'use client';
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Product, Brand, Category, Color, SubCategory, Vendor, HandPreference, PriceHistoryEntry } from "@/lib/types";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useRef, useMemo, useState, useCallback } from "react";
-import Image from "next/image";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
-import { RefreshCw, PlusCircle, Trash2, Search, Copy, Edit, Save } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import { toast } from "@/hooks/use-toast";
-import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Label } from "@/components/ui/label";
-import { Combobox } from "@/components/ui/combobox";
-import { useCurrentUser } from "@/hooks/use-current-user";
-import { Badge } from "@/components/ui/badge";
-
-const STORE_ID = 'store_main';
-
-const bundleItemSchema = z.object({
-  productId: z.string().min(1, "Product is required."),
-  productName: z.string(),
-  quantity: z.coerce.number().min(1, "Quantity must be at least 1."),
-  categoryName: z.string().optional(),
-  subCategoryName: z.string().optional(),
-});
-
-const formSchema = z.object({
-  name: z.string().min(1, "Product name is required."),
-  sku: z.string().min(1, "SKU is required."),
-  serialNumber: z.string().optional(),
-  handPreference: z.enum(["Blank", "Left", "Right", "Normal"]).optional(),
-  imageUrl: z.string().url("Please enter a valid image URL.").or(z.literal('')).optional(),
-  brand: z.string().min(1, "Brand is required."),
-  category: z.string().min(1, "Category is required."),
-  subCategory: z.string().optional(),
-  color1: z.string().optional(),
-  color2: z.string().optional(),
-  vendorId: z.string().min(1, "Vendor ID is required."),
-  purchasePrice: z.coerce.number().positive("Purchase price must be positive."),
-  miscellaneousCost: z.coerce.number().min(0, "Miscellaneous cost must be zero or more.").optional(),
-  profitPercentage: z.coerce.number().min(0).optional(),
-  profitAmount: z.coerce.number().min(0).optional(),
-  sellingPrice: z.coerce.number().positive("Selling price must be positive."),
-  finalPrice: z.coerce.number().min(0).optional(),
-  description: z.string().optional(),
-  hsnCode: z.string().min(1, "HSN Code is required"),
-  gstRate: z.coerce.number().min(0, "GST rate cannot be negative."),
-  isActive: z.boolean().default(true),
-  isBundle: z.boolean().default(false),
-  bundleItems: z.array(bundleItemSchema).optional(),
-});
-
-type ProductFormValues = z.infer<typeof formSchema>;
-
-interface ProductDialogProps {
-  children?: React.ReactNode;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  product?: Product;
-  onSuccess: (product: Product) => void;
-}
-
-const ReadOnlyField = ({ label, value, children, className }: { label: string, value?: React.ReactNode, children?: React.ReactNode, className?: string }) => (
-    <div className={cn("space-y-1", className)}>
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        {children ? (
-            <div className="text-sm p-2 border rounded-md bg-muted min-h-[40px] flex items-center">{children}</div>
-        ) : (
-            <div className="text-sm p-2 border rounded-md bg-muted min-h-[40px] flex items-center">{value || <span className="text-muted-foreground/70">N/A</span>}</div>
-        )}
-    </div>
-)
-
-
-export function ProductDialog({ children, open, onOpenChange, product, onSuccess }: ProductDialogProps) {
-  const firestore = useFirestore();
-  const { currentUser } = useCurrentUser();
-  const [isEditing, setIsEditing] = useState(!product);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [productSearchOpen, setProductSearchOpen] = useState(false);
-  const [productToAdd, setProductToAdd] = useState<Product | null>(null);
-
-  const brandsRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'brands') : null, [firestore]);
-  const { data: mockBrands } = useCollection<Brand>(brandsRef);
-
-  const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
-  const { data: mockCategories } = useCollection<Category>(categoriesRef);
-
-  const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
-  const { data: mockSubCategories } = useCollection<SubCategory>(subCategoriesRef);
-
-  const colorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'colors') : null, [firestore]);
-  const { data: mockColors } = useCollection<Color>(colorsRef);
-  
-  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
-  const { data: mockVendors } = useCollection<Vendor>(vendorsRef);
-  
-  const allProductsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
-  const { data: allProducts } = useCollection<Product>(allProductsRef);
-
-  const handPreferencesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'handPreferences') : null, [firestore]);
-  const { data: handPreferences } = useCollection<HandPreference>(handPreferencesRef);
-
-  const sortedBrands = useMemo(() => mockBrands?.sort((a, b) => a.name.localeCompare(b.name)), [mockBrands]);
-  const sortedCategories = useMemo(() => mockCategories?.sort((a, b) => a.name.localeCompare(b.name)), [mockCategories]);
-  const sortedColors = useMemo(() => mockColors?.sort((a, b) => a.name.localeCompare(b.name)), [mockColors]);
-  const sortedVendors = useMemo(() => mockVendors?.sort((a, b) => (a.name || '').localeCompare(b.name || '')), [mockVendors]);
-  const sortedAllProducts = useMemo(() => allProducts?.filter(p => !p.isBundle).sort((a, b) => (a.name || '').localeCompare(b.name || '')), [allProducts]);
-  
-  const sortedHandPreferences = useMemo(() => {
-    if (!handPreferences) return [];
-    const order: ('Normal' | 'Right' | 'Left')[] = ["Normal", "Right", "Left"];
-    return handPreferences.sort((a, b) => {
-      const indexA = order.indexOf(a.name as 'Normal' | 'Right' | 'Left');
-      const indexB = order.indexOf(b.name as 'Normal' | 'Right' | 'Left');
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-      return indexA - indexB;
-    });
-  }, [handPreferences]);
-
-  const bundleProducts = useMemo(() => {
-    return allProducts?.filter(p => p.isBundle).sort((a, b) => a.name.localeCompare(b.name)) || [];
-  }, [allProducts]);
-
-
-  const form = useForm<ProductFormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "", sku: "", serialNumber: "", imageUrl: "", brand: "", category: "", subCategory: "", handPreference: "Normal",
-      color1: "", color2: "", vendorId: "", purchasePrice: 0, miscellaneousCost: 0, profitPercentage: 0, profitAmount: 0,
-      sellingPrice: 0, finalPrice: 0, description: "", hsnCode: "", gstRate: 0, isActive: true, isBundle: false, bundleItems: [],
-    },
-  });
-
-  const { getValues } = form;
-
-  const { fields, append, remove, replace } = useFieldArray({
-    control: form.control,
-    name: "bundleItems",
-  });
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const watchedCategory = form.watch('category');
-  const watchedSubCategory = form.watch('subCategory');
-  const watchedBrand = form.watch('brand');
-  const watchedImageUrl = form.watch('imageUrl');
-  const watchedIsBundle = form.watch('isBundle');
-  const watchedBundleItems = form.watch('bundleItems');
-  const watchedPurchasePrice = form.watch('purchasePrice');
-  const watchedMiscCost = form.watch('miscellaneousCost');
-  const watchedGstRate = form.watch('gstRate');
-  const watchedFinalPrice = form.watch('finalPrice');
-  const watchedProfitAmount = form.watch('profitAmount');
-  const isInitialLoad = useRef(true);
-  
-  useEffect(() => {
-    if (productToAdd && mockCategories && mockSubCategories) {
-        const existingItemIndex = fields.findIndex(item => item.productId === productToAdd.id);
-
-        if (existingItemIndex > -1) {
-            toast({
-                title: "Product Already Added",
-                description: `"${productToAdd.name}" is already in the bundle. You can edit its quantity directly.`,
-                variant: "destructive"
-            });
-            setProductToAdd(null);
-            return;
-        }
-
-        const category = mockCategories.find(c => c.id === productToAdd.category);
-        const subCategory = mockSubCategories.find(sc => sc.id === productToAdd.subCategory);
-
-        append({
-            productId: productToAdd.id,
-            productName: productToAdd.name,
-            quantity: 1,
-            categoryName: category?.name || 'N/A',
-            subCategoryName: subCategory?.name || 'N/A',
-        });
-        toast({ title: "Product Added", description: `${productToAdd.name} added to bundle.` });
-        setProductToAdd(null);
-    }
-  }, [productToAdd, append, mockCategories, mockSubCategories, fields]);
-
-
-  const filteredSubCategories = useMemo(() => {
-    if (!mockSubCategories || !watchedCategory || !mockCategories) return [];
-    return mockSubCategories.filter(sc => sc.categoryId === watchedCategory).sort((a, b) => a.name.localeCompare(b.name));
-  }, [mockSubCategories, watchedCategory, mockCategories]);
-
-  useEffect(() => {
-    if (!isInitialLoad.current) {
-        form.setValue('subCategory', '');
-    }
-  }, [watchedCategory, form]);
-
-  useEffect(() => {
-    if (watchedSubCategory && mockSubCategories) {
-        const subCategoryDetails = mockSubCategories.find(sc => sc.id === watchedSubCategory);
-        if (subCategoryDetails?.hsnCode && subCategoryDetails.gstRate !== undefined) {
-            form.setValue('hsnCode', subCategoryDetails.hsnCode, { shouldValidate: true });
-            form.setValue('gstRate', subCategoryDetails.gstRate, { shouldValidate: true });
-        }
-    } else if (watchedCategory && mockCategories) {
-        const categoryDetails = mockCategories.find(c => c.id === watchedCategory);
-        if(categoryDetails?.hsnCode && categoryDetails.gstRate !== undefined) {
-             form.setValue('hsnCode', categoryDetails.hsnCode, { shouldValidate: true });
-             form.setValue('gstRate', categoryDetails.gstRate, { shouldValidate: true });
-        } else {
-             form.setValue('hsnCode', '');
-             form.setValue('gstRate', 0);
-        }
-    } else {
-        form.setValue('hsnCode', '');
-        form.setValue('gstRate', 0);
-    }
-  }, [watchedSubCategory, watchedCategory, mockSubCategories, mockCategories, form]);
-
-  const landingPrice = useMemo(() => {
-    const purchase = Number(watchedPurchasePrice) || 0;
-    const misc = Number(watchedMiscCost) || 0;
-    return purchase + misc;
-  }, [watchedPurchasePrice, watchedMiscCost]);
-
-  const handleFinalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const finalPrice = parseFloat(e.target.value) || 0;
-    form.setValue('finalPrice', finalPrice, { shouldValidate: true });
-    
-    if (finalPrice > 0) {
-      const { purchasePrice, miscellaneousCost, gstRate } = form.getValues();
-      const landing = (Number(purchasePrice) || 0) + (Number(miscellaneousCost) || 0);
-      const gst = Number(gstRate) || 0;
-
-      const preGstPrice = finalPrice / (1 + (gst / 100));
-      const newProfitAmount = preGstPrice - landing;
-
-      if (landing > 0) {
-        const newProfitPercent = (newProfitAmount / landing) * 100;
-        form.setValue('profitPercentage', parseFloat(newProfitPercent.toFixed(2)), { shouldValidate: true });
-      } else {
-        form.setValue('profitPercentage', 0, { shouldValidate: true });
-      }
-      form.setValue('profitAmount', parseFloat(newProfitAmount.toFixed(2)), { shouldValidate: true });
-      form.setValue('sellingPrice', finalPrice, { shouldValidate: true });
-    }
-  };
-
-  const updateCalculatedFields = () => {
-    const { purchasePrice, miscellaneousCost, gstRate, profitAmount } = form.getValues();
-    const landing = (Number(purchasePrice) || 0) + (Number(miscellaneousCost) || 0);
-    const gst = Number(gstRate) || 0;
-    const profit = Number(profitAmount) || 0;
-
-    const basePrice = landing + profit;
-    const gstValue = basePrice * (gst / 100);
-    const finalSellingPrice = basePrice + gstValue;
-
-    if (form.getValues('sellingPrice') !== finalSellingPrice) {
-        form.setValue('sellingPrice', parseFloat(finalSellingPrice.toFixed(2)), { shouldValidate: true });
-    }
-  };
-  
-  const handleProfitPercentageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const percent = parseFloat(e.target.value) || 0;
-    const { purchasePrice, miscellaneousCost } = form.getValues();
-    const landing = (Number(purchasePrice) || 0) + (Number(miscellaneousCost) || 0);
-    const newProfitAmount = landing * (percent / 100);
-    form.setValue('profitAmount', parseFloat(newProfitAmount.toFixed(2)), { shouldValidate: true });
-    form.setValue('profitPercentage', percent, { shouldValidate: true });
-    updateCalculatedFields();
-  };
-
-  const handleProfitAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const amount = parseFloat(e.target.value) || 0;
-     const { purchasePrice, miscellaneousCost } = form.getValues();
-    const landing = (Number(purchasePrice) || 0) + (Number(miscellaneousCost) || 0);
-    if (landing > 0) {
-      const newProfitPercent = (amount / landing) * 100;
-      form.setValue('profitPercentage', parseFloat(newProfitPercent.toFixed(2)), { shouldValidate: true });
-    } else {
-      form.setValue('profitPercentage', 0, { shouldValidate: true });
-    }
-     form.setValue('profitAmount', amount, { shouldValidate: true });
-    updateCalculatedFields();
-  };
-
-  useEffect(() => {
-    if (!watchedIsBundle) {
-        updateCalculatedFields();
-    }
-  }, [watchedPurchasePrice, watchedMiscCost, watchedGstRate, watchedIsBundle]);
-
-   const generateSku = () => {
-    const { brand: brandId, category: categoryId, subCategory: subCategoryId } = form.getValues();
-    const brand = mockBrands?.find(b => b.id === brandId);
-    if (!brand) return; // Need at least a brand
-
-    const category = mockCategories?.find(c => c.id === categoryId);
-    const subCategory = mockSubCategories?.find(sc => sc.id === subCategoryId);
-
-    const brandCode = brand.name.slice(0, 3).toUpperCase();
-    let categoryCode = '';
-
-    if (subCategory) {
-      categoryCode = subCategory.name.slice(0, 2).toUpperCase();
-    } else if (category) {
-      categoryCode = category.name.slice(0, 2).toUpperCase();
-    } else {
-      return; // Need at least a category or subcategory
-    }
-
-    const sku = `${brandCode}${categoryCode}${Date.now().toString().slice(-4)}`;
-    form.setValue('sku', sku, { shouldValidate: true });
-  };
-
-  useEffect(() => {
-    if (!product) { // Only auto-generate for new products
-      generateSku();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedBrand, watchedCategory, watchedSubCategory]);
-
-// Set initial values when dialog opens for editing
-  useEffect(() => {
-    if (open) {
-      if (product) {
-        setIsEditing(false); // view mode
-        isInitialLoad.current = true;
-        const enrichedBundleItems = product.isBundle && product.bundleItems && allProducts && mockCategories ? product.bundleItems.map(item => {
-            const bundleProduct = allProducts.find(p => p.id === item.productId);
-            const category = mockCategories.find(c => c.id === bundleProduct?.category);
-            const subCategory = mockSubCategories?.find(sc => sc.id === bundleProduct?.subCategory);
-            return {
-                ...item,
-                productName: bundleProduct?.name || 'Unknown',
-                categoryName: category?.name || 'N/A',
-                subCategoryName: subCategory?.name || 'N/A',
-            }
-        }) : [];
-        
-        form.reset({
-          ...product,
-          finalPrice: product.finalPrice || product.sellingPrice || undefined,
-          bundleItems: enrichedBundleItems as any,
-        });
-
-        // Allow calculations to run after initial load
-        setTimeout(() => {
-            isInitialLoad.current = false;
-        }, 100);
-      } else {
-        setIsEditing(true); // edit mode for new product
-        isInitialLoad.current = false;
-        form.reset({
-            name: "", sku: "", serialNumber: "", imageUrl: "", brand: "", category: "", subCategory: "", handPreference: "Normal",
-            color1: "", color2: "", vendorId: "", purchasePrice: 0, miscellaneousCost: 0, profitPercentage: 0, profitAmount: 0,
-            sellingPrice: 0, finalPrice: undefined, description: "", hsnCode: "", gstRate: 0, isActive: true, isBundle: false, bundleItems: [],
-        })
-      }
-    }
-  }, [product, open, form, allProducts, mockCategories, mockSubCategories])
-
-  // Auto-calculate bundle prices
-  useEffect(() => {
-    if (watchedIsBundle && allProducts && watchedBundleItems) {
-      let totalPurchasePrice = 0;
-      let totalSellingPrice = 0;
-      let totalMiscellaneousCost = 0;
-      watchedBundleItems.forEach(item => {
-        const product = allProducts.find(p => p.id === item.productId);
-        if (product) {
-          totalPurchasePrice += product.purchasePrice * item.quantity;
-          totalSellingPrice += product.sellingPrice * item.quantity;
-          totalMiscellaneousCost += (product.miscellaneousCost || 0) * item.quantity;
-        }
-      });
-      form.setValue('purchasePrice', totalPurchasePrice);
-      form.setValue('sellingPrice', totalSellingPrice);
-      form.setValue('miscellaneousCost', totalMiscellaneousCost);
-    }
-  }, [watchedIsBundle, watchedBundleItems, allProducts, form]);
-
-
-  const onSubmit = (data: ProductFormValues) => {
-    // Ensure final calculation before submission for non-bundles
-    if (!data.isBundle) {
-        updateCalculatedFields();
-    }
-    
-    // Use a short timeout to allow the form state to update
-    setTimeout(() => {
-        const finalData = form.getValues();
-
-        const submittedProduct: Product = {
-            id: product?.id || `prod_${Date.now()}`,
-            storeId: product?.storeId || STORE_ID,
-            name: finalData.name,
-            sku: finalData.sku,
-            serialNumber: finalData.serialNumber || '',
-            handPreference: finalData.handPreference || 'Normal',
-            imageUrl: finalData.imageUrl || '',
-            brand: finalData.brand,
-            category: finalData.category,
-            subCategory: finalData.subCategory || '',
-            color1: finalData.color1 || '',
-            color2: finalData.color2 || '',
-            vendorId: finalData.vendorId,
-            purchasePrice: finalData.purchasePrice,
-            miscellaneousCost: finalData.miscellaneousCost || 0,
-            profitPercentage: finalData.profitPercentage || 0,
-            profitAmount: finalData.profitAmount || 0,
-            sellingPrice: finalData.sellingPrice,
-            finalPrice: finalData.finalPrice || 0,
-            description: finalData.description || '',
-            hsnCode: finalData.hsnCode,
-            gstRate: finalData.gstRate,
-            isActive: finalData.isActive,
-            isBundle: finalData.isBundle,
-            bundleItems: finalData.isBundle ? (finalData.bundleItems || []).map(item => ({ productId: item.productId, quantity: item.quantity })) : [],
-            priceHistory: product?.priceHistory || [],
-        };
-        
-        if (product) { // Editing
-             const hasPriceChanged = product.sellingPrice !== submittedProduct.sellingPrice || product.purchasePrice !== submittedProduct.purchasePrice;
-             if (hasPriceChanged) {
-                const newHistoryEntry: PriceHistoryEntry = {
-                    sellingPrice: submittedProduct.sellingPrice,
-                    purchasePrice: submittedProduct.purchasePrice,
-                    date: new Date().toISOString(),
-                };
-                submittedProduct.priceHistory = [...(product.priceHistory || []), newHistoryEntry];
-             }
-        } else { // New product
-             submittedProduct.priceHistory = [{
-                sellingPrice: submittedProduct.sellingPrice,
-                purchasePrice: submittedProduct.purchasePrice,
-                date: new Date().toISOString(),
-            }];
-        }
-        
-        onSuccess(submittedProduct);
-    }, 100);
-  };
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit
-        toast({
-          title: "File Too Large",
-          description: "Please upload an image smaller than 2MB.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setIsUploading(true);
-      setUploadProgress(0);
-
-      try {
-        const storage = getStorage();
-        const filePath = `product-images/${Date.now()}-${file.name}`;
-        const fileRef = storageRef(storage, filePath);
-        
-        const snapshot = await uploadBytes(fileRef, file);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-
-        form.setValue('imageUrl', downloadURL, { shouldValidate: true });
-        
-        setUploadProgress(100);
-        toast({
-          title: "Upload Successful",
-          description: "Image has been uploaded and URL is set.",
-        });
-      } catch (error) {
-        console.error("Error uploading file:", error);
-        toast({
-          title: "Upload Failed",
-          description: "Could not upload the image. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsUploading(false);
-      }
-    }
-  };
-
-  const handleCopyBundle = (bundleId: string) => {
-    const bundleToCopy = bundleProducts.find(p => p.id === bundleId);
-    if (bundleToCopy) {
-      const enrichedItems = (bundleToCopy.bundleItems || []).map(item => {
-        const bundleProduct = allProducts?.find(p => p.id === item.productId);
-        if (!bundleProduct) return null;
-        const category = mockCategories?.find(c => c.id === bundleProduct.category);
-        const subCategory = mockSubCategories?.find(sc => sc.id === bundleProduct.subCategory);
-        return {
-          productId: item.productId,
-          quantity: item.quantity,
-          productName: bundleProduct.name || 'Unknown',
-          categoryName: category?.name || 'N/A',
-          subCategoryName: subCategory?.name || 'N/A',
-        };
-      }).filter(Boolean);
-
-      form.setValue('name', `Copy of ${bundleToCopy.name}`);
-      form.setValue('description', bundleToCopy.description);
-      form.setValue('category', bundleToCopy.category);
-      form.setValue('subCategory', bundleToCopy.subCategory);
-      form.setValue('brand', bundleToCopy.brand);
-      form.setValue('hsnCode', bundleToCopy.hsnCode);
-      form.setValue('gstRate', bundleToCopy.gstRate);
-      
-      replace(enrichedItems as any);
-  
-      toast({ title: "Bundle Copied", description: `Details from "${bundleToCopy.name}" have been copied.` });
-    }
-  };
-  
-  const handleCopyProduct = (productId: string) => {
-    const productToCopy = allProducts?.find(p => p.id === productId);
-    if (productToCopy) {
-      const { id, sku, serialNumber, name, ...restOfProduct } = productToCopy;
-      form.reset({
-        ...form.getValues(),
-        ...restOfProduct,
-        name: `Copy of ${name}`,
-        sku: '',
-        serialNumber: '',
-        isBundle: false, // Force individual product
-        bundleItems: [],
-      });
-      generateSku();
-      toast({ title: "Product Copied", description: `Details from "${name}" have been copied.` });
-    }
-  }
-
-    // This block calculates the profit margins for display purposes, especially in read-only mode.
-    const { displayProfitAmount, displayProfitPercentage, displaySellingPrice } = useMemo(() => {
-        const formValues = getValues();
-        const purchase = Number(formValues.purchasePrice) || 0;
-        const misc = Number(formValues.miscellaneousCost) || 0;
-        const landing = purchase + misc;
-        const gstRate = Number(formValues.gstRate) || 0;
-        const finalPrice = Number(formValues.finalPrice) || 0;
-        const profitAmount = Number(formValues.profitAmount) || 0;
-        
-        if (finalPrice > 0) {
-            const preGstPrice = finalPrice / (1 + (gstRate / 100));
-            const profit = preGstPrice - landing;
-            const percent = landing > 0 ? (profit / landing) * 100 : 0;
-            return {
-                displayProfitAmount: profit,
-                displayProfitPercentage: percent,
-                displaySellingPrice: finalPrice
-            };
-        }
-        
-        const basePrice = landing + profitAmount;
-        const sellingPrice = basePrice * (1 + (gstRate / 100));
-        const percent = landing > 0 ? (profitAmount / landing) * 100 : 0;
-        
-        return {
-            displayProfitAmount: profitAmount,
-            displayProfitPercentage: percent,
-            displaySellingPrice: sellingPrice
-        };
-    }, [
-        watchedPurchasePrice,
-        watchedMiscCost,
-        watchedGstRate,
-        watchedFinalPrice,
-        watchedProfitAmount,
-        getValues,
-        isEditing // Re-calculate when switching modes
-    ]);
-  
-  const dialogTitle = product ? (isEditing ? "Edit Product" : "View Product") : "Add New Product";
-  const dialogDescription = product 
-    ? `Update the details of this product.` 
-    : "Fill in the form to add a new product to your catalog.";
-    
-  const formId = "product-form";
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
-      <DialogContent className="sm:max-w-[800px]">
-        <DialogHeader>
-            <div className="flex justify-between items-start pr-6">
-                <div>
-                <DialogTitle>{dialogTitle}</DialogTitle>
-                <DialogDescription>{dialogDescription}</DialogDescription>
-                </div>
-                {product && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-                    <Button onClick={() => setIsEditing(true)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit
-                    </Button>
-                )}
-            </div>
-        </DialogHeader>
-        <Form {...form}>
-          <form id={formId} onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto px-2">
-            
-            {isEditing && !product && (
-               <div className="p-4 border rounded-md space-y-2 bg-muted/50">
-                  <Label>Copy from Existing Product (Optional)</Label>
-                  <Combobox
-                      options={sortedAllProducts?.map(p => ({ value: p.id, label: p.name })) || []}
-                      value={''}
-                      onChange={(productId) => handleCopyProduct(productId)}
-                      placeholder="Select a product to clone..."
-                      searchPlaceholder="Search products..."
-                      notFoundText="No product found."
-                  />
-              </div>
-            )}
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {isEditing ? ( <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Product Name</FormLabel><FormControl><Input placeholder="e.g., Kookaburra Kahuna" {...field} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Product Name" value={getValues('name')} /> )}
-              {isEditing ? ( <FormField control={form.control} name="brand" render={({ field }) => ( <FormItem><FormLabel>Brand</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a brand" /></SelectTrigger></FormControl><SelectContent>{sortedBrands?.map(brand => <SelectItem key={brand.id} value={brand.id}>{brand.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Brand" value={sortedBrands?.find(b => b.id === getValues('brand'))?.name} /> )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {isEditing ? ( <FormField control={form.control} name="category" render={({ field }) => ( <FormItem><FormLabel>Category</FormLabel><Select onValueChange={(value) => { field.onChange(value); form.setValue('subCategory', ''); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger></FormControl><SelectContent>{sortedCategories?.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Category" value={sortedCategories?.find(c => c.id === getValues('category'))?.name} /> )}
-                {isEditing ? ( <FormField control={form.control} name="subCategory" render={({ field }) => ( <FormItem><FormLabel>Sub Category</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!watchedCategory || filteredSubCategories.length === 0}><FormControl><SelectTrigger><SelectValue placeholder="Select sub-category" /></SelectTrigger></FormControl><SelectContent>{filteredSubCategories?.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Sub Category" value={mockSubCategories?.find(c => c.id === getValues('subCategory'))?.name} /> )}
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {isEditing ? (<FormField control={form.control} name="sku" render={({ field }) => ( <FormItem><FormLabel>SKU</FormLabel><FormControl><div className="flex items-center gap-2"><Input placeholder="Auto-generated or manual" {...field} /><Button type="button" variant="ghost" size="icon" onClick={generateSku}><RefreshCw className="h-4 w-4" /></Button></div></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="SKU" value={getValues('sku')} /> )}
-                {isEditing ? ( <FormField control={form.control} name="serialNumber" render={({ field }) => ( <FormItem><FormLabel>Serial Number (Optional)</FormLabel><FormControl><Input placeholder="Product serial number" {...field} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Serial Number" value={getValues('serialNumber')} /> )}
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {isEditing ? ( <FormField control={form.control} name="handPreference" render={({ field }) => ( <FormItem><FormLabel>Hand Preference</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select hand preference" /></SelectTrigger></FormControl><SelectContent>{sortedHandPreferences?.map(hp => <SelectItem key={hp.id} value={hp.name}>{hp.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Hand Preference" value={getValues('handPreference')} /> )}
-                {isEditing ? ( <FormField control={form.control} name="color1" render={({ field }) => ( <FormItem><FormLabel>Color 1</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a color" /></SelectTrigger></FormControl><SelectContent>{sortedColors?.map(color => <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Color 1" value={getValues('color1')} /> )}
-                {isEditing ? ( <FormField control={form.control} name="color2" render={({ field }) => ( <FormItem><FormLabel>Color 2</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a color" /></SelectTrigger></FormControl><SelectContent>{sortedColors?.map(color => <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Color 2" value={getValues('color2')} /> )}
-            </div>
-            
-            {isEditing ? ( <FormField control={form.control} name="vendorId" render={({ field }) => ( <FormItem><FormLabel>Vendor</FormLabel><Combobox options={sortedVendors?.map(v => ({ value: v.id, label: v.name })) || []} value={field.value} onChange={field.onChange} placeholder="Select a vendor..." searchPlaceholder="Search vendors..." notFoundText="No vendor found." /><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Vendor" value={sortedVendors?.find(v => v.id === getValues('vendorId'))?.name} /> )}
-            
-            <Separator />
-            
-            <div className="space-y-4">
-                 <h3 className="text-base font-semibold text-foreground">Pricing Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {isEditing ? ( <FormField control={form.control} name="purchasePrice" render={({ field }) => ( <FormItem><FormLabel>Purchase Price</FormLabel><FormControl><Input type="number" placeholder="0" {...field} disabled={watchedIsBundle} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Purchase Price" value={`₹${getValues('purchasePrice')?.toLocaleString('en-IN')}`} /> )}
-                    {isEditing ? ( <FormField control={form.control} name="miscellaneousCost" render={({ field }) => ( <FormItem><FormLabel>Misc. Cost</FormLabel><FormControl><Input type="number" placeholder="0" {...field} disabled={watchedIsBundle} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Misc. Cost" value={`₹${getValues('miscellaneousCost')?.toLocaleString('en-IN')}`} /> )}
-                    <ReadOnlyField label="Landing Price" value={`₹${landingPrice.toLocaleString('en-IN')}`} />
-                </div>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {isEditing ? ( <FormField control={form.control} name="profitPercentage" render={({ field }) => ( <FormItem><FormLabel>Profit Margin (%)</FormLabel><FormControl><Input type="number" placeholder="e.g., 25" {...field} onChange={handleProfitPercentageChange} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Profit Margin (%)" value={`${displayProfitPercentage.toFixed(2)}%`} /> )}
-                    {isEditing ? ( <FormField control={form.control} name="profitAmount" render={({ field }) => ( <FormItem><FormLabel>Profit Margin (₹)</FormLabel><FormControl><Input type="number" placeholder="e.g., 500" {...field} onChange={handleProfitAmountChange} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Profit Margin (₹)" value={`₹${displayProfitAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} /> )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <ReadOnlyField label="Selling Price (Auto)" value={`₹${displaySellingPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} />
-                    {isEditing ? ( <FormField control={form.control} name="finalPrice" render={({ field }) => ( <FormItem><FormLabel>Final Price (Manual Override)</FormLabel><FormControl><Input type="number" placeholder="e.g., 7999" {...field} onChange={handleFinalPriceChange} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Final Price (Override)" value={getValues('finalPrice') ? `₹${getValues('finalPrice')?.toLocaleString('en-IN')}` : 'N/A'} /> )}
-                </div>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-                <h3 className="text-base font-semibold text-foreground">Tax & Other Details</h3>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {isEditing ? ( <FormField control={form.control} name="hsnCode" render={({ field }) => ( <FormItem><FormLabel>HSN Code</FormLabel><FormControl><Input placeholder="Auto-fills from category" {...field} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="HSN Code" value={getValues('hsnCode')} /> )}
-                    {isEditing ? ( <FormField control={form.control} name="gstRate" render={({ field }) => ( <FormItem><FormLabel>GST Rate (%)</FormLabel><FormControl><Input type="number" placeholder="Auto-fills from category" {...field} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="GST Rate (%)" value={`${getValues('gstRate') || 0}%`} /> )}
-                </div>
-                {isEditing ? ( <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea placeholder="Describe the product..." {...field} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Description" value={getValues('description')} /> )}
-                {isEditing ? ( <FormField control={form.control} name="imageUrl" render={({ field }) => ( <FormItem><FormLabel>Image</FormLabel><div className="flex items-center gap-2"><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" /><Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>Browse</Button></div>{isUploading && <Progress value={uploadProgress} className="w-[60%]" />} {watchedImageUrl && <div className="p-2 border rounded-md w-24 h-24 mt-2"><Image src={watchedImageUrl} alt="Preview" width={80} height={80} className="object-contain w-full h-full" /></div>}<FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Image"> {getValues('imageUrl') ? <Image src={getValues('imageUrl')!} alt="Product image" width={80} height={80} className="object-contain" /> : 'N/A' } </ReadOnlyField> )}
-            </div>
-            
-             <Separator />
-
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {isEditing ? ( <FormField control={form.control} name="isActive" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Active</FormLabel><FormDescription>Inactive products won't appear in sales.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/> ) : ( <ReadOnlyField label="Status"> <Badge variant={getValues('isActive') ? 'default' : 'secondary'}>{getValues('isActive') ? 'Active' : 'Inactive'}</Badge> </ReadOnlyField> )}
-                 {isEditing ? ( <FormField control={form.control} name="isBundle" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Bundle Product</FormLabel><FormDescription>A product made of other products.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/> ) : ( <ReadOnlyField label="Is Bundle?" value={getValues('isBundle') ? 'Yes' : 'No'} /> )}
-             </div>
-
-            {watchedIsBundle && (
-                 <div className="space-y-4 p-4 border rounded-md">
-                     <h4 className="font-medium text-foreground">Bundle Items</h4>
-                     {isEditing && (
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Combobox options={bundleProducts.map(p => ({ value: p.id, label: p.name }))} value={""} onChange={handleCopyBundle} placeholder="Copy from existing bundle" searchPlaceholder="Search bundles..." notFoundText="No bundles found."/>
-                            <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-start">
-                                        <Search className="mr-2 h-4 w-4" />
-                                        Add component product...
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                    <Command>
-                                        <CommandInput placeholder="Search product..." />
-                                        <CommandList>
-                                            <CommandEmpty>No products found.</CommandEmpty>
-                                            <CommandGroup>
-                                                {sortedAllProducts?.map(product => (
-                                                    <CommandItem
-                                                        key={product.id}
-                                                        value={`${product.name} ${product.sku}`}
-                                                        onSelect={() => {
-                                                            setProductToAdd(product);
-                                                            setProductSearchOpen(false);
-                                                        }}
-                                                    >
-                                                        {product.name}
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandGroup>
-                                        </CommandList>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-                         </div>
-                     )}
-                     <div className="space-y-2">
-                        {fields.map((field, index) => (
-                            <div key={field.id} className="flex items-center gap-2 p-2 rounded-md bg-muted">
-                                <div className="flex-1 font-medium">{field.productName}</div>
-                                <div className="text-sm text-muted-foreground">{field.categoryName}</div>
-                                {isEditing ? (
-                                    <FormField control={form.control} name={`bundleItems.${index}.quantity`} render={({ field }) => (
-                                        <FormItem className="flex items-center gap-2">
-                                            <FormLabel className="text-sm">Qty:</FormLabel>
-                                            <FormControl><Input type="number" {...field} className="h-8 w-16" /></FormControl>
-                                        </FormItem>
-                                    )} />
-                                ) : (
-                                    <p className="text-sm">Qty: {field.quantity}</p>
-                                )}
-                                {isEditing && <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
-                            </div>
-                        ))}
-                     </div>
-                 </div>
-             )}
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
-              {isEditing && <Button type="submit" form={formId}>Save Product</Button>}
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-</file>
-
 <file path="src/app/purchases/columns.tsx">
 'use client'
 
@@ -15788,339 +15005,6 @@ export const columns = (options: {onEdit: (coupon: Coupon) => void, onDelete: (c
 ]
 </file>
 
-<file path="src/app/customers/customer-dialog.tsx">
-'use client';
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Customer, CustomerType, Address } from "@/lib/types";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { indianStates, countries } from "@/lib/mock-data";
-import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { CalendarIcon, PlusCircle, Trash2, Edit } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
-import { useCurrentUser } from "@/hooks/use-current-user";
-
-const STORE_ID = 'store_main';
-
-const addressSchema = z.object({
-    id: z.string(),
-    street: z.string().optional(),
-    city: z.string().optional(),
-    state: z.string().optional(),
-    zip: z.string().optional(),
-    country: z.string().optional(),
-    isPrimary: z.boolean(),
-});
-
-const formSchema = z.object({
-  title: z.string().optional(),
-  name: z.string().min(1, 'Customer name is required'),
-  companyName: z.string().optional(),
-  customerType: z.string().optional(),
-  email: z.string().email("Invalid email address.").or(z.literal("")).optional(),
-  phone: z.string().optional(),
-  gstNumber: z.string().optional(),
-  birthday: z.date().optional(),
-  anniversary: z.date().optional(),
-  referenceName: z.string().optional(),
-  referenceContact: z.string().optional(),
-  addresses: z.array(addressSchema)
-    .refine(
-        (addresses) => addresses.filter((a) => a.isPrimary).length <= 1,
-        { message: "Only one address can be marked as primary." }
-    ),
-});
-
-type CustomerFormValues = z.infer<typeof formSchema>;
-
-interface CustomerDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  customer?: Customer;
-  onSuccess: (customer: Customer) => void;
-}
-
-const ReadOnlyField = ({ label, value }: { label: string, value: React.ReactNode }) => (
-    <div className="space-y-1">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <div className="text-sm p-2 border rounded-md bg-muted min-h-[40px] flex items-center">{value || <span className="text-muted-foreground/70">N/A</span>}</div>
-    </div>
-)
-
-export function CustomerDialog({ open, onOpenChange, customer, onSuccess }: CustomerDialogProps) {
-  const { currentUser } = useCurrentUser();
-  const [isEditing, setIsEditing] = useState(!customer);
-  const firestore = useFirestore();
-  const customerTypesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'customerTypes'), orderBy('name')) : null, [firestore]);
-  const { data: customerTypes } = useCollection<CustomerType>(customerTypesRef);
-
-  const form = useForm<CustomerFormValues>({
-    resolver: zodResolver(formSchema),
-  });
-
-  const { control, handleSubmit, getValues, setValue, reset } = form;
-
-  useEffect(() => {
-    if (open) {
-      if (customer) {
-        setIsEditing(false); // Start in view mode
-        reset({
-          ...customer,
-          birthday: customer.birthday ? new Date(customer.birthday) : undefined,
-          anniversary: customer.anniversary ? new Date(customer.anniversary) : undefined,
-        });
-      } else {
-        setIsEditing(true); // New customer starts in edit mode
-        reset({
-            title: "Mr", name: "", companyName: "", customerType: "", email: "", phone: "", gstNumber: "",
-            referenceName: "", referenceContact: "",
-            addresses: [{ id: `addr_${Date.now()}`, street: "", city: "", state: "Maharashtra", zip: "", country: "India", isPrimary: true }],
-        });
-      }
-    }
-  }, [open, customer, reset]);
-
-
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "addresses",
-  });
-
-  const onSubmit = (data: CustomerFormValues) => {
-    const submittedCustomer: Omit<Customer, 'birthday' | 'anniversary'> & { birthday?: string, anniversary?: string } = {
-      id: customer?.id || `cust_${Date.now()}`,
-      storeId: customer?.storeId || 'store_main',
-      ...data,
-      title: data.title || '',
-      name: data.name || 'Unnamed Customer',
-      companyName: data.companyName || '',
-      email: data.email || '',
-      phone: data.phone || '',
-    };
-
-    if (data.birthday) { submittedCustomer.birthday = data.birthday.toISOString(); } 
-    else { delete submittedCustomer.birthday; }
-    
-    if (data.anniversary) { submittedCustomer.anniversary = data.anniversary.toISOString(); }
-    else { delete submittedCustomer.anniversary; }
-
-    onSuccess(submittedCustomer as Customer);
-  };
-  
-  const dialogTitle = customer ? (isEditing ? "Edit Customer" : "View Customer") : "Add New Customer";
-  const dialogDescription = customer 
-    ? `Details for: ${customer.name}` 
-    : "Fill in the details to create a new customer.";
-
-  const setPrimaryAddress = (index: number) => {
-    const currentAddresses = getValues("addresses");
-    const updatedAddresses = currentAddresses.map((addr, i) => ({ ...addr, isPrimary: i === index, }));
-    setValue("addresses", updatedAddresses, { shouldValidate: true, shouldDirty: true });
-  }
-
-  const renderAddress = (address: Address) => {
-    const parts = [
-      address.street,
-      address.city,
-      address.state,
-    ].filter(Boolean);
-    
-    let addressString = parts.join(', ');
-
-    if (address.zip) {
-        addressString = addressString ? `${addressString} - ${address.zip}` : address.zip;
-    }
-
-    if (address.country) {
-        addressString = addressString ? `${addressString}, ${address.country}` : address.country;
-    }
-    
-    return addressString || 'No address details';
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <div className="flex justify-between items-center pr-6">
-            <div>
-              <DialogTitle>{dialogTitle}</DialogTitle>
-              <DialogDescription>{dialogDescription}</DialogDescription>
-            </div>
-            {customer && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
-              <Button onClick={() => setIsEditing(true)}>
-                <Edit className="mr-2 h-4 w-4" /> Edit
-              </Button>
-            )}
-          </div>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto px-2">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {isEditing ? (
-                <FormField control={control} name="title" render={({ field }) => ( <FormItem><FormLabel>Title</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select title" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Mr">Mr</SelectItem><SelectItem value="Ms">Ms</SelectItem><SelectItem value="Mrs">Mrs</SelectItem><SelectItem value="Dr">Dr</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-              ) : (
-                <ReadOnlyField label="Title" value={getValues('title')} />
-              )}
-              <div className="md:col-span-2">
-                {isEditing ? (
-                    <FormField control={control} name="name" render={({ field }) => (<FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., Rohan Sharma" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                ) : (
-                    <ReadOnlyField label="Full Name" value={getValues('name')} />
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {isEditing ? (
-                <FormField control={control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="e.g., rohan@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-              ) : (
-                <ReadOnlyField label="Email" value={getValues('email')} />
-              )}
-              {isEditing ? (
-                <FormField control={control} name="phone" render={({ field }) => (<FormItem><FormLabel>Phone</FormLabel><FormControl><Input placeholder="e.g., +91 98765 43210" {...field} /></FormControl><FormMessage /></FormItem>)} />
-              ) : (
-                <ReadOnlyField label="Phone" value={getValues('phone')} />
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {isEditing ? (
-                <FormField control={control} name="companyName" render={({ field }) => (<FormItem><FormLabel>Company Name (Optional)</FormLabel><FormControl><Input placeholder="e.g., Acme Corp" {...field} /></FormControl><FormMessage /></FormItem>)} />
-              ) : (
-                <ReadOnlyField label="Company Name" value={getValues('companyName')} />
-              )}
-              {isEditing ? (
-                <FormField control={control} name="gstNumber" render={({ field }) => (<FormItem><FormLabel>GST Number (Optional)</FormLabel><FormControl><Input placeholder="e.g., 29ABCDE1234F1Z5" {...field} /></FormControl><FormMessage /></FormItem>)} />
-              ) : (
-                <ReadOnlyField label="GST Number" value={getValues('gstNumber')} />
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {isEditing ? (
-                 <FormField control={control} name="customerType" render={({ field }) => (
-                    <FormItem><FormLabel>Type of Customer</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger></FormControl>
-                        <SelectContent>{customerTypes?.map(type => <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>)}</SelectContent>
-                      </Select><FormMessage />
-                    </FormItem>
-                  )}/>
-              ) : (
-                <ReadOnlyField label="Type of Customer" value={getValues('customerType')} />
-              )}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {isEditing ? (
-                <FormField control={control} name="birthday" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Birthday (Optional)</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1950} toYear={2010} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
-              ) : (
-                <ReadOnlyField label="Birthday" value={getValues('birthday') ? format(new Date(getValues('birthday')), "PPP") : 'N/A'} />
-              )}
-              {isEditing ? (
-                <FormField control={control} name="anniversary" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Anniversary (Optional)</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1980} toYear={new Date().getFullYear()} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
-              ) : (
-                <ReadOnlyField label="Anniversary" value={getValues('anniversary') ? format(new Date(getValues('anniversary')), "PPP") : 'N/A'} />
-              )}
-            </div>
-            <Separator />
-            <div>
-              <h3 className="text-base font-semibold mb-2">Reference</h3>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {isEditing ? (
-                    <FormField control={control} name="referenceName" render={({ field }) => (<FormItem><FormLabel>Reference Name</FormLabel><FormControl><Input placeholder="e.g., Jane Doe" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  ) : (
-                    <ReadOnlyField label="Reference Name" value={getValues('referenceName')} />
-                  )}
-                  {isEditing ? (
-                    <FormField control={control} name="referenceContact" render={({ field }) => (<FormItem><FormLabel>Reference Contact</FormLabel><FormControl><Input placeholder="e.g., 9998887776" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  ) : (
-                    <ReadOnlyField label="Reference Contact" value={getValues('referenceContact')} />
-                  )}
-              </div>
-            </div>
-            <Separator />
-            <div>
-                <FormLabel>Addresses</FormLabel>
-                <FormMessage>{form.formState.errors.addresses?.root?.message}</FormMessage>
-                <div className="space-y-4 mt-2">
-                    {fields.map((field, index) => {
-                       const watchedCountry = form.watch(`addresses.${index}.country`);
-                       return (
-                        <Card key={field.id} className="relative">
-                          {isEditing && (
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <Button type="button" size="sm" variant={field.isPrimary ? "default" : "outline"} onClick={() => setPrimaryAddress(index)}>{field.isPrimary ? "Primary Address" : "Set as Primary"}</Button>
-                                {fields.length > 1 && (
-                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive ml-2" onClick={() => remove(index)}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                )}
-                            </CardHeader>
-                          )}
-                          <CardContent className="space-y-4 pt-4">
-                            {isEditing ? (
-                              <>
-                                <FormField control={form.control} name={`addresses.${index}.street`} render={({ field }) => (<FormItem><FormLabel>Street Address</FormLabel><FormControl><Input placeholder="e.g., 123 Cricket Lane" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <FormField control={form.control} name={`addresses.${index}.city`} render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input placeholder="e.g., Bengaluru" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={form.control} name={`addresses.${index}.state`} render={({ field }) => ( <FormItem><FormLabel>State / Province</FormLabel>{ watchedCountry === 'India' ? (<Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Select a state" /></SelectTrigger></FormControl><SelectContent>{indianStates.map(state => (<SelectItem key={state} value={state}>{state}</SelectItem>))}</SelectContent></Select>) : (<FormControl><Input placeholder="e.g., California" {...field} /></FormControl>)}<FormMessage /></FormItem>)} />
-                                    <FormField control={form.control} name={`addresses.${index}.zip`} render={({ field }) => ( <FormItem><FormLabel>ZIP / Postal Code</FormLabel><FormControl><Input placeholder="e.g., 560001" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                </div>
-                                <FormField control={form.control} name={`addresses.${index}.country`} render={({ field }) => (<FormItem><FormLabel>Country</FormLabel><Select onValueChange={(value) => { field.onChange(value); setValue(`addresses.${index}.state`, ''); }} value={field.value || 'India'}><FormControl><SelectTrigger><SelectValue placeholder="Select a country" /></SelectTrigger></FormControl><SelectContent>{countries.map(country => (<SelectItem key={country} value={country}>{country}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                              </>
-                            ) : (
-                               <ReadOnlyField label={field.isPrimary ? "Primary Address" : "Address"} value={renderAddress(field as Address)} />
-                            )}
-                          </CardContent>
-                        </Card>
-                    )})}
-                </div>
-                {isEditing && (
-                  <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append({ id: `addr_${Date.now()}`, street: "", city: "", state: "Maharashtra", zip: "", country: "India", isPrimary: false })}>
-                      <PlusCircle className="mr-2 h-4 w-4" /> Add Address
-                  </Button>
-                )}
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-              {isEditing && <Button type="submit">Save Customer</Button>}
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-</file>
-
 <file path="src/app/customers/page.tsx">
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
@@ -18959,6 +17843,789 @@ export default function ProductsPage() {
         />
       </div>
     </div>
+  );
+}
+</file>
+
+<file path="src/app/products/product-dialog.tsx">
+'use client';
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, useFieldArray } from "react-hook-form";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Product, Brand, Category, Color, SubCategory, Vendor, HandPreference, PriceHistoryEntry } from "@/lib/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useEffect, useRef, useMemo, useState, useCallback } from "react";
+import Image from "next/image";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
+import { RefreshCw, PlusCircle, Trash2, Search, Copy, Edit, Save } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { toast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { Badge } from "@/components/ui/badge";
+
+const STORE_ID = 'store_main';
+
+const bundleItemSchema = z.object({
+  productId: z.string().min(1, "Product is required."),
+  productName: z.string(),
+  quantity: z.coerce.number().min(1, "Quantity must be at least 1."),
+  categoryName: z.string().optional(),
+  subCategoryName: z.string().optional(),
+});
+
+const formSchema = z.object({
+  name: z.string().min(1, "Product name is required."),
+  sku: z.string().min(1, "SKU is required."),
+  serialNumber: z.string().optional(),
+  handPreference: z.enum(["Blank", "Left", "Right", "Normal"]).optional(),
+  imageUrl: z.string().url("Please enter a valid image URL.").or(z.literal('')).optional(),
+  brand: z.string().min(1, "Brand is required."),
+  category: z.string().min(1, "Category is required."),
+  subCategory: z.string().optional(),
+  color1: z.string().optional(),
+  color2: z.string().optional(),
+  vendorId: z.string().min(1, "Vendor ID is required."),
+  purchasePrice: z.coerce.number().positive("Purchase price must be positive."),
+  miscellaneousCost: z.coerce.number().min(0, "Miscellaneous cost must be zero or more.").optional(),
+  profitPercentage: z.coerce.number().min(0).optional(),
+  profitAmount: z.coerce.number().min(0).optional(),
+  sellingPrice: z.coerce.number().positive("Selling price must be positive."),
+  finalPrice: z.coerce.number().min(0).optional(),
+  description: z.string().optional(),
+  hsnCode: z.string().min(1, "HSN Code is required"),
+  gstRate: z.coerce.number().min(0, "GST rate cannot be negative."),
+  isActive: z.boolean().default(true),
+  isBundle: z.boolean().default(false),
+  bundleItems: z.array(bundleItemSchema).optional(),
+});
+
+type ProductFormValues = z.infer<typeof formSchema>;
+
+interface ProductDialogProps {
+  children?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  product?: Product;
+  onSuccess: (product: Product) => void;
+}
+
+const ReadOnlyField = ({ label, value, children, className }: { label: string, value?: React.ReactNode, children?: React.ReactNode, className?: string }) => (
+    <div className={cn("space-y-1", className)}>
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        {children ? (
+            <div className="text-sm p-2 border rounded-md bg-muted min-h-[40px] flex items-center">{children}</div>
+        ) : (
+            <div className="text-sm p-2 border rounded-md bg-muted min-h-[40px] flex items-center">{value || <span className="text-muted-foreground/70">N/A</span>}</div>
+        )}
+    </div>
+)
+
+
+export function ProductDialog({ children, open, onOpenChange, product, onSuccess }: ProductDialogProps) {
+  const firestore = useFirestore();
+  const { currentUser } = useCurrentUser();
+  const [isEditing, setIsEditing] = useState(!product);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const [productToAdd, setProductToAdd] = useState<Product | null>(null);
+
+  const brandsRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'brands') : null, [firestore]);
+  const { data: mockBrands } = useCollection<Brand>(brandsRef);
+
+  const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
+  const { data: mockCategories } = useCollection<Category>(categoriesRef);
+
+  const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
+  const { data: mockSubCategories } = useCollection<SubCategory>(subCategoriesRef);
+
+  const colorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'colors') : null, [firestore]);
+  const { data: mockColors } = useCollection<Color>(colorsRef);
+  
+  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
+  const { data: mockVendors } = useCollection<Vendor>(vendorsRef);
+  
+  const allProductsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
+  const { data: allProducts } = useCollection<Product>(allProductsRef);
+
+  const handPreferencesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'handPreferences') : null, [firestore]);
+  const { data: handPreferences } = useCollection<HandPreference>(handPreferencesRef);
+
+  const sortedBrands = useMemo(() => mockBrands?.sort((a, b) => a.name.localeCompare(b.name)), [mockBrands]);
+  const sortedCategories = useMemo(() => mockCategories?.sort((a, b) => a.name.localeCompare(b.name)), [mockCategories]);
+  const sortedColors = useMemo(() => mockColors?.sort((a, b) => a.name.localeCompare(b.name)), [mockColors]);
+  const sortedVendors = useMemo(() => mockVendors?.sort((a, b) => (a.name || '').localeCompare(b.name || '')), [mockVendors]);
+  const sortedAllProducts = useMemo(() => allProducts?.filter(p => !p.isBundle).sort((a, b) => (a.name || '').localeCompare(b.name || '')), [allProducts]);
+  
+  const sortedHandPreferences = useMemo(() => {
+    if (!handPreferences) return [];
+    const order: ('Normal' | 'Right' | 'Left')[] = ["Normal", "Right", "Left"];
+    return handPreferences.sort((a, b) => {
+      const indexA = order.indexOf(a.name as 'Normal' | 'Right' | 'Left');
+      const indexB = order.indexOf(b.name as 'Normal' | 'Right' | 'Left');
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
+  }, [handPreferences]);
+
+  const bundleProducts = useMemo(() => {
+    return allProducts?.filter(p => p.isBundle).sort((a, b) => a.name.localeCompare(b.name)) || [];
+  }, [allProducts]);
+
+
+  const form = useForm<ProductFormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "", sku: "", serialNumber: "", imageUrl: "", brand: "", category: "", subCategory: "", handPreference: "Normal",
+      color1: "", color2: "", vendorId: "", purchasePrice: 0, miscellaneousCost: 0, profitPercentage: 0, profitAmount: 0,
+      sellingPrice: 0, finalPrice: 0, description: "", hsnCode: "", gstRate: 0, isActive: true, isBundle: false, bundleItems: [],
+    },
+  });
+
+  const { getValues } = form;
+
+  const { fields, append, remove, replace } = useFieldArray({
+    control: form.control,
+    name: "bundleItems",
+  });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const watchedCategory = form.watch('category');
+  const watchedSubCategory = form.watch('subCategory');
+  const watchedBrand = form.watch('brand');
+  const watchedImageUrl = form.watch('imageUrl');
+  const watchedIsBundle = form.watch('isBundle');
+  const watchedBundleItems = form.watch('bundleItems');
+  const watchedPurchasePrice = form.watch('purchasePrice');
+  const watchedMiscCost = form.watch('miscellaneousCost');
+  const watchedGstRate = form.watch('gstRate');
+  const watchedFinalPrice = form.watch('finalPrice');
+  const watchedProfitAmount = form.watch('profitAmount');
+  const isInitialLoad = useRef(true);
+  
+  useEffect(() => {
+    if (productToAdd && mockCategories && mockSubCategories) {
+        const existingItemIndex = fields.findIndex(item => item.productId === productToAdd.id);
+
+        if (existingItemIndex > -1) {
+            toast({
+                title: "Product Already Added",
+                description: `"${productToAdd.name}" is already in the bundle. You can edit its quantity directly.`,
+                variant: "destructive"
+            });
+            setProductToAdd(null);
+            return;
+        }
+
+        const category = mockCategories.find(c => c.id === productToAdd.category);
+        const subCategory = mockSubCategories.find(sc => sc.id === productToAdd.subCategory);
+
+        append({
+            productId: productToAdd.id,
+            productName: productToAdd.name,
+            quantity: 1,
+            categoryName: category?.name || 'N/A',
+            subCategoryName: subCategory?.name || 'N/A',
+        });
+        toast({ title: "Product Added", description: `${productToAdd.name} added to bundle.` });
+        setProductToAdd(null);
+    }
+  }, [productToAdd, append, mockCategories, mockSubCategories, fields]);
+
+
+  const filteredSubCategories = useMemo(() => {
+    if (!mockSubCategories || !watchedCategory || !mockCategories) return [];
+    return mockSubCategories.filter(sc => sc.categoryId === watchedCategory).sort((a, b) => a.name.localeCompare(b.name));
+  }, [mockSubCategories, watchedCategory, mockCategories]);
+
+  useEffect(() => {
+    if (!isInitialLoad.current) {
+        form.setValue('subCategory', '');
+    }
+  }, [watchedCategory, form]);
+
+  useEffect(() => {
+    if (watchedSubCategory && mockSubCategories) {
+        const subCategoryDetails = mockSubCategories.find(sc => sc.id === watchedSubCategory);
+        if (subCategoryDetails?.hsnCode && subCategoryDetails.gstRate !== undefined) {
+            form.setValue('hsnCode', subCategoryDetails.hsnCode, { shouldValidate: true });
+            form.setValue('gstRate', subCategoryDetails.gstRate, { shouldValidate: true });
+        }
+    } else if (watchedCategory && mockCategories) {
+        const categoryDetails = mockCategories.find(c => c.id === watchedCategory);
+        if(categoryDetails?.hsnCode && categoryDetails.gstRate !== undefined) {
+             form.setValue('hsnCode', categoryDetails.hsnCode, { shouldValidate: true });
+             form.setValue('gstRate', categoryDetails.gstRate, { shouldValidate: true });
+        } else {
+             form.setValue('hsnCode', '');
+             form.setValue('gstRate', 0);
+        }
+    } else {
+        form.setValue('hsnCode', '');
+        form.setValue('gstRate', 0);
+    }
+  }, [watchedSubCategory, watchedCategory, mockSubCategories, mockCategories, form]);
+
+  const landingPrice = useMemo(() => {
+    const purchase = Number(watchedPurchasePrice) || 0;
+    const misc = Number(watchedMiscCost) || 0;
+    return purchase + misc;
+  }, [watchedPurchasePrice, watchedMiscCost]);
+
+  const handleFinalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const finalPriceValue = parseFloat(e.target.value) || 0;
+    form.setValue('finalPrice', finalPriceValue, { shouldValidate: true });
+    
+    if (finalPriceValue > 0) {
+      const { purchasePrice = 0, miscellaneousCost = 0, gstRate = 0 } = form.getValues();
+      const landing = (Number(purchasePrice) || 0) + (Number(miscellaneousCost) || 0);
+      const gst = Number(gstRate) || 0;
+
+      const preGstPrice = finalPriceValue / (1 + (gst / 100));
+      const newProfitAmount = preGstPrice - landing;
+
+      if (landing > 0) {
+        const newProfitPercent = (newProfitAmount / landing) * 100;
+        form.setValue('profitPercentage', parseFloat(newProfitPercent.toFixed(2)), { shouldValidate: true });
+      } else {
+        form.setValue('profitPercentage', 0, { shouldValidate: true });
+      }
+      form.setValue('profitAmount', parseFloat(newProfitAmount.toFixed(2)), { shouldValidate: true });
+      form.setValue('sellingPrice', finalPriceValue, { shouldValidate: true });
+    }
+  };
+
+  const updateCalculatedFields = () => {
+    const { purchasePrice, miscellaneousCost, gstRate, profitAmount } = form.getValues();
+    const landing = (Number(purchasePrice) || 0) + (Number(miscellaneousCost) || 0);
+    const gst = Number(gstRate) || 0;
+    const profit = Number(profitAmount) || 0;
+
+    const basePrice = landing + profit;
+    const gstValue = basePrice * (gst / 100);
+    const finalSellingPrice = basePrice + gstValue;
+
+    if (form.getValues('sellingPrice') !== finalSellingPrice) {
+        form.setValue('sellingPrice', parseFloat(finalSellingPrice.toFixed(2)), { shouldValidate: true });
+    }
+  };
+  
+  const handleProfitPercentageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const percent = parseFloat(e.target.value) || 0;
+    const { purchasePrice, miscellaneousCost } = form.getValues();
+    const landing = (Number(purchasePrice) || 0) + (Number(miscellaneousCost) || 0);
+    const newProfitAmount = landing * (percent / 100);
+    form.setValue('profitAmount', parseFloat(newProfitAmount.toFixed(2)), { shouldValidate: true });
+    form.setValue('profitPercentage', percent, { shouldValidate: true });
+    updateCalculatedFields();
+  };
+
+  const handleProfitAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const amount = parseFloat(e.target.value) || 0;
+     const { purchasePrice, miscellaneousCost } = form.getValues();
+    const landing = (Number(purchasePrice) || 0) + (Number(miscellaneousCost) || 0);
+    if (landing > 0) {
+      const newProfitPercent = (amount / landing) * 100;
+      form.setValue('profitPercentage', parseFloat(newProfitPercent.toFixed(2)), { shouldValidate: true });
+    } else {
+      form.setValue('profitPercentage', 0, { shouldValidate: true });
+    }
+     form.setValue('profitAmount', amount, { shouldValidate: true });
+    updateCalculatedFields();
+  };
+
+  useEffect(() => {
+    if (!watchedIsBundle) {
+        updateCalculatedFields();
+    }
+  }, [watchedPurchasePrice, watchedMiscCost, watchedGstRate, watchedIsBundle]);
+
+   const generateSku = () => {
+    const { brand: brandId, category: categoryId, subCategory: subCategoryId } = form.getValues();
+    const brand = mockBrands?.find(b => b.id === brandId);
+    if (!brand) return; // Need at least a brand
+
+    const category = mockCategories?.find(c => c.id === categoryId);
+    const subCategory = mockSubCategories?.find(sc => sc.id === subCategoryId);
+
+    const brandCode = brand.name.slice(0, 3).toUpperCase();
+    let categoryCode = '';
+
+    if (subCategory) {
+      categoryCode = subCategory.name.slice(0, 2).toUpperCase();
+    } else if (category) {
+      categoryCode = category.name.slice(0, 2).toUpperCase();
+    } else {
+      return; // Need at least a category or subcategory
+    }
+
+    const sku = `${brandCode}${categoryCode}${Date.now().toString().slice(-4)}`;
+    form.setValue('sku', sku, { shouldValidate: true });
+  };
+
+  useEffect(() => {
+    if (!product) { // Only auto-generate for new products
+      generateSku();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedBrand, watchedCategory, watchedSubCategory]);
+
+// Set initial values when dialog opens for editing
+  useEffect(() => {
+    if (open) {
+      if (product) {
+        setIsEditing(false); // view mode
+        isInitialLoad.current = true;
+        const enrichedBundleItems = product.isBundle && product.bundleItems && allProducts && mockCategories ? product.bundleItems.map(item => {
+            const bundleProduct = allProducts.find(p => p.id === item.productId);
+            const category = mockCategories.find(c => c.id === bundleProduct?.category);
+            const subCategory = mockSubCategories?.find(sc => sc.id === bundleProduct?.subCategory);
+            return {
+                ...item,
+                productName: bundleProduct?.name || 'Unknown',
+                categoryName: category?.name || 'N/A',
+                subCategoryName: subCategory?.name || 'N/A',
+            }
+        }) : [];
+        
+        form.reset({
+          ...product,
+          finalPrice: product.finalPrice || product.sellingPrice || undefined,
+          bundleItems: enrichedBundleItems as any,
+        });
+
+        // Allow calculations to run after initial load
+        setTimeout(() => {
+            isInitialLoad.current = false;
+        }, 100);
+      } else {
+        setIsEditing(true); // edit mode for new product
+        isInitialLoad.current = false;
+        form.reset({
+            name: "", sku: "", serialNumber: "", imageUrl: "", brand: "", category: "", subCategory: "", handPreference: "Normal",
+            color1: "", color2: "", vendorId: "", purchasePrice: 0, miscellaneousCost: 0, profitPercentage: 0, profitAmount: 0,
+            sellingPrice: 0, finalPrice: undefined, description: "", hsnCode: "", gstRate: 0, isActive: true, isBundle: false, bundleItems: [],
+        })
+      }
+    }
+  }, [product, open, form, allProducts, mockCategories, mockSubCategories])
+
+  // Auto-calculate bundle prices
+  useEffect(() => {
+    if (watchedIsBundle && allProducts && watchedBundleItems) {
+      let totalPurchasePrice = 0;
+      let totalSellingPrice = 0;
+      let totalMiscellaneousCost = 0;
+      watchedBundleItems.forEach(item => {
+        const product = allProducts.find(p => p.id === item.productId);
+        if (product) {
+          totalPurchasePrice += product.purchasePrice * item.quantity;
+          totalSellingPrice += product.sellingPrice * item.quantity;
+          totalMiscellaneousCost += (product.miscellaneousCost || 0) * item.quantity;
+        }
+      });
+      form.setValue('purchasePrice', totalPurchasePrice);
+      form.setValue('sellingPrice', totalSellingPrice);
+      form.setValue('miscellaneousCost', totalMiscellaneousCost);
+    }
+  }, [watchedIsBundle, watchedBundleItems, allProducts, form]);
+
+
+  const onSubmit = (data: ProductFormValues) => {
+    // Ensure final calculation before submission for non-bundles
+    if (!data.isBundle) {
+        updateCalculatedFields();
+    }
+    
+    // Use a short timeout to allow the form state to update
+    setTimeout(() => {
+        const finalData = form.getValues();
+
+        const submittedProduct: Product = {
+            id: product?.id || `prod_${Date.now()}`,
+            storeId: product?.storeId || STORE_ID,
+            name: finalData.name,
+            sku: finalData.sku,
+            serialNumber: finalData.serialNumber || '',
+            handPreference: finalData.handPreference || 'Normal',
+            imageUrl: finalData.imageUrl || '',
+            brand: finalData.brand,
+            category: finalData.category,
+            subCategory: finalData.subCategory || '',
+            color1: finalData.color1 || '',
+            color2: finalData.color2 || '',
+            vendorId: finalData.vendorId,
+            purchasePrice: finalData.purchasePrice,
+            miscellaneousCost: finalData.miscellaneousCost || 0,
+            profitPercentage: finalData.profitPercentage || 0,
+            profitAmount: finalData.profitAmount || 0,
+            sellingPrice: finalData.sellingPrice,
+            finalPrice: finalData.finalPrice || 0,
+            description: finalData.description || '',
+            hsnCode: finalData.hsnCode,
+            gstRate: finalData.gstRate,
+            isActive: finalData.isActive,
+            isBundle: finalData.isBundle,
+            bundleItems: finalData.isBundle ? (finalData.bundleItems || []).map(item => ({ productId: item.productId, quantity: item.quantity })) : [],
+            priceHistory: product?.priceHistory || [],
+        };
+        
+        if (product) { // Editing
+             const hasPriceChanged = product.sellingPrice !== submittedProduct.sellingPrice || product.purchasePrice !== submittedProduct.purchasePrice;
+             if (hasPriceChanged) {
+                const newHistoryEntry: PriceHistoryEntry = {
+                    sellingPrice: submittedProduct.sellingPrice,
+                    purchasePrice: submittedProduct.purchasePrice,
+                    date: new Date().toISOString(),
+                };
+                submittedProduct.priceHistory = [...(product.priceHistory || []), newHistoryEntry];
+             }
+        } else { // New product
+             submittedProduct.priceHistory = [{
+                sellingPrice: submittedProduct.sellingPrice,
+                purchasePrice: submittedProduct.purchasePrice,
+                date: new Date().toISOString(),
+            }];
+        }
+        
+        onSuccess(submittedProduct);
+    }, 100);
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast({
+          title: "File Too Large",
+          description: "Please upload an image smaller than 2MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsUploading(true);
+      setUploadProgress(0);
+
+      try {
+        const storage = getStorage();
+        const filePath = `product-images/${Date.now()}-${file.name}`;
+        const fileRef = storageRef(storage, filePath);
+        
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        form.setValue('imageUrl', downloadURL, { shouldValidate: true });
+        
+        setUploadProgress(100);
+        toast({
+          title: "Upload Successful",
+          description: "Image has been uploaded and URL is set.",
+        });
+      } catch (error) {
+        console.error("Error uploading file:", error);
+        toast({
+          title: "Upload Failed",
+          description: "Could not upload the image. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
+  const handleCopyBundle = (bundleId: string) => {
+    const bundleToCopy = bundleProducts.find(p => p.id === bundleId);
+    if (bundleToCopy) {
+      const enrichedItems = (bundleToCopy.bundleItems || []).map(item => {
+        const bundleProduct = allProducts?.find(p => p.id === item.productId);
+        if (!bundleProduct) return null;
+        const category = mockCategories?.find(c => c.id === bundleProduct.category);
+        const subCategory = mockSubCategories?.find(sc => sc.id === bundleProduct.subCategory);
+        return {
+          productId: item.productId,
+          quantity: item.quantity,
+          productName: bundleProduct.name || 'Unknown',
+          categoryName: category?.name || 'N/A',
+          subCategoryName: subCategory?.name || 'N/A',
+        };
+      }).filter(Boolean);
+
+      form.setValue('name', `Copy of ${bundleToCopy.name}`);
+      form.setValue('description', bundleToCopy.description);
+      form.setValue('category', bundleToCopy.category);
+      form.setValue('subCategory', bundleToCopy.subCategory);
+      form.setValue('brand', bundleToCopy.brand);
+      form.setValue('hsnCode', bundleToCopy.hsnCode);
+      form.setValue('gstRate', bundleToCopy.gstRate);
+      
+      replace(enrichedItems as any);
+  
+      toast({ title: "Bundle Copied", description: `Details from "${bundleToCopy.name}" have been copied.` });
+    }
+  };
+  
+  const handleCopyProduct = (productId: string) => {
+    const productToCopy = allProducts?.find(p => p.id === productId);
+    if (productToCopy) {
+      const { id, sku, serialNumber, name, ...restOfProduct } = productToCopy;
+      form.reset({
+        ...form.getValues(),
+        ...restOfProduct,
+        name: `Copy of ${name}`,
+        sku: '',
+        serialNumber: '',
+        isBundle: false, // Force individual product
+        bundleItems: [],
+      });
+      generateSku();
+      toast({ title: "Product Copied", description: `Details from "${name}" have been copied.` });
+    }
+  }
+
+    // This block calculates the profit margins for display purposes, especially in read-only mode.
+    const { displayProfitAmount, displayProfitPercentage, displaySellingPrice } = useMemo(() => {
+        const formValues = getValues();
+        const purchase = Number(formValues.purchasePrice) || 0;
+        const misc = Number(formValues.miscellaneousCost) || 0;
+        const landing = purchase + misc;
+        const gstRate = Number(formValues.gstRate) || 0;
+        const finalPrice = Number(formValues.finalPrice) || 0;
+        const profitAmount = Number(formValues.profitAmount) || 0;
+        
+        if (finalPrice > 0) {
+            const preGstPrice = finalPrice / (1 + (gstRate / 100));
+            const profit = preGstPrice - landing;
+            const percent = landing > 0 ? (profit / landing) * 100 : 0;
+            return {
+                displayProfitAmount: profit,
+                displayProfitPercentage: percent,
+                displaySellingPrice: finalPrice
+            };
+        }
+        
+        const basePrice = landing + profitAmount;
+        const sellingPrice = basePrice * (1 + (gstRate / 100));
+        const percent = landing > 0 ? (profitAmount / landing) * 100 : 0;
+        
+        return {
+            displayProfitAmount: profitAmount,
+            displayProfitPercentage: percent,
+            displaySellingPrice: sellingPrice
+        };
+    }, [
+        watchedPurchasePrice,
+        watchedMiscCost,
+        watchedGstRate,
+        watchedFinalPrice,
+        watchedProfitAmount,
+        getValues,
+        isEditing // Re-calculate when switching modes
+    ]);
+  
+  const dialogTitle = product ? (isEditing ? "Edit Product" : "View Product") : "Add New Product";
+  const dialogDescription = product 
+    ? `Update the details of this product.` 
+    : "Fill in the form to add a new product to your catalog.";
+    
+  const formId = "product-form";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
+      <DialogContent className="sm:max-w-[800px]">
+        <DialogHeader>
+            <div className="flex justify-between items-start pr-6">
+                <div>
+                <DialogTitle>{dialogTitle}</DialogTitle>
+                <DialogDescription>{dialogDescription}</DialogDescription>
+                </div>
+                {product && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
+                    <Button onClick={() => setIsEditing(true)}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit
+                    </Button>
+                )}
+            </div>
+        </DialogHeader>
+        <Form {...form}>
+          <form id={formId} onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto px-2">
+            
+            {isEditing && !product && (
+               <div className="p-4 border rounded-md space-y-2 bg-muted/50">
+                  <Label>Copy from Existing Product (Optional)</Label>
+                  <Combobox
+                      options={sortedAllProducts?.map(p => ({ value: p.id, label: p.name })) || []}
+                      value={''}
+                      onChange={(productId) => handleCopyProduct(productId)}
+                      placeholder="Select a product to clone..."
+                      searchPlaceholder="Search products..."
+                      notFoundText="No product found."
+                  />
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isEditing ? ( <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Product Name</FormLabel><FormControl><Input placeholder="e.g., Kookaburra Kahuna" {...field} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Product Name" value={getValues('name')} /> )}
+              {isEditing ? ( <FormField control={form.control} name="brand" render={({ field }) => ( <FormItem><FormLabel>Brand</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a brand" /></SelectTrigger></FormControl><SelectContent>{sortedBrands?.map(brand => <SelectItem key={brand.id} value={brand.id}>{brand.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Brand" value={sortedBrands?.find(b => b.id === getValues('brand'))?.name} /> )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {isEditing ? ( <FormField control={form.control} name="category" render={({ field }) => ( <FormItem><FormLabel>Category</FormLabel><Select onValueChange={(value) => { field.onChange(value); form.setValue('subCategory', ''); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger></FormControl><SelectContent>{sortedCategories?.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Category" value={sortedCategories?.find(c => c.id === getValues('category'))?.name} /> )}
+                {isEditing ? ( <FormField control={form.control} name="subCategory" render={({ field }) => ( <FormItem><FormLabel>Sub Category</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!watchedCategory || filteredSubCategories.length === 0}><FormControl><SelectTrigger><SelectValue placeholder="Select sub-category" /></SelectTrigger></FormControl><SelectContent>{filteredSubCategories?.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Sub Category" value={mockSubCategories?.find(c => c.id === getValues('subCategory'))?.name} /> )}
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {isEditing ? (<FormField control={form.control} name="sku" render={({ field }) => ( <FormItem><FormLabel>SKU</FormLabel><FormControl><div className="flex items-center gap-2"><Input placeholder="Auto-generated or manual" {...field} /><Button type="button" variant="ghost" size="icon" onClick={generateSku}><RefreshCw className="h-4 w-4" /></Button></div></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="SKU" value={getValues('sku')} /> )}
+                {isEditing ? ( <FormField control={form.control} name="serialNumber" render={({ field }) => ( <FormItem><FormLabel>Serial Number (Optional)</FormLabel><FormControl><Input placeholder="Product serial number" {...field} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Serial Number" value={getValues('serialNumber')} /> )}
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {isEditing ? ( <FormField control={form.control} name="handPreference" render={({ field }) => ( <FormItem><FormLabel>Hand Preference</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select hand preference" /></SelectTrigger></FormControl><SelectContent>{sortedHandPreferences?.map(hp => <SelectItem key={hp.id} value={hp.name}>{hp.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Hand Preference" value={getValues('handPreference')} /> )}
+                {isEditing ? ( <FormField control={form.control} name="color1" render={({ field }) => ( <FormItem><FormLabel>Color 1</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a color" /></SelectTrigger></FormControl><SelectContent>{sortedColors?.map(color => <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Color 1" value={getValues('color1')} /> )}
+                {isEditing ? ( <FormField control={form.control} name="color2" render={({ field }) => ( <FormItem><FormLabel>Color 2</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a color" /></SelectTrigger></FormControl><SelectContent>{sortedColors?.map(color => <SelectItem key={color.id} value={color.name}>{color.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Color 2" value={getValues('color2')} /> )}
+            </div>
+            
+            {isEditing ? ( <FormField control={form.control} name="vendorId" render={({ field }) => ( <FormItem><FormLabel>Vendor</FormLabel><Combobox options={sortedVendors?.map(v => ({ value: v.id, label: v.name })) || []} value={field.value} onChange={field.onChange} placeholder="Select a vendor..." searchPlaceholder="Search vendors..." notFoundText="No vendor found." /><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Vendor" value={sortedVendors?.find(v => v.id === getValues('vendorId'))?.name} /> )}
+            
+            <Separator />
+            
+            <div className="space-y-4">
+                 <h3 className="text-base font-semibold text-foreground">Pricing Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {isEditing ? ( <FormField control={form.control} name="purchasePrice" render={({ field }) => ( <FormItem><FormLabel>Purchase Price</FormLabel><FormControl><Input type="number" placeholder="0" {...field} disabled={watchedIsBundle} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Purchase Price" value={`₹${getValues('purchasePrice')?.toLocaleString('en-IN')}`} /> )}
+                    {isEditing ? ( <FormField control={form.control} name="miscellaneousCost" render={({ field }) => ( <FormItem><FormLabel>Misc. Cost</FormLabel><FormControl><Input type="number" placeholder="0" {...field} disabled={watchedIsBundle} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Misc. Cost" value={`₹${getValues('miscellaneousCost')?.toLocaleString('en-IN')}`} /> )}
+                    <ReadOnlyField label="Landing Price" value={`₹${landingPrice.toLocaleString('en-IN')}`} />
+                </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {isEditing ? ( <FormField control={form.control} name="profitPercentage" render={({ field }) => ( <FormItem><FormLabel>Profit Margin (%)</FormLabel><FormControl><Input type="number" placeholder="e.g., 25" {...field} onChange={handleProfitPercentageChange} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Profit Margin (%)" value={`${displayProfitPercentage.toFixed(2)}%`} /> )}
+                    {isEditing ? ( <FormField control={form.control} name="profitAmount" render={({ field }) => ( <FormItem><FormLabel>Profit Margin (₹)</FormLabel><FormControl><Input type="number" placeholder="e.g., 500" {...field} onChange={handleProfitAmountChange} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Profit Margin (₹)" value={`₹${displayProfitAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} /> )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <ReadOnlyField label="Selling Price (Auto)" value={`₹${displaySellingPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} />
+                    {isEditing ? ( <FormField control={form.control} name="finalPrice" render={({ field }) => ( <FormItem><FormLabel>Final Price (Manual Override)</FormLabel><FormControl><Input type="number" placeholder="e.g., 7999" {...field} onChange={handleFinalPriceChange} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Final Price (Override)" value={getValues('finalPrice') ? `₹${getValues('finalPrice')?.toLocaleString('en-IN')}` : 'N/A'} /> )}
+                </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+                <h3 className="text-base font-semibold text-foreground">Tax & Other Details</h3>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {isEditing ? ( <FormField control={form.control} name="hsnCode" render={({ field }) => ( <FormItem><FormLabel>HSN Code</FormLabel><FormControl><Input placeholder="Auto-fills from category" {...field} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="HSN Code" value={getValues('hsnCode')} /> )}
+                    {isEditing ? ( <FormField control={form.control} name="gstRate" render={({ field }) => ( <FormItem><FormLabel>GST Rate (%)</FormLabel><FormControl><Input type="number" placeholder="Auto-fills from category" {...field} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="GST Rate (%)" value={`${getValues('gstRate') || 0}%`} /> )}
+                </div>
+                {isEditing ? ( <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea placeholder="Describe the product..." {...field} /></FormControl><FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Description" value={getValues('description')} /> )}
+                {isEditing ? ( <FormField control={form.control} name="imageUrl" render={({ field }) => ( <FormItem><FormLabel>Image</FormLabel><div className="flex items-center gap-2"><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" /><Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>Browse</Button></div>{isUploading && <Progress value={uploadProgress} className="w-[60%]" />} {watchedImageUrl && <div className="p-2 border rounded-md w-24 h-24 mt-2"><Image src={watchedImageUrl} alt="Preview" width={80} height={80} className="object-contain w-full h-full" /></div>}<FormMessage /></FormItem> )}/> ) : ( <ReadOnlyField label="Image"> {getValues('imageUrl') ? <Image src={getValues('imageUrl')!} alt="Product image" width={80} height={80} className="object-contain" /> : 'N/A' } </ReadOnlyField> )}
+            </div>
+            
+             <Separator />
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {isEditing ? ( <FormField control={form.control} name="isActive" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Active</FormLabel><FormDescription>Inactive products won't appear in sales.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/> ) : ( <ReadOnlyField label="Status"> <Badge variant={getValues('isActive') ? 'default' : 'secondary'}>{getValues('isActive') ? 'Active' : 'Inactive'}</Badge> </ReadOnlyField> )}
+                 {isEditing ? ( <FormField control={form.control} name="isBundle" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Bundle Product</FormLabel><FormDescription>A product made of other products.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/> ) : ( <ReadOnlyField label="Is Bundle?" value={getValues('isBundle') ? 'Yes' : 'No'} /> )}
+             </div>
+
+            {watchedIsBundle && (
+                 <div className="space-y-4 p-4 border rounded-md">
+                     <h4 className="font-medium text-foreground">Bundle Items</h4>
+                     {isEditing && (
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Combobox options={bundleProducts.map(p => ({ value: p.id, label: p.name }))} value={""} onChange={handleCopyBundle} placeholder="Copy from existing bundle" searchPlaceholder="Search bundles..." notFoundText="No bundles found."/>
+                            <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-start">
+                                        <Search className="mr-2 h-4 w-4" />
+                                        Add component product...
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                    <Command>
+                                        <CommandInput placeholder="Search product..." />
+                                        <CommandList>
+                                            <CommandEmpty>No products found.</CommandEmpty>
+                                            <CommandGroup>
+                                                {sortedAllProducts?.map(product => (
+                                                    <CommandItem
+                                                        key={product.id}
+                                                        value={`${product.name} ${product.sku}`}
+                                                        onSelect={() => {
+                                                            setProductToAdd(product);
+                                                            setProductSearchOpen(false);
+                                                        }}
+                                                    >
+                                                        {product.name}
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                         </div>
+                     )}
+                     <div className="space-y-2">
+                        {fields.map((field, index) => (
+                            <div key={field.id} className="flex items-center gap-2 p-2 rounded-md bg-muted">
+                                <div className="flex-1 font-medium">{field.productName}</div>
+                                <div className="text-sm text-muted-foreground">{field.categoryName}</div>
+                                {isEditing ? (
+                                    <FormField control={form.control} name={`bundleItems.${index}.quantity`} render={({ field }) => (
+                                        <FormItem className="flex items-center gap-2">
+                                            <FormLabel className="text-sm">Qty:</FormLabel>
+                                            <FormControl><Input type="number" {...field} className="h-8 w-16" /></FormControl>
+                                        </FormItem>
+                                    )} />
+                                ) : (
+                                    <p className="text-sm">Qty: {field.quantity}</p>
+                                )}
+                                {isEditing && <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+                            </div>
+                        ))}
+                     </div>
+                 </div>
+             )}
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
+              {isEditing && <Button type="submit" form={formId}>Save Product</Button>}
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }
 </file>
@@ -22852,139 +22519,337 @@ export default function CustomerProfilePage() {
 }
 </file>
 
-<file path="src/app/sales/customer-financials.tsx">
+<file path="src/app/customers/customer-dialog.tsx">
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Customer, Sale, Company } from '@/lib/types';
-import { CustomerFinancialsCard } from './customer-financials-card';
-import { PendingInvoicesDialog } from './pending-invoices-dialog';
-import { generatePendingInvoicesEmailBody } from '@/lib/actions';
-import { toast } from '@/hooks/use-toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users } from 'lucide-react';
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, useFieldArray } from "react-hook-form";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Customer, CustomerType, Address } from "@/lib/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { indianStates, countries } from "@/lib/mock-data";
+import { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { CalendarIcon, PlusCircle, Trash2, Edit } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, query, orderBy } from "firebase/firestore";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
-interface CustomerFinancialsProps {
-  sales: Sale[];
-  customers: Customer[];
-  companyDetails: Company | null;
+const STORE_ID = 'store_main';
+
+const addressSchema = z.object({
+    id: z.string(),
+    street: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    zip: z.string().optional(),
+    country: z.string().optional(),
+    isPrimary: z.boolean(),
+});
+
+const formSchema = z.object({
+  title: z.string().optional(),
+  name: z.string().min(1, 'Customer name is required'),
+  companyName: z.string().optional(),
+  customerType: z.string().optional(),
+  email: z.string().email("Invalid email address.").or(z.literal("")).optional(),
+  phone: z.string().optional(),
+  gstNumber: z.string().optional(),
+  birthday: z.date().optional(),
+  anniversary: z.date().optional(),
+  referenceName: z.string().optional(),
+  referenceContact: z.string().optional(),
+  addresses: z.array(addressSchema)
+    .refine(
+        (addresses) => addresses.filter((a) => a.isPrimary).length <= 1,
+        { message: "Only one address can be marked as primary." }
+    ),
+});
+
+type CustomerFormValues = z.infer<typeof formSchema>;
+
+interface CustomerDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  customer?: Customer;
+  onSuccess: (customer: Customer) => void;
 }
 
-export interface CustomerFinancialsData {
-  customer: Customer;
-  pendingInvoices: Sale[];
-  totalPendingAmount: number;
-}
+const ReadOnlyField = ({ label, value }: { label: string, value: React.ReactNode }) => (
+    <div className="space-y-1">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <div className="text-sm p-2 border rounded-md bg-muted min-h-[40px] flex items-center">{value || <span className="text-muted-foreground/70">N/A</span>}</div>
+    </div>
+)
 
-export function CustomerFinancials({ sales, customers, companyDetails }: CustomerFinancialsProps) {
-  const [selectedCustomerData, setSelectedCustomerData] = useState<CustomerFinancialsData | null>(null);
-  const [filterId, setFilterId] = useState<string>('all');
+export function CustomerDialog({ open, onOpenChange, customer, onSuccess }: CustomerDialogProps) {
+  const { currentUser } = useCurrentUser();
+  const [isEditing, setIsEditing] = useState(!customer);
+  const firestore = useFirestore();
+  const customerTypesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'customerTypes'), orderBy('name')) : null, [firestore]);
+  const { data: customerTypes } = useCollection<CustomerType>(customerTypesRef);
 
-  const customerData = useMemo(() => {
-    // Standardizing on 'status' and 'total' as per standardized Sale interface
-    const pendingSales = sales.filter(sale => 
-        (sale.status === 'pending' || sale.status === 'unpaid') || 
-        (sale.balanceAmount && sale.balanceAmount > 0)
-    );
-    
-    const customerMap = new Map<string, CustomerFinancialsData>();
+  const form = useForm<CustomerFormValues>({
+    resolver: zodResolver(formSchema),
+  });
 
-    pendingSales.forEach(sale => {
-      const customer = customers.find(c => c.id === sale.customerId);
-      if (!customer) return;
+  const { control, handleSubmit, getValues, setValue, reset } = form;
 
-      if (!customerMap.has(customer.id)) {
-        customerMap.set(customer.id, {
-          customer,
-          pendingInvoices: [],
-          totalPendingAmount: 0,
+  useEffect(() => {
+    if (open) {
+      if (customer) {
+        setIsEditing(false); // Start in view mode
+        reset({
+          ...customer,
+          birthday: customer.birthday ? new Date(customer.birthday) : undefined,
+          anniversary: customer.anniversary ? new Date(customer.anniversary) : undefined,
         });
+      } else {
+        setIsEditing(true); // New customer starts in edit mode
+        reset({
+            title: "Mr", name: "", companyName: "", customerType: "", email: "", phone: "", gstNumber: "",
+            referenceName: "", referenceContact: "",
+            addresses: [{ id: `addr_${Date.now()}`, street: "", city: "", state: "Maharashtra", zip: "", country: "India", isPrimary: true }],
+            isApproved: true,
+        } as any);
       }
-
-      const data = customerMap.get(customer.id)!;
-      data.pendingInvoices.push(sale);
-      data.totalPendingAmount += (sale.balanceAmount || sale.total || 0);
-    });
-
-    return Array.from(customerMap.values()).sort((a, b) => b.totalPendingAmount - a.totalPendingAmount);
-  }, [sales, customers]);
-
-  const filteredData = useMemo(() => {
-    if (filterId === 'all') return customerData;
-    return customerData.filter(d => d.customer.id === filterId);
-  }, [customerData, filterId]);
-
-  const handleSendReminder = (data: CustomerFinancialsData) => {
-    if (!companyDetails) {
-        toast({
-            title: "Cannot Send Email",
-            description: "Company details are not loaded. Please try again in a moment.",
-            variant: "destructive"
-        });
-        return;
     }
-    const { customer, pendingInvoices } = data;
-    const subject = `Reminder: Outstanding Invoices from ${companyDetails.name}`;
-    const body = generatePendingInvoicesEmailBody(customer, pendingInvoices, companyDetails);
+  }, [open, customer, reset]);
+
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "addresses",
+  });
+
+  const onSubmit = (data: CustomerFormValues) => {
+    const submittedCustomer: Omit<Customer, 'birthday' | 'anniversary'> & { birthday?: string, anniversary?: string } = {
+      id: customer?.id || `cust_${Date.now()}`,
+      storeId: customer?.storeId || 'store_main',
+      ...data,
+      title: data.title || '',
+      name: data.name || 'Unnamed Customer',
+      companyName: data.companyName || '',
+      email: data.email || '',
+      phone: data.phone || '',
+      isApproved: true,
+    };
+
+    if (data.birthday) { submittedCustomer.birthday = data.birthday.toISOString(); } 
+    else { delete submittedCustomer.birthday; }
     
-    const mailtoLink = `mailto:${customer.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoLink;
+    if (data.anniversary) { submittedCustomer.anniversary = data.anniversary.toISOString(); }
+    else { delete submittedCustomer.anniversary; }
+
+    onSuccess(submittedCustomer as Customer);
   };
+  
+  const dialogTitle = customer ? (isEditing ? "Edit Customer" : "View Customer") : "Add New Customer";
+  const dialogDescription = customer 
+    ? `Details for: ${customer.name}` 
+    : "Fill in the details to create a new customer.";
+
+  const setPrimaryAddress = (index: number) => {
+    const currentAddresses = getValues("addresses");
+    const updatedAddresses = currentAddresses.map((addr, i) => ({ ...addr, isPrimary: i === index, }));
+    setValue("addresses", updatedAddresses, { shouldValidate: true, shouldDirty: true });
+  }
+
+  const renderAddress = (address: Address) => {
+    const parts = [
+      address.street,
+      address.city,
+      address.state,
+    ].filter(Boolean);
+    
+    let addressString = parts.join(', ');
+
+    if (address.zip) {
+        addressString = addressString ? `${addressString} - ${address.zip}` : address.zip;
+    }
+
+    if (address.country) {
+        addressString = addressString ? `${addressString}, ${address.country}` : address.country;
+    }
+    
+    return addressString || 'No address details';
+  }
 
   return (
-    <>
-        <PendingInvoicesDialog 
-            data={selectedCustomerData}
-            open={!!selectedCustomerData}
-            onOpenChange={(open) => !open && setSelectedCustomerData(null)}
-        />
-        
-        <Card className="border-2 shadow-sm h-full flex flex-col min-w-0">
-            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
-                <div className="space-y-1">
-                    <CardTitle className="text-lg font-black uppercase tracking-tight">Customer Accounts</CardTitle>
-                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        Receivables & Outstanding Balances
-                    </CardDescription>
-                </div>
-                <div className="w-full sm:w-[200px]">
-                    <Select value={filterId} onValueChange={setFilterId}>
-                        <SelectTrigger className="h-9 text-xs font-bold uppercase tracking-wider">
-                            <SelectValue placeholder="All Accounts" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Accounts ({customerData.length})</SelectItem>
-                            {customerData.map(d => (
-                                <SelectItem key={d.customer.id} value={d.customer.id}>
-                                    {d.customer.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-            </CardHeader>
-            <CardContent className="pt-6 flex-1 min-w-0">
-                {filteredData.length > 0 ? (
-                    <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-                        {filteredData.map(data => (
-                            <CustomerFinancialsCard 
-                                key={data.customer.id} 
-                                data={data}
-                                onClick={() => setSelectedCustomerData(data)}
-                                onSendReminder={() => handleSendReminder(data)}
-                            />
-                        ))}
-                    </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <div className="flex justify-between items-center pr-6">
+            <div>
+              <DialogTitle>{dialogTitle}</DialogTitle>
+              <DialogDescription>{dialogDescription}</DialogDescription>
+            </div>
+            {customer && !isEditing && (currentUser?.role === 'admin' || currentUser?.role === 'editor') && (
+              <Button onClick={() => setIsEditing(true)}>
+                <Edit className="mr-2 h-4 w-4" /> Edit
+              </Button>
+            )}
+          </div>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto px-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {isEditing ? (
+                <FormField control={control} name="title" render={({ field }) => ( <FormItem><FormLabel>Title</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select title" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Mr">Mr</SelectItem><SelectItem value="Ms">Ms</SelectItem><SelectItem value="Mrs">Mrs</SelectItem><SelectItem value="Dr">Dr</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+              ) : (
+                <ReadOnlyField label="Title" value={getValues('title')} />
+              )}
+              <div className="md:col-span-2">
+                {isEditing ? (
+                    <FormField control={control} name="name" render={({ field }) => (<FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., Rohan Sharma" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 ) : (
-                    <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground bg-muted/10 rounded-xl border-2 border-dashed">
-                        <Users className="h-12 w-12 mb-4 opacity-10" />
-                        <p className="text-xs font-black uppercase tracking-widest">No customers with outstanding balances</p>
-                    </div>
+                    <ReadOnlyField label="Full Name" value={getValues('name')} />
                 )}
-            </CardContent>
-        </Card>
-    </>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isEditing ? (
+                <FormField control={control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="e.g., rohan@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              ) : (
+                <ReadOnlyField label="Email" value={getValues('email')} />
+              )}
+              {isEditing ? (
+                <FormField control={control} name="phone" render={({ field }) => (<FormItem><FormLabel>Phone</FormLabel><FormControl><Input placeholder="e.g., +91 98765 43210" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              ) : (
+                <ReadOnlyField label="Phone" value={getValues('phone')} />
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isEditing ? (
+                <FormField control={control} name="companyName" render={({ field }) => (<FormItem><FormLabel>Company Name (Optional)</FormLabel><FormControl><Input placeholder="e.g., Acme Corp" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              ) : (
+                <ReadOnlyField label="Company Name" value={getValues('companyName')} />
+              )}
+              {isEditing ? (
+                <FormField control={control} name="gstNumber" render={({ field }) => (<FormItem><FormLabel>GST Number (Optional)</FormLabel><FormControl><Input placeholder="e.g., 29ABCDE1234F1Z5" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              ) : (
+                <ReadOnlyField label="GST Number" value={getValues('gstNumber')} />
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isEditing ? (
+                 <FormField control={control} name="customerType" render={({ field }) => (
+                    <FormItem><FormLabel>Type of Customer</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger></FormControl>
+                        <SelectContent>{customerTypes?.map(type => <SelectItem key={type.id} value={type.name}>{type.name}</SelectItem>)}</SelectContent>
+                      </Select><FormMessage />
+                    </FormItem>
+                  )}/>
+              ) : (
+                <ReadOnlyField label="Type of Customer" value={getValues('customerType')} />
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isEditing ? (
+                <FormField control={control} name="birthday" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Birthday (Optional)</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1950} toYear={2010} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+              ) : (
+                <ReadOnlyField label="Birthday" value={getValues('birthday') ? format(new Date(getValues('birthday')), "PPP") : 'N/A'} />
+              )}
+              {isEditing ? (
+                <FormField control={control} name="anniversary" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Anniversary (Optional)</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1980} toYear={new Date().getFullYear()} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+              ) : (
+                <ReadOnlyField label="Anniversary" value={getValues('anniversary') ? format(new Date(getValues('anniversary')), "PPP") : 'N/A'} />
+              )}
+            </div>
+            <Separator />
+            <div>
+              <h3 className="text-base font-semibold mb-2">Reference</h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {isEditing ? (
+                    <FormField control={control} name="referenceName" render={({ field }) => (<FormItem><FormLabel>Reference Name</FormLabel><FormControl><Input placeholder="e.g., Jane Doe" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  ) : (
+                    <ReadOnlyField label="Reference Name" value={getValues('referenceName')} />
+                  )}
+                  {isEditing ? (
+                    <FormField control={control} name="referenceContact" render={({ field }) => (<FormItem><FormLabel>Reference Contact</FormLabel><FormControl><Input placeholder="e.g., 9998887776" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  ) : (
+                    <ReadOnlyField label="Reference Contact" value={getValues('referenceContact')} />
+                  )}
+              </div>
+            </div>
+            <Separator />
+            <div>
+                <FormLabel>Addresses</FormLabel>
+                <FormMessage>{form.formState.errors.addresses?.root?.message}</FormMessage>
+                <div className="space-y-4 mt-2">
+                    {fields.map((field, index) => {
+                       const watchedCountry = form.watch(`addresses.${index}.country`);
+                       return (
+                        <Card key={field.id} className="relative">
+                          {isEditing && (
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <Button type="button" size="sm" variant={field.isPrimary ? "default" : "outline"} onClick={() => setPrimaryAddress(index)}>{field.isPrimary ? "Primary Address" : "Set as Primary"}</Button>
+                                {fields.length > 1 && (
+                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive ml-2" onClick={() => remove(index)}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </CardHeader>
+                          )}
+                          <CardContent className="space-y-4 pt-4">
+                            {isEditing ? (
+                              <>
+                                <FormField control={form.control} name={`addresses.${index}.street`} render={({ field }) => (<FormItem><FormLabel>Street Address</FormLabel><FormControl><Input placeholder="e.g., 123 Cricket Lane" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <FormField control={form.control} name={`addresses.${index}.city`} render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input placeholder="e.g., Bengaluru" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name={`addresses.${index}.state`} render={({ field }) => ( <FormItem><FormLabel>State / Province</FormLabel>{ watchedCountry === 'India' ? (<Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Select a state" /></SelectTrigger></FormControl><SelectContent>{indianStates.map(state => (<SelectItem key={state} value={state}>{state}</SelectItem>))}</SelectContent></Select>) : (<FormControl><Input placeholder="e.g., California" {...field} /></FormControl>)}<FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name={`addresses.${index}.zip`} render={({ field }) => ( <FormItem><FormLabel>ZIP / Postal Code</FormLabel><FormControl><Input placeholder="e.g., 560001" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                </div>
+                                <FormField control={form.control} name={`addresses.${index}.country`} render={({ field }) => (<FormItem><FormLabel>Country</FormLabel><Select onValueChange={(value) => { field.onChange(value); setValue(`addresses.${index}.state`, ''); }} value={field.value || 'India'}><FormControl><SelectTrigger><SelectValue placeholder="Select a country" /></SelectTrigger></FormControl><SelectContent>{countries.map(country => (<SelectItem key={country} value={country}>{country}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                              </>
+                            ) : (
+                               <ReadOnlyField label={field.isPrimary ? "Primary Address" : "Address"} value={renderAddress(field as Address)} />
+                            )}
+                          </CardContent>
+                        </Card>
+                    )})}
+                </div>
+                {isEditing && (
+                  <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append({ id: `addr_${Date.now()}`, street: "", city: "", state: "Maharashtra", zip: "", country: "India", isPrimary: false })}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Address
+                  </Button>
+                )}
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+              {isEditing && <Button type="submit">Save Customer</Button>}
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }
 </file>
@@ -24514,6 +24379,143 @@ export function LoginPage() {
         </Card>
     </div>
   )
+}
+</file>
+
+<file path="src/app/sales/customer-financials.tsx">
+'use client';
+
+import { useMemo, useState } from 'react';
+import { Customer, Sale, Company } from '@/lib/types';
+import { CustomerFinancialsCard } from './customer-financials-card';
+import { PendingInvoicesDialog } from './pending-invoices-dialog';
+import { generatePendingInvoicesEmailBody } from '@/lib/actions';
+import { toast } from '@/hooks/use-toast';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Users } from 'lucide-react';
+
+interface CustomerFinancialsProps {
+  sales: Sale[];
+  customers: Customer[];
+  companyDetails: Company | null;
+}
+
+export interface CustomerFinancialsData {
+  customer: Customer;
+  pendingInvoices: Sale[];
+  totalPendingAmount: number;
+}
+
+export function CustomerFinancials({ sales, customers, companyDetails }: CustomerFinancialsProps) {
+  const [selectedCustomerData, setSelectedCustomerData] = useState<CustomerFinancialsData | null>(null);
+  const [filterId, setFilterId] = useState<string>('all');
+
+  const customerData = useMemo(() => {
+    // Standardizing on 'status' and 'total' as per standardized Sale interface
+    const pendingSales = sales.filter(sale => 
+        (sale.status === 'pending') || 
+        (sale.balanceAmount && sale.balanceAmount > 0)
+    );
+    
+    const customerMap = new Map<string, CustomerFinancialsData>();
+
+    pendingSales.forEach(sale => {
+      const customer = customers.find(c => c.id === sale.customerId);
+      if (!customer) return;
+
+      if (!customerMap.has(customer.id)) {
+        customerMap.set(customer.id, {
+          customer,
+          pendingInvoices: [],
+          totalPendingAmount: 0,
+        });
+      }
+
+      const data = customerMap.get(customer.id)!;
+      data.pendingInvoices.push(sale);
+      data.totalPendingAmount += (sale.balanceAmount || sale.total || 0);
+    });
+
+    return Array.from(customerMap.values()).sort((a, b) => b.totalPendingAmount - a.totalPendingAmount);
+  }, [sales, customers]);
+
+  const filteredData = useMemo(() => {
+    if (filterId === 'all') return customerData;
+    return customerData.filter(d => d.customer.id === filterId);
+  }, [customerData, filterId]);
+
+  const handleSendReminder = (data: CustomerFinancialsData) => {
+    if (!companyDetails) {
+        toast({
+            title: "Cannot Send Email",
+            description: "Company details are not loaded. Please try again in a moment.",
+            variant: "destructive"
+        });
+        return;
+    }
+    const { customer, pendingInvoices } = data;
+    const subject = `Reminder: Outstanding Invoices from ${companyDetails.name}`;
+    const body = generatePendingInvoicesEmailBody(customer, pendingInvoices, companyDetails);
+    
+    const mailtoLink = `mailto:${customer.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoLink;
+  };
+
+  return (
+    <>
+        <PendingInvoicesDialog 
+            data={selectedCustomerData}
+            open={!!selectedCustomerData}
+            onOpenChange={(open) => !open && setSelectedCustomerData(null)}
+        />
+        
+        <Card className="border-2 shadow-sm h-full flex flex-col min-w-0">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
+                <div className="space-y-1">
+                    <CardTitle className="text-lg font-black uppercase tracking-tight">Customer Accounts</CardTitle>
+                    <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Receivables & Outstanding Balances
+                    </CardDescription>
+                </div>
+                <div className="w-full sm:w-[200px]">
+                    <Select value={filterId} onValueChange={setFilterId}>
+                        <SelectTrigger className="h-9 text-xs font-bold uppercase tracking-wider">
+                            <SelectValue placeholder="All Accounts" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Accounts ({customerData.length})</SelectItem>
+                            {customerData.map(d => (
+                                <SelectItem key={d.customer.id} value={d.customer.id}>
+                                    {d.customer.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </CardHeader>
+            <CardContent className="pt-6 flex-1 min-w-0">
+                {filteredData.length > 0 ? (
+                    <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+                        {filteredData.map(data => (
+                            <CustomerFinancialsCard 
+                                key={data.customer.id} 
+                                data={data}
+                                onClick={() => setSelectedCustomerData(data)}
+                                onSendReminder={() => handleSendReminder(data)}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground bg-muted/10 rounded-xl border-2 border-dashed">
+                        <Users className="h-12 w-12 mb-4 opacity-10" />
+                        <p className="text-xs font-black uppercase tracking-widest">No customers with outstanding balances</p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    </>
+  );
 }
 </file>
 
@@ -27077,438 +27079,6 @@ export interface StorageRecommendation {
 }
 </file>
 
-<file path="src/app/page.tsx">
-'use client';
-import { PageHeader } from '@/components/layout/page-header';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { StatsCards } from '@/components/dashboard/stats-cards';
-import { RecentSales } from '@/components/dashboard/recent-sales';
-import { QuickActions } from '@/components/dashboard/quick-actions';
-
-import { useState, useMemo } from 'react';
-import { SaleDialog } from '@/app/sales/sale-dialog';
-import { PurchaseOrderDialog } from '@/app/purchases/purchase-order-dialog';
-import { ProductDialog } from '@/app/products/product-dialog';
-import { CustomerDialog } from '@/app/customers/customer-dialog';
-import { ExpenseDialog } from '@/app/expenses/expense-dialog';
-import { StockDialog, StockFormValues } from '@/app/inventory/stock-dialog';
-import { toast } from '@/hooks/use-toast';
-import type { Sale, PurchaseOrder, Product, Customer, Vendor, Expense, InventoryItem, Quotation, Enquiry, Company } from '@/lib/types';
-import { GenericChart } from '@/components/dashboard/generic-chart';
-import type { ChartConfig } from '@/components/ui/chart';
-
-import { CustomerFinancials } from '@/app/sales/customer-financials';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { EventReminders } from '@/components/dashboard/event-reminders';
-import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, query, where, getDocs, orderBy, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
-import { getMonth, format, subMonths, startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
-import { DataTable } from '@/components/data-table';
-import { salesColumns } from '@/app/sales/columns';
-import { Users } from 'lucide-react';
-import { EnquiryDialog } from '@/app/enquiries/enquiry-dialog';
-import { QuotationDialog } from '@/app/quotations/quotation-dialog';
-import { useCurrentUser } from '@/hooks/use-current-user';
-import { useRouter } from 'next/navigation';
-
-const STORE_ID = 'store_main';
-
-export default function Dashboard() {
-  const [isSaleDialogOpen, setIsSaleDialogOpen] = useState(false);
-  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
-  const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
-  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
-  const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
-  const [isStockDialogOpen, setIsStockDialogOpen] = useState(false);
-  const [isEnquiryDialogOpen, setIsEnquiryDialogOpen] = useState(false);
-  const [isQuotationDialogOpen, setIsQuotationDialogOpen] = useState(false);
-  
-  const firestore = useFirestore();
-  const { currentUser } = useCurrentUser();
-  const router = useRouter();
-
-  const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc')) : null, [firestore]);
-  const { data: sales } = useCollection<Sale>(salesRef);
-
-  const poRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'purchaseOrders') : null, [firestore]);
-  const { data: purchaseOrders } = useCollection<PurchaseOrder>(poRef);
-  
-  const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
-  const { data: expenses } = useCollection<Expense>(expensesRef);
-
-  const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
-  const { data: products } = useCollection<Product>(productsRef);
-
-  const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
-  const { data: customers } = useCollection<Customer>(customersRef);
-
-  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
-  const { data: vendors } = useCollection<Vendor>(vendorsRef);
-
-  const inventoryRef = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'stores', STORE_ID, 'inventoryItems');
-  }, [firestore]);
-  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
-
-  const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
-  const { data: companyDetails } = useDoc<Company>(companyDocRef);
-
-  const [selectedHistoryCustomer, setSelectedHistoryCustomer] = useState<string>('');
-  
-  const safeSales = sales || [];
-  const safeCustomers = customers || [];
-  const safeProducts = products || [];
-
-  const dynamicStats = useMemo(() => {
-    const now = new Date();
-    const currentMonthStart = startOfMonth(now);
-    const lastMonth = subMonths(now, 1);
-    const lastMonthStart = startOfMonth(lastMonth);
-    const lastMonthEnd = endOfMonth(lastMonth);
-    
-    const salesThisMonth = safeSales.filter(s => new Date(s.saleDate) >= currentMonthStart);
-    const salesLastMonth = safeSales.filter(s => isWithinInterval(new Date(s.saleDate), { start: lastMonthStart, end: lastMonthEnd }));
-    
-    const purchasesThisMonth = (purchaseOrders || []).filter(p => new Date(p.orderDate) >= currentMonthStart);
-    const purchasesLastMonth = (purchaseOrders || []).filter(p => isWithinInterval(new Date(p.orderDate), { start: lastMonthStart, end: lastMonthEnd }));
-
-    const expensesThisMonth = (expenses || []).filter(e => new Date(e.expenseDate) >= currentMonthStart);
-    const expensesLastMonth = (expenses || []).filter(e => isWithinInterval(new Date(e.expenseDate), { start: lastMonthStart, end: lastMonthEnd }));
-
-    const totalSales = salesThisMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
-    const totalSalesLastMonth = salesLastMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
-
-    const totalPurchases = purchasesThisMonth.reduce((sum, po) => sum + po.totalAmount, 0);
-    const totalPurchasesLastMonth = purchasesLastMonth.reduce((sum, po) => sum + po.totalAmount, 0);
-    
-    const totalExpenses = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
-    const totalExpensesLastMonth = expensesLastMonth.reduce((sum, expense) => sum + expense.amount, 0);
-    
-    const calcPercentageChange = (current: number, previous: number) => {
-      if (previous === 0) {
-        return current > 0 ? 100 : 0;
-      }
-      return ((current - previous) / previous) * 100;
-    };
-
-    return { 
-        totalSales, 
-        totalPurchases, 
-        totalExpenses, 
-        salesChange: calcPercentageChange(totalSales, totalSalesLastMonth),
-        purchasesChange: calcPercentageChange(totalPurchases, totalPurchasesLastMonth),
-        expensesChange: calcPercentageChange(totalExpenses, totalExpensesLastMonth)
-    };
-  }, [sales, purchaseOrders, expenses]);
-
-  const salesChartData = useMemo(() => {
-    const monthlySales: Record<string, number> = {};
-    safeSales.forEach(sale => {
-      const month = format(new Date(sale.saleDate), 'MMM');
-      monthlySales[month] = (monthlySales[month] || 0) + (sale.total || 0);
-    });
-
-    const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return monthOrder.map(month => ({ name: month, total: monthlySales[month] || 0 }));
-    
-  }, [sales]);
-
-  const customerHistory = useMemo(() => {
-    if (!selectedHistoryCustomer) return [];
-    return safeSales.filter(s => s.customerId === selectedHistoryCustomer);
-  }, [selectedHistoryCustomer, safeSales]);
-
-
-  const salesChartConfig: ChartConfig = {
-    total: {
-      label: 'Sales',
-      color: 'hsl(var(--chart-1))',
-    },
-  };
-  
-    const handleSaleSuccess = async (sale: Sale) => {
-        if (!firestore || !currentUser) {
-            toast({ title: "Error", description: "System is initializing. Please wait.", variant: "destructive" });
-            return;
-        }
-
-        try {
-            await runTransaction(firestore, async (transaction) => {
-                const companyRef = doc(firestore, 'settings', 'global', 'companies', 'main_company');
-                const companyDoc = await transaction.get(companyRef);
-                
-                let companyData;
-                if (!companyDoc.exists()) {
-                    companyData = {
-                        id: 'main_company',
-                        name: 'Cricket Store',
-                        shortName: 'CS',
-                        invoicePrefix: 'INV',
-                        lastInvoiceNumber: 0,
-                        lastBillNumber: 0,
-                    };
-                    transaction.set(companyRef, companyData);
-                } else {
-                    companyData = companyDoc.data();
-                }
-                
-                const isGst = sale.saleType === 'GST';
-                const numberField = isGst ? 'lastInvoiceNumber' : 'lastBillNumber';
-                const prefix = isGst ? (companyData.invoicePrefix || 'INV') : 'BILL';
-                const lastNumber = companyData[numberField] || 0;
-                const newNumber = lastNumber + 1;
-                const invoiceSequence = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
-                
-                const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
-                
-                const finalSaleData = JSON.parse(JSON.stringify({
-                    ...sale,
-                    id: saleDocRef.id,
-                    invoiceSequence,
-                    dueDate: addDays(new Date(sale.saleDate), 30).toISOString(),
-                    createdBy: currentUser.id,
-                    createdByName: currentUser.displayName,
-                }));
-
-                transaction.set(saleDocRef, finalSaleData);
-                transaction.update(companyRef, { [numberField]: newNumber });
-            });
-            toast({ title: "Success!", description: `Invoice created successfully!` });
-            setIsSaleDialogOpen(false);
-        } catch (error) {
-            console.error("Sale transaction failed:", error);
-            toast({ 
-                title: "Sale Creation Failed", 
-                description: (error as Error).message || "An unexpected error occurred while saving the sale.", 
-                variant: "destructive" 
-            });
-        }
-  };
-
-  const handlePurchaseSuccess = async (po: PurchaseOrder) => {
-    if (!firestore || !currentUser) return;
-    try {
-      const docRef = doc(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'));
-      
-      const finalPoData = JSON.parse(JSON.stringify({ 
-          ...po, 
-          id: docRef.id,
-          createdBy: currentUser.id,
-          createdByName: currentUser.displayName
-      }));
-
-      await setDoc(docRef, finalPoData);
-      setIsPurchaseDialogOpen(false);
-      toast({ title: "Success!", description: `Purchase Order #${po.purchaseOrderNumber} created.` });
-    } catch(e) {
-      console.error(e);
-      toast({ title: "Error", description: "Failed to create purchase order.", variant: "destructive" });
-    }
-  };
-
-  const handleProductSuccess = async (product: Product) => {
-    if(!firestore) return;
-    try {
-      const docRef = doc(firestore, 'stores', STORE_ID, 'products', product.id);
-      await setDoc(docRef, product, { merge: true });
-      setIsProductDialogOpen(false);
-      toast({ title: "Success!", description: `Product ${product.name} created.` });
-    } catch(e) {
-      console.error(e);
-      toast({ title: "Error", description: "Failed to save product", variant: "destructive" });
-    }
-  };
-
-  const handleCustomerSuccess = async (customer: Customer) => {
-     if(!firestore) return;
-     try {
-        const docRef = doc(firestore, 'stores', STORE_ID, 'customers', customer.id);
-        await setDoc(docRef, customer, { merge: true });
-        setIsCustomerDialogOpen(false);
-        toast({ title: "Success!", description: `Customer ${customer.name} created.` });
-     } catch (e) {
-        console.error(e);
-        toast({ title: "Error", description: "Failed to save customer", variant: "destructive" });
-     }
-  };
-
-  const handleExpenseSuccess = async (expense: Expense) => {
-    if(!firestore) return;
-    try {
-        const docRef = doc(firestore, 'stores', STORE_ID, 'expenses', expense.id);
-        await setDoc(docRef, expense, { merge: true });
-        setIsExpenseDialogOpen(false);
-        toast({ title: "Success!", description: `Expense recorded.` });
-    } catch(e) {
-        console.error(e);
-        toast({ title: "Error", description: "Failed to save expense", variant: "destructive" });
-    }
-  };
-
-  const handleStockUpdateSuccess = async ({ productId, storeId, quantity }: StockFormValues) => {
-        if (!firestore) return;
-        try {
-            const inventoryCollectionRef = collection(firestore, 'stores', storeId, 'inventoryItems');
-            const q = query(inventoryCollectionRef, where("productId", "==", productId));
-            const querySnapshot = await getDocs(q);
-
-            if (!querySnapshot.empty) {
-                const inventoryDoc = querySnapshot.docs[0];
-                const newQuantity = inventoryDoc.data().quantity + quantity;
-                await updateDoc(inventoryDoc.ref, { 
-                    quantity: newQuantity,
-                    lastStockUpdate: new Date().toISOString()
-                });
-                toast({ title: "Stock Updated!", description: `Stock adjusted by ${quantity}.` });
-            } else {
-                 const productDetails = products?.find(p => p.id === productId);
-                 if(productDetails) {
-                    const newInvDocRef = doc(inventoryCollectionRef);
-                    await setDoc(newInvDocRef, {
-                        ...productDetails,
-                        id: newInvDocRef.id,
-                        productId: productDetails.id,
-                        storeId: storeId,
-                        quantity: quantity,
-                        locationComment: 'N/A',
-                        lastStockUpdate: new Date().toISOString(),
-                    });
-                    toast({ title: "Stock Entry Created!", description: `${quantity} units added.` });
-                }
-            }
-        } catch(e) {
-            console.error(e);
-            toast({ title: "Error", description: "Failed to update stock.", variant: "destructive" });
-        }
-        setIsStockDialogOpen(false);
-    }
-
-  const handleQuotationSuccess = async (quotation: Quotation) => {
-    if (!firestore || !currentUser) return;
-    try {
-        const quotationDocRef = doc(firestore, 'stores', STORE_ID, 'quotations', quotation.id);
-        const finalQuotation: Quotation = { ...quotation, createdBy: currentUser.id };
-        await setDoc(quotationDocRef, finalQuotation, { merge: true });
-        setIsQuotationDialogOpen(false);
-        toast({ title: 'Success!', description: 'Quotation saved successfully.' });
-    } catch (error) {
-        console.error("Error saving quotation:", error);
-        toast({ title: 'Error', description: 'Could not save quotation.', variant: "destructive" });
-    }
-  };
-
-  const handleEnquirySuccess = async (enquiry: Enquiry) => {
-      if (!firestore) return;
-      try {
-          const enquiryDocRef = doc(firestore, 'stores', STORE_ID, 'enquiries', enquiry.id);
-          await setDoc(enquiryDocRef, enquiry, { merge: true });
-          setIsEnquiryDialogOpen(false);
-          toast({ title: "Success!", description: "Enquiry saved successfully." });
-      } catch (error) {
-          console.error("Error saving enquiry:", error);
-          toast({ title: "Error", description: "Could not save enquiry.", variant: "destructive" });
-      }
-  }
-
-  return (
-    <>
-      <PageHeader title="Dashboard" />
-      <div className="flex flex-1 flex-col gap-4 md:gap-8">
-        <QuickActions
-            onNewSale={() => setIsSaleDialogOpen(true)}
-            onNewPurchase={() => setIsPurchaseDialogOpen(true)}
-            onAddProduct={() => setIsProductDialogOpen(true)}
-            onAddCustomer={() => setIsCustomerDialogOpen(true)}
-            onAddExpense={() => setIsExpenseDialogOpen(true)}
-            onNewStockEntry={() => setIsStockDialogOpen(true)}
-            onNewEnquiry={() => setIsEnquiryDialogOpen(true)}
-            onNewQuotation={() => setIsQuotationDialogOpen(true)}
-        />
-        
-        <StatsCards stats={dynamicStats} />
-
-        <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Sales</CardTitle>
-                  <CardDescription>
-                  Your most recent transactions.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <RecentSales sales={sales || []} />
-              </CardContent>
-            </Card>
-            <EventReminders customers={customers || []} vendors={vendors || []} />
-        </div>
-        
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                    <div>
-                        <CardTitle>Customer Sale History</CardTitle>
-                        <CardDescription>Select a customer to view history.</CardDescription>
-                    </div>
-                    <div className="w-full max-w-sm">
-                         <Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select customer..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {safeCustomers.map(customer => (
-                                    <SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                {selectedHistoryCustomer ? (
-                    <DataTable columns={salesColumns({ onDelete: () => {}, products: safeProducts, customers: safeCustomers, onEdit: () => {} })} data={customerHistory} />
-                ) : (
-                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
-                        <Users className="mx-auto h-12 w-12 opacity-20" />
-                        <p className="mt-4 text-xs font-medium uppercase tracking-widest">Select a customer to see history</p>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-
-        <GenericChart
-          title="Sales Overview"
-          description="Monthly sales trends."
-          data={salesChartData}
-          dataKeyX="name"
-          dataKeysY={['total']}
-          chartConfig={salesChartConfig}
-          chartType="bar"
-          yAxisFormatter={(value) => `₹${value / 1000}K`}
-          categorical={true}
-        />
-      </div>
-      
-      <SaleDialog open={isSaleDialogOpen} onOpenChange={setIsSaleDialogOpen} onSuccess={handleSaleSuccess} />
-      <PurchaseOrderDialog open={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen} onSuccess={handlePurchaseSuccess} />
-      <ProductDialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen} product={undefined} onSuccess={handleProductSuccess} />
-      <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={handleCustomerSuccess} />
-      <ExpenseDialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen} onSuccess={handleExpenseSuccess} />
-      <StockDialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen} onSuccess={handleStockUpdateSuccess} />
-      <EnquiryDialog open={isEnquiryDialogOpen} onOpenChange={setIsEnquiryDialogOpen} onSuccess={handleEnquirySuccess} />
-      <QuotationDialog open={isQuotationDialogOpen} onOpenChange={setIsQuotationDialogOpen} onSuccess={handleQuotationSuccess} />
-    </>
-  );
-}
-</file>
-
 <file path="src/app/repairs/repair-dialog.tsx">
 "use client";
 
@@ -27830,6 +27400,456 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
       )}
     </div>
   )
+}
+</file>
+
+<file path="src/app/page.tsx">
+'use client';
+import { PageHeader } from '@/components/layout/page-header';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { StatsCards } from '@/components/dashboard/stats-cards';
+import { RecentSales } from '@/components/dashboard/recent-sales';
+import { QuickActions } from '@/components/dashboard/quick-actions';
+
+import { useState, useMemo } from 'react';
+import { SaleDialog } from '@/app/sales/sale-dialog';
+import { PurchaseOrderDialog } from '@/app/purchases/purchase-order-dialog';
+import { ProductDialog } from '@/app/products/product-dialog';
+import { CustomerDialog } from '@/app/customers/customer-dialog';
+import { ExpenseDialog } from '@/app/expenses/expense-dialog';
+import { StockDialog, StockFormValues } from '@/app/inventory/stock-dialog';
+import { toast } from '@/hooks/use-toast';
+import type { Sale, PurchaseOrder, Product, Customer, Vendor, Expense, InventoryItem, Quotation, Enquiry, Company } from '@/lib/types';
+import { GenericChart } from '@/components/dashboard/generic-chart';
+import type { ChartConfig } from '@/components/ui/chart';
+
+import { CustomerFinancials } from '@/app/sales/customer-financials';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { EventReminders } from '@/components/dashboard/event-reminders';
+import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, doc, query, where, getDocs, orderBy, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
+import { getMonth, format, subMonths, startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
+import { DataTable } from '@/components/data-table';
+import { salesColumns } from '@/app/sales/columns';
+import { Users } from 'lucide-react';
+import { EnquiryDialog } from '@/app/enquiries/enquiry-dialog';
+import { QuotationDialog } from '@/app/quotations/quotation-dialog';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { useRouter } from 'next/navigation';
+import { useShareDialog } from '@/hooks/use-share-dialog';
+import { generateShareText } from '@/lib/actions';
+import { ShareDialog } from '@/components/share-dialog';
+
+const STORE_ID = 'store_main';
+
+export default function Dashboard() {
+  const [isSaleDialogOpen, setIsSaleDialogOpen] = useState(false);
+  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
+  const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
+  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
+  const [isStockDialogOpen, setIsStockDialogOpen] = useState(false);
+  const [isEnquiryDialogOpen, setIsEnquiryDialogOpen] = useState(false);
+  const [isQuotationDialogOpen, setIsQuotationDialogOpen] = useState(false);
+  
+  const firestore = useFirestore();
+  const { currentUser } = useCurrentUser();
+  const router = useRouter();
+  const { isShareDialogOpen, shareDialogData, openShareDialog, closeShareDialog } = useShareDialog();
+
+  const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc')) : null, [firestore]);
+  const { data: sales } = useCollection<Sale>(salesRef);
+
+  const poRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'), orderBy('orderDate', 'desc')) : null, [firestore]);
+  const { data: purchaseOrders } = useCollection<PurchaseOrder>(poRef);
+  
+  const expensesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'expenses'), orderBy('date', 'desc')) : null, [firestore]);
+  const { data: expenses } = useCollection<Expense>(expensesRef);
+
+  const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
+  const { data: products } = useCollection<Product>(productsRef);
+
+  const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
+  const { data: customers } = useCollection<Customer>(customersRef);
+
+  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
+  const { data: vendors } = useCollection<Vendor>(vendorsRef);
+
+  const inventoryRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'stores', STORE_ID, 'inventoryItems');
+  }, [firestore]);
+  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
+
+  const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
+  const { data: companyDetails } = useDoc<Company>(companyDocRef);
+
+  const [selectedHistoryCustomer, setSelectedHistoryCustomer] = useState<string>('');
+  
+  const safeSales = sales || [];
+  const safeCustomers = customers || [];
+  const safeProducts = products || [];
+
+  const dynamicStats = useMemo(() => {
+    const now = new Date();
+    const currentMonthStart = startOfMonth(now);
+    const lastMonth = subMonths(now, 1);
+    const lastMonthStart = startOfMonth(lastMonth);
+    const lastMonthEnd = endOfMonth(lastMonth);
+    
+    const salesThisMonth = safeSales.filter(s => new Date(s.saleDate) >= currentMonthStart);
+    const salesLastMonth = safeSales.filter(s => isWithinInterval(new Date(s.saleDate), { start: lastMonthStart, end: lastMonthEnd }));
+    
+    const purchasesThisMonth = (purchaseOrders || []).filter(p => new Date(p.orderDate) >= currentMonthStart);
+    const purchasesLastMonth = (purchaseOrders || []).filter(p => isWithinInterval(new Date(p.orderDate), { start: lastMonthStart, end: lastMonthEnd }));
+
+    const expensesThisMonth = (expenses || []).filter(e => new Date(e.expenseDate) >= currentMonthStart);
+    const expensesLastMonth = (expenses || []).filter(e => isWithinInterval(new Date(e.expenseDate), { start: lastMonthStart, end: lastMonthEnd }));
+
+    const totalSales = salesThisMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
+    const totalSalesLastMonth = salesLastMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
+
+    const totalPurchases = purchasesThisMonth.reduce((sum, po) => sum + po.totalAmount, 0);
+    const totalPurchasesLastMonth = purchasesLastMonth.reduce((sum, po) => sum + po.totalAmount, 0);
+    
+    const totalExpenses = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
+    const totalExpensesLastMonth = expensesLastMonth.reduce((sum, expense) => sum + expense.amount, 0);
+    
+    const calcPercentageChange = (current: number, previous: number) => {
+      if (previous === 0) {
+        return current > 0 ? 100 : 0;
+      }
+      return ((current - previous) / previous) * 100;
+    };
+
+    return { 
+        totalSales, 
+        totalPurchases, 
+        totalExpenses, 
+        salesChange: calcPercentageChange(totalSales, totalSalesLastMonth),
+        purchasesChange: calcPercentageChange(totalPurchases, totalPurchasesLastMonth),
+        expensesChange: calcPercentageChange(totalExpenses, totalExpensesLastMonth)
+    };
+  }, [safeSales, purchaseOrders, expenses]);
+
+  const salesChartData = useMemo(() => {
+    const monthlySales: Record<string, number> = {};
+    safeSales.forEach(sale => {
+      const month = format(new Date(sale.saleDate), 'MMM');
+      monthlySales[month] = (monthlySales[month] || 0) + (sale.total || 0);
+    });
+
+    const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return monthOrder.map(month => ({ name: month, total: monthlySales[month] || 0 }));
+    
+  }, [safeSales]);
+
+  const customerHistory = useMemo(() => {
+    if (!selectedHistoryCustomer) return [];
+    return safeSales.filter(s => s.customerId === selectedHistoryCustomer);
+  }, [selectedHistoryCustomer, safeSales]);
+
+
+  const salesChartConfig: ChartConfig = {
+    total: {
+      label: 'Sales',
+      color: 'hsl(var(--chart-1))',
+    },
+  };
+  
+    const handleSaleSuccess = async (sale: Sale) => {
+        if (!firestore || !currentUser) {
+            toast({ title: "Error", description: "System is initializing. Please wait.", variant: "destructive" });
+            return;
+        }
+
+        try {
+            await runTransaction(firestore, async (transaction) => {
+                const companyRef = doc(firestore, 'settings', 'global', 'companies', 'main_company');
+                const companyDoc = await transaction.get(companyRef);
+                
+                let companyData;
+                if (!companyDoc.exists()) {
+                    companyData = {
+                        id: 'main_company',
+                        name: 'Cricket Store',
+                        shortName: 'CS',
+                        invoicePrefix: 'INV',
+                        lastInvoiceNumber: 0,
+                        lastBillNumber: 0,
+                    };
+                    transaction.set(companyRef, companyData);
+                } else {
+                    companyData = companyDoc.data();
+                }
+                
+                const isGst = sale.saleType === 'GST';
+                const numberField = isGst ? 'lastInvoiceNumber' : 'lastBillNumber';
+                const prefix = isGst ? (companyData.invoicePrefix || 'INV') : 'BILL';
+                const lastNumber = companyData[numberField] || 0;
+                const newNumber = lastNumber + 1;
+                const invoiceSequence = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
+                
+                const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
+                
+                const finalSaleData = JSON.parse(JSON.stringify({
+                    ...sale,
+                    id: saleDocRef.id,
+                    invoiceSequence,
+                    dueDate: addDays(new Date(sale.saleDate), 30).toISOString(),
+                    createdBy: currentUser.id,
+                    createdByName: currentUser.displayName,
+                }));
+
+                transaction.set(saleDocRef, finalSaleData);
+                transaction.update(companyRef, { [numberField]: newNumber });
+            });
+            toast({ title: "Success!", description: `Invoice created successfully!` });
+            setIsSaleDialogOpen(false);
+        } catch (error) {
+            console.error("Sale transaction failed:", error);
+            toast({ 
+                title: "Sale Creation Failed", 
+                description: (error as Error).message || "An unexpected error occurred while saving the sale.", 
+                variant: "destructive" 
+            });
+        }
+  };
+
+  const handlePurchaseSuccess = async (po: PurchaseOrder) => {
+    if (!firestore || !currentUser) return;
+    try {
+      const docRef = doc(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'));
+      
+      const finalPoData = JSON.parse(JSON.stringify({ 
+          ...po, 
+          id: docRef.id,
+          createdBy: currentUser.id,
+          createdByName: currentUser.displayName
+      }));
+
+      await setDoc(docRef, finalPoData);
+      setIsPurchaseDialogOpen(false);
+      toast({ title: "Success!", description: `Purchase Order #${po.purchaseOrderNumber} created.` });
+    } catch(e) {
+      console.error(e);
+      toast({ title: "Error", description: "Failed to create purchase order.", variant: "destructive" });
+    }
+  };
+
+  const handleProductSuccess = async (product: Product) => {
+    if(!firestore) return;
+    try {
+      const docRef = doc(firestore, 'stores', STORE_ID, 'products', product.id);
+      await setDoc(docRef, product, { merge: true });
+      setIsProductDialogOpen(false);
+      toast({ title: "Success!", description: `Product ${product.name} created.` });
+    } catch(e) {
+      console.error(e);
+      toast({ title: "Error", description: "Failed to save product", variant: "destructive" });
+    }
+  };
+
+  const handleCustomerSuccess = async (customer: Customer) => {
+     if(!firestore) return;
+     try {
+        const docRef = doc(firestore, 'stores', STORE_ID, 'customers', customer.id);
+        await setDoc(docRef, customer, { merge: true });
+        setIsCustomerDialogOpen(false);
+        toast({ title: "Success!", description: `Customer ${customer.name} created.` });
+     } catch (e) {
+        // use toast for errors only
+        toast({ title: "Error", description: "Failed to save customer", variant: "destructive" });
+     }
+  };
+
+  const handleExpenseSuccess = async (expense: Expense) => {
+    if(!firestore) return;
+    try {
+        const docRef = doc(firestore, 'stores', STORE_ID, 'expenses', expense.id);
+        await setDoc(docRef, expense, { merge: true });
+        setIsExpenseDialogOpen(false);
+        toast({ title: "Success!", description: `Expense recorded.` });
+    } catch(e) {
+        console.error(e);
+        toast({ title: "Error", description: "Failed to save expense", variant: "destructive" });
+    }
+  };
+
+  const handleStockUpdateSuccess = async ({ productId, storeId, quantity }: StockFormValues) => {
+        if (!firestore) return;
+        try {
+            const inventoryCollectionRef = collection(firestore, 'stores', storeId, 'inventoryItems');
+            const q = query(inventoryCollectionRef, where("productId", "==", productId));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                const inventoryDoc = querySnapshot.docs[0];
+                const newQuantity = inventoryDoc.data().quantity + quantity;
+                await updateDoc(inventoryDoc.ref, { 
+                    quantity: newQuantity,
+                    lastStockUpdate: new Date().toISOString()
+                });
+                toast({ title: "Stock Updated!", description: `Stock adjusted by ${quantity}.` });
+            } else {
+                 const productDetails = products?.find(p => p.id === productId);
+                 if(productDetails) {
+                    const newInvDocRef = doc(inventoryCollectionRef);
+                    await setDoc(newInvDocRef, {
+                        ...productDetails,
+                        id: newInvDocRef.id,
+                        productId: productDetails.id,
+                        storeId: storeId,
+                        quantity: quantity,
+                        locationComment: 'N/A',
+                        lastStockUpdate: new Date().toISOString(),
+                    });
+                    toast({ title: "Stock Entry Created!", description: `${quantity} units added.` });
+                }
+            }
+        } catch(e) {
+            console.error(e);
+            toast({ title: "Error", description: "Failed to update stock.", variant: "destructive" });
+        }
+        setIsStockDialogOpen(false);
+    }
+
+  const handleQuotationSuccess = async (quotation: Quotation) => {
+    if (!firestore || !currentUser) return;
+    try {
+        const quotationDocRef = doc(firestore, 'stores', STORE_ID, 'quotations', quotation.id);
+        const finalQuotation: Quotation = { ...quotation, createdBy: currentUser.id };
+        await setDoc(quotationDocRef, finalQuotation, { merge: true });
+        setIsQuotationDialogOpen(false);
+        toast({ title: 'Success!', description: 'Quotation saved successfully.' });
+    } catch (error) {
+        console.error("Error saving quotation:", error);
+        toast({ title: 'Error', description: 'Could not save quotation.', variant: "destructive" });
+    }
+  };
+
+  const handleEnquirySuccess = async (enquiry: Enquiry) => {
+      if (!firestore) return;
+      try {
+          const enquiryDocRef = doc(firestore, 'stores', STORE_ID, 'enquiries', enquiry.id);
+          await setDoc(enquiryDocRef, enquiry, { merge: true });
+          setIsEnquiryDialogOpen(false);
+          toast({ title: "Success!", description: "Enquiry saved successfully." });
+      } catch (error) {
+          console.error("Error saving enquiry:", error);
+          toast({ title: "Error", description: "Could not save enquiry.", variant: "destructive" });
+      }
+  }
+
+  return (
+    <>
+      <PageHeader title="Dashboard" />
+      <ShareDialog open={isShareDialogOpen} onOpenChange={closeShareDialog} shareData={shareDialogData} />
+      <div className="flex flex-1 flex-col gap-4 md:gap-8">
+        <QuickActions
+            onNewSale={() => setIsSaleDialogOpen(true)}
+            onNewPurchase={() => setIsPurchaseDialogOpen(true)}
+            onAddProduct={() => setIsProductDialogOpen(true)}
+            onAddCustomer={() => setIsCustomerDialogOpen(true)}
+            onAddExpense={() => setIsExpenseDialogOpen(true)}
+            onNewStockEntry={() => setIsStockDialogOpen(true)}
+            onNewEnquiry={() => setIsEnquiryDialogOpen(true)}
+            onNewQuotation={() => setIsQuotationDialogOpen(true)}
+        />
+        
+        <StatsCards stats={dynamicStats} />
+
+        <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Sales</CardTitle>
+                  <CardDescription>
+                  Your most recent transactions.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RecentSales sales={sales || []} />
+              </CardContent>
+            </Card>
+            <EventReminders customers={customers || []} vendors={vendors || []} />
+        </div>
+        
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                    <div>
+                        <CardTitle>Customer Sale History</CardTitle>
+                        <CardDescription>Select a customer to view history.</CardDescription>
+                    </div>
+                    <div className="w-full max-w-sm">
+                         <Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select customer..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {safeCustomers.map(customer => (
+                                    <SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {selectedHistoryCustomer ? (
+                    <DataTable 
+                        columns={salesColumns({ 
+                            onDelete: () => {}, 
+                            products: safeProducts, 
+                            customers: safeCustomers, 
+                            onEdit: () => {},
+                            onShare: (sale) => {
+                                if (!companyDetails) return;
+                                const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`);
+                                openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text});
+                            }
+                        })} 
+                        data={customerHistory} 
+                    />
+                ) : (
+                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
+                        <Users className="mx-auto h-12 w-12 opacity-20" />
+                        <p className="mt-4 text-xs font-medium uppercase tracking-widest">Select a customer to see history</p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+
+        <GenericChart
+          title="Sales Overview"
+          description="Monthly sales trends."
+          data={salesChartData}
+          dataKeyX="name"
+          dataKeysY={['total']}
+          chartConfig={salesChartConfig}
+          chartType="bar"
+          yAxisFormatter={(value) => `₹${value / 1000}K`}
+          categorical={true}
+        />
+      </div>
+      
+      <SaleDialog open={isSaleDialogOpen} onOpenChange={setIsSaleDialogOpen} onSuccess={handleSaleSuccess} />
+      <PurchaseOrderDialog open={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen} onSuccess={handlePurchaseSuccess} />
+      <ProductDialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen} product={undefined} onSuccess={handleProductSuccess} />
+      <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={handleCustomerSuccess} />
+      <ExpenseDialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen} onSuccess={handleExpenseSuccess} />
+      <StockDialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen} onSuccess={handleStockUpdateSuccess} />
+      <EnquiryDialog open={isEnquiryDialogOpen} onOpenChange={setIsEnquiryDialogOpen} onSuccess={handleEnquirySuccess} />
+      <QuotationDialog open={isQuotationDialogOpen} onOpenChange={setIsQuotationDialogOpen} onSuccess={handleQuotationSuccess} />
+    </>
+  );
 }
 </file>
 
@@ -28583,14 +28603,14 @@ import { DataTable } from '@/components/data-table';
 import { salesColumns } from './columns';
 import { returnColumns } from './return-columns';
 import React, { useState, useMemo } from 'react';
-import { Sale, SaleReturn, Customer, Product, User, Company } from '@/lib/types';
+import { Sale, SaleReturn, Customer, Product, User, Company, Store } from '@/lib/types';
 import { SaleDialog } from './sale-dialog';
 import { ReturnDialog } from './return-dialog';
 import { toast } from '@/hooks/use-toast';
 import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
 import { GenericChart } from '@/components/dashboard/generic-chart';
 import type { ChartConfig } from '@/components/ui/chart';
-import { exportToExcel } from '@/lib/actions';
+import { exportToExcel, generateShareText } from '@/lib/actions';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, query, orderBy, limit, deleteDoc, runTransaction } from 'firebase/firestore';
@@ -28599,6 +28619,8 @@ import { CustomerFinancials } from './customer-financials';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { CustomerLedger } from './customer-ledger';
 import { format, addDays, startOfMonth, subMonths, isWithinInterval, endOfMonth } from 'date-fns';
+import { useShareDialog } from '@/hooks/use-share-dialog';
+import { ShareDialog } from '@/components/share-dialog';
 
 const STORE_ID = 'store_main';
 
@@ -28606,6 +28628,7 @@ export default function SalesPage() {
     const firestore = useFirestore();
     const { currentUser } = useCurrentUser();
     const isMounted = useIsMounted();
+    const { isShareDialogOpen, shareDialogData, openShareDialog, closeShareDialog } = useShareDialog();
 
     const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc'), limit(100)) : null, [firestore]);
     const { data: sales, isLoading: areSalesLoading } = useCollection<Sale>(salesRef);
@@ -28625,6 +28648,9 @@ export default function SalesPage() {
     const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
     const { data: companyDetails } = useDoc<Company>(companyDocRef);
 
+    const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
+    const { data: stores } = useCollection<Store>(storesRef);
+
     const [isSaleDialogOpen, setIsSaleDialogOpen] = useState(false);
     const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
     const [editingSale, setEditingSale] = useState<Sale | undefined>();
@@ -28633,6 +28659,7 @@ export default function SalesPage() {
     const safeReturns = returns || [];
     const safeCustomers = customers || [];
     const safeProducts = products || [];
+    const safeStores = stores || [];
 
     const handleAddSale = () => {
         setEditingSale(undefined);
@@ -28759,6 +28786,7 @@ export default function SalesPage() {
 
     return (
         <div className="flex flex-col gap-6 sm:gap-8 pb-8 min-w-0 w-full overflow-x-hidden">
+            <ShareDialog open={isShareDialogOpen} onOpenChange={closeShareDialog} shareData={shareDialogData} />
             <PageHeader title="Sales & Returns">
                 <Button variant="outline" onClick={() => exportToExcel(safeSales, 'sales_export')} size="sm">
                     <Download className="mr-2 h-4 w-4" /> Export
@@ -28784,13 +28812,35 @@ export default function SalesPage() {
                     <Card className="mt-4 overflow-hidden border-2 shadow-sm">
                         <CardContent className="p-0 sm:p-6 min-w-0">
                             <TabsContent value="gst" className="m-0">
-                                <DataTable columns={salesColumns({ onDelete: handleDeleteSale, onEdit: handleEditSale, products: safeProducts, customers: safeCustomers, users: users || [] })} data={safeSales.filter(s => s.saleType === 'GST')} />
+                                <DataTable columns={salesColumns({ 
+                                    onDelete: handleDeleteSale, 
+                                    onEdit: handleEditSale, 
+                                    products: safeProducts, 
+                                    customers: safeCustomers, 
+                                    users: users || [],
+                                    onShare: (sale) => {
+                                        if (!companyDetails) return;
+                                        const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`);
+                                        openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text});
+                                    }
+                                })} data={safeSales.filter(s => s.saleType === 'GST')} />
                             </TabsContent>
                             <TabsContent value="cash" className="m-0">
-                                <DataTable columns={salesColumns({ onDelete: handleDeleteSale, onEdit: handleEditSale, products: safeProducts, customers: safeCustomers, users: users || [] })} data={safeSales.filter(s => s.saleType === 'Cash')} />
+                                <DataTable columns={salesColumns({ 
+                                    onDelete: handleDeleteSale, 
+                                    onEdit: handleEditSale, 
+                                    products: safeProducts, 
+                                    customers: safeCustomers, 
+                                    users: users || [],
+                                    onShare: (sale) => {
+                                        if (!companyDetails) return;
+                                        const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`);
+                                        openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text});
+                                    }
+                                })} data={safeSales.filter(s => s.saleType === 'Cash')} />
                             </TabsContent>
                             <TabsContent value="returns" className="m-0">
-                                <DataTable columns={returnColumns({ customers: safeCustomers, stores: [] })} data={safeReturns} />
+                                <DataTable columns={returnColumns({ customers: safeCustomers, stores: safeStores })} data={safeReturns} />
                             </TabsContent>
                         </CardContent>
                     </Card>
@@ -30404,6 +30454,10 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         setValue(`items.${index}.sku`, product.sku);
         setValue(`items.${index}.productName`, product.name);
         setValue(`items.${index}.brandId`, product.brand);
+        setValue(`items.${index}.categoryId`, product.category);
+        setValue(`items.${index}.subCategoryId`, product.subCategory || '');
+        setValue(`items.${index}.color1`, product.color1 || '');
+        setValue(`items.${index}.color2`, product.color2 || '');
         
         const catalogPrice = product.finalPrice || product.sellingPrice;
         const gstRate = product.gstRate || 0;
@@ -30449,7 +30503,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
 
     const finalSale = JSON.parse(JSON.stringify({
       ...data,
-      id: sale?.id || `sale_${Date.now()}`,
       customerName: customer?.name || 'Unknown',
       customerGstNumber: customer?.gstNumber || '',
       billingAddress: billingAddress!,
