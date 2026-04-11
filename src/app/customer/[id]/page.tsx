@@ -45,7 +45,7 @@ function CustomerContent() {
     if (isCustomerLoading || isSalesLoading || isPaymentsLoading) return <div className="flex items-center justify-center h-screen"><p>Loading profile...</p></div>;
     if (!customer) return <div className="flex items-center justify-center h-screen"><p>Customer not found.</p></div>;
 
-    const totalInvoiced = sales?.reduce((acc, sale) => acc + sale.totalAmount, 0) || 0;
+    const totalInvoiced = sales?.reduce((acc, sale) => acc + (sale.total || 0), 0) || 0;
     const totalPaymentsReceived = payments?.reduce((acc, pay) => acc + pay.amount, 0) || 0;
     const netBalance = totalInvoiced - totalPaymentsReceived;
     
@@ -65,7 +65,7 @@ function CustomerContent() {
     }
 
     const ledger = [
-        ...(sales || []).map(s => ({ type: 'Invoice' as const, id: s.id, no: s.invoiceSequence, date: s.saleDate, amount: s.totalAmount, debit: true })),
+        ...(sales || []).map(s => ({ type: 'Invoice' as const, id: s.id, no: s.invoiceSequence, date: s.saleDate, amount: s.total || 0, debit: true })),
         ...(payments || []).map(p => ({ type: 'Payment' as const, id: p.id, no: p.reference || 'Lump Sum', date: p.date, amount: p.amount, debit: false }))
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 

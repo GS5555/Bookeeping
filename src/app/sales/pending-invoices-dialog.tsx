@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -65,7 +64,7 @@ export function PendingInvoicesDialog({ data, open, onOpenChange }: PendingInvoi
                     </TableRow>
                   );
                 }
-                const isOverdue = isPast(new Date(invoice.dueDate));
+                const isOverdue = invoice.dueDate ? isPast(new Date(invoice.dueDate)) : false;
                 const status = isOverdue ? 'Overdue' : 'Pending';
                 return (
                     <TableRow key={invoice.id} className={cn(status === 'Overdue' && 'bg-destructive/10')}>
@@ -78,7 +77,7 @@ export function PendingInvoicesDialog({ data, open, onOpenChange }: PendingInvoi
                             </Link>
                         </TableCell>
                         <TableCell>{format(new Date(invoice.saleDate), 'dd MMM yyyy')}</TableCell>
-                        <TableCell>{format(new Date(invoice.dueDate), 'dd MMM yyyy')}</TableCell>
+                        <TableCell>{invoice.dueDate ? format(new Date(invoice.dueDate), 'dd MMM yyyy') : 'N/A'}</TableCell>
                         <TableCell>
                           {/* Fix: Use 'total' instead of 'totalAmount' to match interface */}
                           <FormattedNumberCell value={invoice.total} />
