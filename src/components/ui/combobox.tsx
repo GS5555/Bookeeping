@@ -72,7 +72,15 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
 
       {open && (
         <div className="absolute top-full left-0 z-[100] w-full mt-1 rounded-md border bg-popover text-popover-foreground shadow-xl outline-none animate-in fade-in-0 zoom-in-95">
-          <Command shouldFilter={true} className="w-full">
+          <Command 
+            shouldFilter={true} 
+            className="w-full"
+            filter={(value, search) => {
+                const option = options.find(o => o.value === value);
+                const terms = (option?.searchTerms || option?.label || "").toLowerCase();
+                return terms.includes(search.toLowerCase()) ? 1 : 0;
+            }}
+          >
             <CommandInput 
               placeholder={searchPlaceholder} 
               autoFocus 
@@ -85,7 +93,7 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
                 {options.map((option) => (
                   <CommandItem
                     key={option.value}
-                    value={option.searchTerms || option.label}
+                    value={option.value}
                     onSelect={() => {
                       onChange(option.value === value ? "" : option.value)
                       setOpen(false)

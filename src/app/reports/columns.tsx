@@ -1,4 +1,3 @@
-
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
@@ -96,7 +95,6 @@ export const salesReportColumns: ColumnDef<any>[] = [
     cell: ({ row }) => row.original.items.length
   },
   {
-    /* Fix: Use 'total' instead of 'totalAmount' */
     accessorKey: "total",
     header: "Total",
     cell: ({ row }) => <FormattedNumberCell value={row.original.total} />,
@@ -165,7 +163,6 @@ export const gstReportColumns: ColumnDef<any>[] = [
     cell: ({ row }) => <FormattedNumberCell value={row.original.igstAmount} />,
   },
   {
-    /* Fix: Use 'total' instead of 'totalAmount' */
     accessorKey: "total",
     header: "Total",
     cell: ({ row }) => <FormattedNumberCell value={row.original.total} />,

@@ -6,8 +6,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ChatMessage, Message } from './chat-message';
-import { OfflineForm } from './offline-form';
-import { sendChatMessage } from '@/app/actions/chat';
+import OfflineForm from './offline-form';
+import { sendChatMessage } from '@/ai/flows/chat';
 
 export function ChatWidget() {
     const [isOpen, setIsOpen] = useState(false);

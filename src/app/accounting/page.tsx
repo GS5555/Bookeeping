@@ -1,4 +1,3 @@
-
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
@@ -32,7 +31,6 @@ export default function AccountingPage() {
         const relevantSales = sales || [];
         const relevantExpenses = expenses || [];
 
-        // Fix: Use 'total' instead of 'totalAmount' to match Sale interface
         const totalRevenue = relevantSales.reduce((acc, sale) => acc + (sale.total || 0), 0);
         
         const totalCogs = relevantSales.reduce((acc, sale) => {
@@ -47,7 +45,7 @@ export default function AccountingPage() {
         const netProfit = grossProfit - totalExpensesValue;
 
         return { totalRevenue, totalCogs, grossProfit, totalExpenses: totalExpensesValue, netProfit };
-    }, [sales, expenses, products]);
+    }, [sales, expenses]);
 
     const summaryData: SummaryCardData[] = useMemo(() => [
         { title: "Total Revenue", value: isMounted ? `₹${totalRevenue.toLocaleString('en-IN')}` : "₹...", icon: CircleDollarSign },
@@ -67,7 +65,6 @@ export default function AccountingPage() {
             const month = getMonth(new Date(sale.saleDate));
             if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
             
-            // Fix: Use 'total' instead of 'totalAmount'
             monthlyData[month].revenue += (sale.total || 0);
             
             const saleCogs = sale.items.reduce((acc, item) => {
@@ -77,7 +74,7 @@ export default function AccountingPage() {
         });
 
         relevantExpenses.forEach(expense => {
-            const month = getMonth(new Date(expense.expenseDate));
+            const month = getMonth(new Date(expense.date));
             if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
             monthlyData[month].expenses += expense.amount;
         });
@@ -88,7 +85,7 @@ export default function AccountingPage() {
             NetProfit: data.revenue - data.cogs - data.expenses
         })).sort((a,b) => new Date(`2024 ${a.name}`).getMonth() - new Date(`2024 ${b.name}`).getMonth());
 
-    }, [sales, expenses, products]);
+    }, [sales, expenses]);
 
     const chartConfig: ChartConfig = {
         Revenue: { label: 'Revenue', color: 'hsl(var(--chart-1))' },

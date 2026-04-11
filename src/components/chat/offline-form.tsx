@@ -16,7 +16,7 @@ import { toast } from '@/hooks/use-toast';
 
 const issueTypes = ['Billing', 'Technical Support', 'Sales Inquiry', 'General Question', 'Other'];
 
-export function OfflineForm() {
+export default function OfflineForm() {
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [captcha, setCaptcha] = useState('');
     const [userInput, setUserInput] = useState('');
