@@ -185,6 +185,8 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
         return;
     }
 
+    const finalTotals = totals; // Ensure we use the latest memoized totals
+
     const poItems = validItems.map(item => {
         const product = products?.find(p => p.id === item.productId);
         return {
@@ -213,13 +215,13 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
       paymentStatus: data.paymentStatus,
       paymentMethod: data.paymentMethod,
       items: poItems as any,
-      subTotal: totals.subTotal,
-      gstAmount: totals.gstAmount,
-      cgstAmount: totals.gstAmount / 2,
-      sgstAmount: totals.gstAmount / 2,
+      subTotal: finalTotals.subTotal,
+      gstAmount: finalTotals.gstAmount,
+      cgstAmount: finalTotals.gstAmount / 2,
+      sgstAmount: finalTotals.gstAmount / 2,
       igstAmount: 0,
-      roundOffAmount: totals.roundOffAmount,
-      totalAmount: totals.totalAmount,
+      roundOffAmount: finalTotals.roundOffAmount,
+      totalAmount: finalTotals.totalAmount,
       comments: data.comments || "",
       courierCompany: data.courierCompany || "",
       trackingNumber: data.trackingNumber || "",

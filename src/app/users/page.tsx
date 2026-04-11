@@ -1,4 +1,3 @@
-
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
@@ -34,7 +33,7 @@ interface AppUser {
     id: string;
     displayName: string;
     email: string;
-    role: 'admin' | 'editor' | 'viewer';
+    role: 'admin' | 'editor' | 'viewer' | 'data-entry';
     isApproved: boolean;
 }
 
@@ -62,7 +61,7 @@ function AdminUserList({ currentUser }: { currentUser: AppUser }) {
 
     const { data: allUsersData, isLoading: areAllUsersLoading } = useCollection<AppUser>(allUsersCollectionRef);
 
-     const handleRoleChange = async (userId: string, newRole: 'admin' | 'editor' | 'viewer') => {
+     const handleRoleChange = async (userId: string, newRole: 'admin' | 'editor' | 'viewer' | 'data-entry') => {
         if (!firestore || currentUser.id === userId) {
             toast({
                 title: "Error",
@@ -165,7 +164,6 @@ function AdminUserList({ currentUser }: { currentUser: AppUser }) {
         }
     }
     
-    // Using mock data for activity logs for now
     const activityLogs: ActivityLog[] = mockActivityLogs;
 
     if (areAllUsersLoading) {
@@ -263,7 +261,7 @@ export default function UsersPageContainer() {
     }
 
     if (currentUser?.role === 'admin') {
-        return <AdminUserList currentUser={currentUser} />;
+        return <AdminUserList currentUser={currentUser as any} />;
     }
 
     return <AccessDenied />;

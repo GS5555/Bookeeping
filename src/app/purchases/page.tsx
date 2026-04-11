@@ -29,6 +29,7 @@ import { useShareDialog } from '@/hooks/use-share-dialog';
 import { ShareDialog } from '@/components/share-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+// TODO: Implement a store selection mechanism
 const STORE_ID = 'store_main';
 
 export default function PurchasesPage() {
@@ -96,7 +97,7 @@ export default function PurchasesPage() {
         setIsUpdateStatusDialogOpen(true);
     }
     
-    const handleSuccess = async (po: Omit<PurchaseOrder, 'id'| 'purchaseOrderNumber'>) => {
+    const handleSuccess = async (po: Omit<PurchaseOrder, 'id' | 'purchaseOrderNumber'>) => {
         if (!firestore || !currentUser || !products) {
             toast({ title: "Error", description: "Core data is not loaded yet.", variant: "destructive" });
             return;
@@ -304,7 +305,7 @@ export default function PurchasesPage() {
                 'Product Name': item.productName,
                 'SKU': products.find(p => p.id === item.productId)?.sku || '',
                 'Quantity': item.quantity,
-                'Unit Cost': item.unitPrice,
+                'Unit Cost': item.unitCost,
                 'Total Cost': item.totalCost,
                 'Comments': po.comments || '',
             }))

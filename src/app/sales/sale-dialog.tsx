@@ -30,7 +30,7 @@ import { format, addDays } from "date-fns";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, where, getDocs } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { CustomerDialog } from "@/app/customers/customer-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useCurrentUser } from "@/hooks/use-current-user";
