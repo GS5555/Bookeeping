@@ -29,7 +29,7 @@ export function CustomerFinancials({ sales, customers, companyDetails }: Custome
   const customerData = useMemo(() => {
     // Standardizing on 'status' and 'total' as per standardized Sale interface
     const pendingSales = sales.filter(sale => 
-        (sale.status === 'pending' || sale.status === 'unpaid') || 
+        (sale.status === 'pending') || 
         (sale.balanceAmount && sale.balanceAmount > 0)
     );
     

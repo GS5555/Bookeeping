@@ -61,10 +61,10 @@ export default function Dashboard() {
   const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc')) : null, [firestore]);
   const { data: sales } = useCollection<Sale>(salesRef);
 
-  const poRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'purchaseOrders') : null, [firestore]);
+  const poRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'), orderBy('orderDate', 'desc')) : null, [firestore]);
   const { data: purchaseOrders } = useCollection<PurchaseOrder>(poRef);
   
-  const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
+  const expensesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'expenses'), orderBy('date', 'desc')) : null, [firestore]);
   const { data: expenses } = useCollection<Expense>(expensesRef);
 
   const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
@@ -259,7 +259,7 @@ export default function Dashboard() {
         setIsCustomerDialogOpen(false);
         toast({ title: "Success!", description: `Customer ${customer.name} created.` });
      } catch (e) {
-        console.error(e);
+        // use toast for errors only
         toast({ title: "Error", description: "Failed to save customer", variant: "destructive" });
      }
   };
