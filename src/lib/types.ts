@@ -226,6 +226,7 @@ export interface PurchaseOrder {
         imageUrl?: string;
         quantity: number;
         quantityReceived: number;
+        unitPrice: number;
         unitCost: number;
         totalCost: number;
         hsnCode: string;

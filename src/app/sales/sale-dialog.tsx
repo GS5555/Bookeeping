@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Truck } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -106,9 +106,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
 
   const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
   const { data: stores } = useCollection<Store>(storesRef);
-
-  const couriersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'couriers'), orderBy('name')) : null, [firestore]);
-  const { data: couriers } = useCollection<Courier>(couriersRef);
 
   const couponsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'coupons') : null, [firestore]);
   const { data: coupons } = useCollection<Coupon>(couponsRef);

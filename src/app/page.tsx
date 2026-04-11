@@ -73,7 +73,7 @@ export default function Dashboard() {
   const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
   const { data: customers } = useCollection<Customer>(customersRef);
 
-  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
+  const vendorsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'vendors'), orderBy('name')) : null, [firestore]);
   const { data: vendors } = useCollection<Vendor>(vendorsRef);
 
   const inventoryRef = useMemoFirebase(() => {
@@ -113,8 +113,8 @@ export default function Dashboard() {
     const totalPurchases = purchasesThisMonth.reduce((sum, po) => sum + po.totalAmount, 0);
     const totalPurchasesLastMonth = purchasesLastMonth.reduce((sum, po) => sum + po.totalAmount, 0);
     
-    const totalExpenses = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
-    const totalExpensesLastMonth = expensesLastMonth.reduce((sum, expense) => sum + expense.amount, 0);
+    const totalExpenses = expensesThisMonth.reduce((sum, expense) => sum + (expense.amount || 0), 0);
+    const totalExpensesLastMonth = expensesLastMonth.reduce((sum, expense) => sum + (expense.amount || 0), 0);
     
     const calcChange = (current: number, previous: number) => {
       if (previous === 0) return current > 0 ? 100 : 0;
@@ -243,7 +243,7 @@ export default function Dashboard() {
             <CardHeader>
                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                     <div><CardTitle>Customer Sale History</CardTitle><CardDescription>Select a customer to view history.</CardDescription></div>
-                    <div className="w-full max-w-sm"><Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}><SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger><SelectContent>{safeCustomers.map(customer => (<SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>))}</SelectItem></Select></div>
+                    <div className="w-full max-w-sm"><Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}><SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger><SelectContent>{safeCustomers.map(customer => (<SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>))}</SelectContent></Select></div>
                 </div>
             </CardHeader>
             <CardContent>
