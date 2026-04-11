@@ -82,10 +82,10 @@ export function PendingInvoices({ sales, customers }: PendingInvoicesProps) {
                                     #{sale.invoiceSequence}
                                 </Link>
                                 {isMounted ? (() => {
-                                    const isOverdue = isPast(new Date(sale.dueDate));
+                                    const isOverdue = sale.dueDate ? isPast(new Date(sale.dueDate)) : false;
                                     return (
                                         <p className={cn("text-[10px] font-medium", isOverdue ? 'text-destructive' : 'text-muted-foreground')}>
-                                            {`Due ${formatDistanceToNow(new Date(sale.dueDate), { addSuffix: true })}`}
+                                            {sale.dueDate ? `Due ${formatDistanceToNow(new Date(sale.dueDate), { addSuffix: true })}` : 'No due date'}
                                         </p>
                                     )
                                 })() : (

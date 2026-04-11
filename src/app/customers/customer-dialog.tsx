@@ -125,7 +125,7 @@ export function CustomerDialog({ open, onOpenChange, customer, onSuccess }: Cust
   const onSubmit = (data: CustomerFormValues) => {
     const submittedCustomer: Omit<Customer, 'birthday' | 'anniversary'> & { birthday?: string, anniversary?: string } = {
       id: customer?.id || `cust_${Date.now()}`,
-      storeId: customer?.storeId || 'store_123',
+      storeId: customer?.storeId || 'store_main',
       ...data,
       title: data.title || '',
       name: data.name || 'Unnamed Customer',
