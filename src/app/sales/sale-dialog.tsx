@@ -224,6 +224,10 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         setValue(`items.${index}.sku`, product.sku);
         setValue(`items.${index}.productName`, product.name);
         setValue(`items.${index}.brandId`, product.brand);
+        setValue(`items.${index}.categoryId`, product.category);
+        setValue(`items.${index}.subCategoryId`, product.subCategory || '');
+        setValue(`items.${index}.color1`, product.color1 || '');
+        setValue(`items.${index}.color2`, product.color2 || '');
         
         const catalogPrice = product.finalPrice || product.sellingPrice;
         const gstRate = product.gstRate || 0;
@@ -269,7 +273,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
 
     const finalSale = JSON.parse(JSON.stringify({
       ...data,
-      id: sale?.id || `sale_${Date.now()}`,
       customerName: customer?.name || 'Unknown',
       customerGstNumber: customer?.gstNumber || '',
       billingAddress: billingAddress!,

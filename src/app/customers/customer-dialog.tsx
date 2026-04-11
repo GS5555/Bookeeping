@@ -111,7 +111,8 @@ export function CustomerDialog({ open, onOpenChange, customer, onSuccess }: Cust
             title: "Mr", name: "", companyName: "", customerType: "", email: "", phone: "", gstNumber: "",
             referenceName: "", referenceContact: "",
             addresses: [{ id: `addr_${Date.now()}`, street: "", city: "", state: "Maharashtra", zip: "", country: "India", isPrimary: true }],
-        });
+            isApproved: true,
+        } as any);
       }
     }
   }, [open, customer, reset]);
@@ -132,6 +133,7 @@ export function CustomerDialog({ open, onOpenChange, customer, onSuccess }: Cust
       companyName: data.companyName || '',
       email: data.email || '',
       phone: data.phone || '',
+      isApproved: true,
     };
 
     if (data.birthday) { submittedCustomer.birthday = data.birthday.toISOString(); } 

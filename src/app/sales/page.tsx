@@ -1,4 +1,3 @@
-
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -14,14 +13,14 @@ import { DataTable } from '@/components/data-table';
 import { salesColumns } from './columns';
 import { returnColumns } from './return-columns';
 import React, { useState, useMemo } from 'react';
-import { Sale, SaleReturn, Customer, Product, User, Company } from '@/lib/types';
+import { Sale, SaleReturn, Customer, Product, User, Company, Store } from '@/lib/types';
 import { SaleDialog } from './sale-dialog';
 import { ReturnDialog } from './return-dialog';
 import { toast } from '@/hooks/use-toast';
 import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
 import { GenericChart } from '@/components/dashboard/generic-chart';
 import type { ChartConfig } from '@/components/ui/chart';
-import { exportToExcel } from '@/lib/actions';
+import { exportToExcel, generateShareText } from '@/lib/actions';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, query, orderBy, limit, deleteDoc, runTransaction } from 'firebase/firestore';
@@ -30,6 +29,8 @@ import { CustomerFinancials } from './customer-financials';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { CustomerLedger } from './customer-ledger';
 import { format, addDays, startOfMonth, subMonths, isWithinInterval, endOfMonth } from 'date-fns';
+import { useShareDialog } from '@/hooks/use-share-dialog';
+import { ShareDialog } from '@/components/share-dialog';
 
 const STORE_ID = 'store_main';
 
@@ -37,6 +38,7 @@ export default function SalesPage() {
     const firestore = useFirestore();
     const { currentUser } = useCurrentUser();
     const isMounted = useIsMounted();
+    const { isShareDialogOpen, shareDialogData, openShareDialog, closeShareDialog } = useShareDialog();
 
     const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc'), limit(100)) : null, [firestore]);
     const { data: sales, isLoading: areSalesLoading } = useCollection<Sale>(salesRef);
@@ -56,6 +58,9 @@ export default function SalesPage() {
     const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
     const { data: companyDetails } = useDoc<Company>(companyDocRef);
 
+    const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
+    const { data: stores } = useCollection<Store>(storesRef);
+
     const [isSaleDialogOpen, setIsSaleDialogOpen] = useState(false);
     const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
     const [editingSale, setEditingSale] = useState<Sale | undefined>();
@@ -64,6 +69,7 @@ export default function SalesPage() {
     const safeReturns = returns || [];
     const safeCustomers = customers || [];
     const safeProducts = products || [];
+    const safeStores = stores || [];
 
     const handleAddSale = () => {
         setEditingSale(undefined);
@@ -190,6 +196,7 @@ export default function SalesPage() {
 
     return (
         <div className="flex flex-col gap-6 sm:gap-8 pb-8 min-w-0 w-full overflow-x-hidden">
+            <ShareDialog open={isShareDialogOpen} onOpenChange={closeShareDialog} shareData={shareDialogData} />
             <PageHeader title="Sales & Returns">
                 <Button variant="outline" onClick={() => exportToExcel(safeSales, 'sales_export')} size="sm">
                     <Download className="mr-2 h-4 w-4" /> Export
@@ -215,13 +222,35 @@ export default function SalesPage() {
                     <Card className="mt-4 overflow-hidden border-2 shadow-sm">
                         <CardContent className="p-0 sm:p-6 min-w-0">
                             <TabsContent value="gst" className="m-0">
-                                <DataTable columns={salesColumns({ onDelete: handleDeleteSale, onEdit: handleEditSale, products: safeProducts, customers: safeCustomers, users: users || [] })} data={safeSales.filter(s => s.saleType === 'GST')} />
+                                <DataTable columns={salesColumns({ 
+                                    onDelete: handleDeleteSale, 
+                                    onEdit: handleEditSale, 
+                                    products: safeProducts, 
+                                    customers: safeCustomers, 
+                                    users: users || [],
+                                    onShare: (sale) => {
+                                        if (!companyDetails) return;
+                                        const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`);
+                                        openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text});
+                                    }
+                                })} data={safeSales.filter(s => s.saleType === 'GST')} />
                             </TabsContent>
                             <TabsContent value="cash" className="m-0">
-                                <DataTable columns={salesColumns({ onDelete: handleDeleteSale, onEdit: handleEditSale, products: safeProducts, customers: safeCustomers, users: users || [] })} data={safeSales.filter(s => s.saleType === 'Cash')} />
+                                <DataTable columns={salesColumns({ 
+                                    onDelete: handleDeleteSale, 
+                                    onEdit: handleEditSale, 
+                                    products: safeProducts, 
+                                    customers: safeCustomers, 
+                                    users: users || [],
+                                    onShare: (sale) => {
+                                        if (!companyDetails) return;
+                                        const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`);
+                                        openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text});
+                                    }
+                                })} data={safeSales.filter(s => s.saleType === 'Cash')} />
                             </TabsContent>
                             <TabsContent value="returns" className="m-0">
-                                <DataTable columns={returnColumns({ customers: safeCustomers, stores: [] })} data={safeReturns} />
+                                <DataTable columns={returnColumns({ customers: safeCustomers, stores: safeStores })} data={safeReturns} />
                             </TabsContent>
                         </CardContent>
                     </Card>

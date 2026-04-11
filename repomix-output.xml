@@ -1099,186 +1099,6 @@ export default function CouponsPage() {
 }
 </file>
 
-<file path="src/app/customer/[id]/page.tsx">
-'use client';
-
-import { useParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Printer, FileDown, ArrowLeft, Phone, Mail, MapPin, ReceiptText } from 'lucide-react';
-import { format } from 'date-fns';
-import { Sale, Customer, Company, Payment } from '@/lib/types';
-import Link from 'next/link';
-import { useDoc, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, collection, query, where, orderBy, setDoc } from 'firebase/firestore';
-import { AppShell } from '@/components/layout/app-shell';
-import { FormattedNumberCell } from '@/components/formatted-number-cell';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useState } from 'react';
-import { PaymentDialog } from '@/app/sales/payment-dialog';
-import { toast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
-
-const STORE_ID = 'store_main';
-
-function CustomerContent() {
-    const params = useParams();
-    const { id } = params;
-    const firestore = useFirestore();
-    const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-
-    const customerRef = useMemoFirebase(() => firestore && id ? doc(firestore, 'stores', STORE_ID, 'customers', id as string) : null, [firestore, id]);
-    const { data: customer, isLoading: isCustomerLoading } = useDoc<Customer>(customerRef);
-
-    const salesRef = useMemoFirebase(() => {
-        if (!firestore || !id) return null;
-        return query(collection(firestore, 'stores', STORE_ID, 'sales'), where('customerId', '==', id), orderBy('saleDate', 'desc'));
-    }, [firestore, id]);
-    const { data: sales, isLoading: isSalesLoading } = useCollection<Sale>(salesRef);
-
-    const paymentsRef = useMemoFirebase(() => {
-        if (!firestore || !id) return null;
-        return query(collection(firestore, 'stores', STORE_ID, 'customers', id as string, 'payments'), orderBy('date', 'desc'));
-    }, [firestore, id]);
-    const { data: payments, isLoading: isPaymentsLoading } = useCollection<Payment>(paymentsRef);
-    
-    const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
-    const { data: companyDetails } = useDoc<Company>(companyDocRef);
-
-    if (isCustomerLoading || isSalesLoading || isPaymentsLoading) return <div className="flex items-center justify-center h-screen"><p>Loading profile...</p></div>;
-    if (!customer) return <div className="flex items-center justify-center h-screen"><p>Customer not found.</p></div>;
-
-    const totalInvoiced = sales?.reduce((acc, sale) => acc + sale.totalAmount, 0) || 0;
-    const totalPaymentsReceived = payments?.reduce((acc, pay) => acc + pay.amount, 0) || 0;
-    const netBalance = totalInvoiced - totalPaymentsReceived;
-    
-    const primaryAddress = customer.addresses.find(a => a.isPrimary) || customer.addresses[0];
-
-    const handlePaymentSuccess = async (payment: Payment) => {
-        if (!firestore) return;
-        try {
-            const payRef = doc(firestore, 'stores', STORE_ID, 'customers', customer.id, 'payments', payment.id);
-            await setDoc(payRef, payment);
-            setIsPaymentDialogOpen(false);
-            toast({ title: "Payment Recorded", description: `Lump sum of ₹${payment.amount.toLocaleString()} received.` });
-        } catch (error) {
-            console.error(error);
-            toast({ title: "Error", description: "Failed to record payment.", variant: "destructive" });
-        }
-    }
-
-    const ledger = [
-        ...(sales || []).map(s => ({ type: 'Invoice' as const, id: s.id, no: s.invoiceSequence, date: s.saleDate, amount: s.totalAmount, debit: true })),
-        ...(payments || []).map(p => ({ type: 'Payment' as const, id: p.id, no: p.reference || 'Lump Sum', date: p.date, amount: p.amount, debit: false }))
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    return (
-        <div className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8" id="customer-statement">
-            <PaymentDialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen} customerId={customer.id} onSuccess={handlePaymentSuccess} />
-            
-            <div className="flex justify-between items-center print:hidden">
-                <Button variant="ghost" asChild><Link href="/customers"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link></Button>
-                <div className="flex gap-2">
-                    <Button onClick={() => setIsPaymentDialogOpen(true)}><ReceiptText className="mr-2 h-4 w-4" /> Receive Payment</Button>
-                    <Button variant="outline" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" /> Print Statement</Button>
-                </div>
-            </div>
-
-            <div className="bg-white text-black p-8 rounded-lg shadow-lg border border-gray-200 printable-content">
-                <div className="flex justify-between items-start border-b pb-8 mb-8">
-                    <div>
-                        <h1 className="text-4xl font-black mb-2 uppercase">{customer.name}</h1>
-                        <p className="text-gray-500 font-bold text-xs uppercase tracking-widest">{customer.companyName}</p>
-                        <div className="mt-6 space-y-1 text-xs font-bold text-gray-400">
-                            {customer.email && <p className="flex items-center gap-2"><Mail className="h-3 w-3" /> {customer.email}</p>}
-                            {customer.phone && <p className="flex items-center gap-2"><Phone className="h-3 w-3" /> {customer.phone}</p>}
-                            {primaryAddress && (
-                                <p className="flex items-center gap-2 max-w-xs">
-                                    <MapPin className="h-3 w-3 shrink-0" /> 
-                                    {`${primaryAddress.street}, ${primaryAddress.city}, ${primaryAddress.state} ${primaryAddress.zip}`}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <div className="mb-6">
-                            <p className="text-[10px] uppercase font-black text-gray-400 tracking-[0.2em] mb-1">Net Outstanding Balance</p>
-                            <p className={cn("text-4xl font-black tracking-tighter", netBalance > 0 ? "text-destructive" : "text-green-600")}>
-                                <FormattedNumberCell value={netBalance} />
-                            </p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-8">
-                            <div>
-                                <p className="text-[10px] uppercase font-bold text-gray-400">Total Billed</p>
-                                <p className="text-lg font-black"><FormattedNumberCell value={totalInvoiced} /></p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] uppercase font-bold text-gray-400">Total Paid</p>
-                                <p className="text-lg font-black text-green-600"><FormattedNumberCell value={totalPaymentsReceived} /></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-6">
-                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gray-400">Chronological Ledger</h3>
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="bg-gray-50 border-b-2 border-black">
-                                <TableHead className="font-black text-[10px] text-black uppercase">Date</TableHead>
-                                <TableHead className="font-black text-[10px] text-black uppercase">Transaction No / Type</TableHead>
-                                <TableHead className="text-right font-black text-[10px] text-black uppercase">Debit (Invoice)</TableHead>
-                                <TableHead className="text-right font-black text-[10px] text-black uppercase">Credit (Payment)</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {ledger.length ? ledger.map((entry, idx) => (
-                                <TableRow key={`${entry.type}-${entry.id}-${idx}`} className="hover:bg-gray-50 border-b border-gray-100">
-                                    <TableCell className="text-xs font-bold text-gray-500">{format(new Date(entry.date), 'dd MMM yyyy')}</TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-black">{entry.type === 'Invoice' ? `#${entry.no}` : entry.no}</span>
-                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{entry.type}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right text-sm font-black">
-                                        {entry.debit ? <FormattedNumberCell value={entry.amount} /> : '-'}
-                                    </TableCell>
-                                    <TableCell className="text-right text-sm font-black text-green-600">
-                                        {!entry.debit ? <FormattedNumberCell value={entry.amount} /> : '-'}
-                                    </TableCell>
-                                </TableRow>
-                            )) : (
-                                <TableRow><TableCell colSpan={4} className="text-center py-12 text-gray-400 font-bold uppercase tracking-widest text-xs">No ledger activity recorded.</TableCell></TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-
-                <div className="mt-16 pt-8 border-t text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                    <p>Generated on {format(new Date(), 'PPP p')} • {companyDetails?.name || 'Store Management System'}</p>
-                </div>
-            </div>
-
-            <style jsx global>{`
-                @media print {
-                    body { background: white !important; }
-                    .printable-content { box-shadow: none !important; border: none !important; padding: 0 !important; }
-                    .print\\:hidden { display: none !important; }
-                }
-            `}</style>
-        </div>
-    );
-}
-
-export default function CustomerProfilePage() {
-    return (
-        <AppShell>
-            <CustomerContent />
-        </AppShell>
-    );
-}
-</file>
-
 <file path="src/app/customers/columns.tsx">
 "use client"
 
@@ -2387,162 +2207,6 @@ export default function ForgotPasswordPage() {
 }
 </file>
 
-<file path="src/app/inventory/columns.tsx">
-"use client"
-
-import { ColumnDef } from "@tanstack/react-table"
-import { Product, InventoryItem } from "@/lib/types"
-import { MoreHorizontal, Edit, History } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import Image from "next/image"
-import { FormattedNumberCell } from "@/components/formatted-number-cell"
-import { cn } from "@/lib/utils"
-
-export type InventoryDetail = InventoryItem & Partial<Product> & {
-    productName: string;
-    brandName?: string;
-    categoryName?: string;
-    subCategoryName?: string;
-    sku?: string;
-    sellingPrice: number;
-    purchasePrice: number;
-    miscellaneousCost?: number;
-    imageUrl?: string;
-}
-
-interface ActionsCellProps {
-    item: InventoryDetail;
-    onViewHistory: (item: InventoryDetail) => void;
-    onEditProduct: (item: InventoryDetail) => void;
-}
-
-const ActionsCell = ({ item, onViewHistory, onEditProduct }: ActionsCellProps) => {
-    return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => onEditProduct(item)}>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit Product Details
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onViewHistory(item)}>
-                <History className="mr-2 h-4 w-4" />
-                View History
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-    )
-}
-
-export const columns = (options: { 
-    onAdjustStock: (item: InventoryDetail) => void; 
-    onViewHistory: (item: InventoryDetail) => void;
-    onEditProduct: (item: InventoryDetail) => void;
-}): ColumnDef<InventoryDetail>[] => [
-  {
-    id: "srNo",
-    header: "Sr. No.",
-    cell: ({ row }) => row.index + 1,
-  },
-  {
-    accessorKey: "productName",
-    header: "Product",
-    cell: ({ row }) => {
-      const item = row.original
-      return (
-        <div className="flex items-center gap-4">
-           <Image 
-                src={item.imageUrl || `https://placehold.co/40x40.png`} 
-                alt={item.productName} 
-                width={40} 
-                height={40} 
-                className="rounded-md object-cover"
-                data-ai-hint="product inventory"
-            />
-          <div className="flex flex-col">
-            <Button variant="link" className="p-0 h-auto justify-start font-medium" onClick={() => options.onEditProduct(item)}>
-                {item.productName}
-            </Button>
-            <span className="text-sm text-muted-foreground">{item.sku}</span>
-          </div>
-        </div>
-      )
-    }
-  },
-  {
-    accessorKey: "brandName",
-    header: "Brand",
-  },
-  {
-    accessorKey: "quantity",
-    header: "Quantity",
-    cell: ({ row }) => {
-        const quantity = row.original.quantity;
-        const color = quantity < 10 ? 'text-destructive' : 'text-foreground';
-        return <div className={color}>{quantity} units</div>
-    }
-  },
-  {
-    accessorKey: "purchasePrice",
-    header: "Purchase Price",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.purchasePrice} />,
-  },
-  {
-    accessorKey: "sellingPrice",
-    header: "Selling Price",
-    cell: ({ row }) => <FormattedNumberCell value={row.original.sellingPrice} />,
-  },
-  {
-    id: "potentialProfit",
-    header: "Profit / Qty",
-    cell: ({ row }) => {
-        const item = row.original;
-        const totalCost = (Number(item.purchasePrice) || 0) + (Number(item.miscellaneousCost) || 0);
-        const gstRate = Number(item.gstRate) || 0;
-        const sellingPrice = Number(item.sellingPrice) || 0;
-        
-        const preGstSellingPrice = sellingPrice / (1 + gstRate / 100);
-        
-        let profit = preGstSellingPrice - totalCost;
-        
-        const color = profit >= 0 ? 'text-green-600' : 'text-destructive';
-        
-        return <FormattedNumberCell value={profit} className={color} options={{ maximumFractionDigits: 0 }} />
-    }
-  },
-  {
-    accessorKey: "locationComment",
-    header: "Location in Store",
-  },
-   {
-    id: "adjustStock",
-    header: "Adjust Stock",
-    cell: ({ row }) => (
-      <Button variant="outline" size="sm" onClick={() => options.onAdjustStock(row.original)}>
-        Adjust
-      </Button>
-    )
-  },
-  {
-    id: "actions",
-    cell: ({ row }) => <ActionsCell item={row.original} onViewHistory={options.onViewHistory} onEditProduct={options.onEditProduct} />,
-  },
-]
-</file>
-
 <file path="src/app/inventory/stock-transfer-dialog.tsx">
 'use client';
 
@@ -2750,187 +2414,6 @@ import { LoginPage } from "./login-page";
 
 export default function Login() {
     return <LoginPage />;
-}
-</file>
-
-<file path="src/app/make-admin/page.tsx">
-'use client';
-
-import { PageHeader } from '@/components/layout/page-header';
-import { Button } from '@/components/ui/button';
-import { useFirestore, useAuth, useUser } from '@/firebase';
-import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { ShieldCheck, ServerCrash, ShieldAlert, UserCheck } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from '@/hooks/use-toast';
-import { signOut, getIdTokenResult } from "firebase/auth";
-import { FullPageLoader } from '@/components/full-page-loader';
-import { setAdminClaim } from '@/app/actions/admin';
-
-export default function MakeAdminPage() {
-  const { user: authUser, isUserLoading: isAuthLoading } = useUser();
-  const firestore = useFirestore();
-  const auth = useAuth();
-  const router = useRouter();
-  
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [adminRoleClaimed, setAdminRoleClaimed] = useState<boolean | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const checkAdminStatus = useCallback(async () => {
-    if (!authUser || !auth || !firestore) {
-        if (!isAuthLoading) setIsLoading(false);
-        return;
-    }
-
-    setIsLoading(true);
-
-    try {
-        // 1. Check for custom admin claim on the token
-        const idTokenResult = await getIdTokenResult(authUser);
-        const userIsAdmin = idTokenResult.claims.admin === true;
-        setIsAdmin(userIsAdmin);
-
-        // 2. Check if the admin role has ever been claimed in the system
-        const adminInitDocRef = doc(firestore, '_init', 'admin');
-        const docSnap = await getDoc(adminInitDocRef);
-        setAdminRoleClaimed(docSnap.exists() && docSnap.data().claimed === true);
-    } catch (error) {
-        console.error("Error verifying admin status:", error);
-        toast({
-            title: "Error",
-            description: "Could not verify admin status. Please try again.",
-            variant: "destructive"
-        });
-        // Fail safe to prevent claim attempts on error
-        setIsAdmin(false);
-        setAdminRoleClaimed(true);
-    } finally {
-        setIsLoading(false);
-    }
-  }, [authUser, auth, firestore, isAuthLoading]);
-
-  useEffect(() => {
-    if (!isAuthLoading) {
-      checkAdminStatus();
-    }
-  }, [isAuthLoading, checkAdminStatus]);
-
-  const handleClaimAdmin = async () => {
-    if (!authUser || !firestore) return;
-
-    setIsProcessing(true);
-    const adminInitDocRef = doc(firestore, '_init', 'admin');
-    const userDocRef = doc(firestore, 'users', authUser.uid);
-    
-    try {
-      await runTransaction(firestore, async (transaction) => {
-        const adminInitDoc = await transaction.get(adminInitDocRef);
-        if (adminInitDoc.exists() && adminInitDoc.data().claimed) {
-          throw new Error("The admin role has already been claimed by another user.");
-        }
-        transaction.set(adminInitDocRef, { claimed: true, claimedBy: authUser.uid, claimedAt: serverTimestamp() });
-        transaction.update(userDocRef, { role: 'admin', isApproved: true });
-      });
-      
-      const claimResult = await setAdminClaim(authUser.uid);
-      if (!claimResult.success) {
-          throw new Error(claimResult.error || "Failed to set custom admin claim.");
-      }
-
-      toast({
-        title: "Success! You are now an administrator.",
-        description: "Please log out and log back in for the new role to take full effect.",
-      });
-
-      if (auth) await signOut(auth);
-      router.push('/login');
-
-    } catch (error: any) {
-      console.error("Failed to claim admin role:", error);
-      toast({
-        title: "Claim Failed",
-        description: error.message || "An error occurred. The admin role may have already been claimed.",
-        variant: "destructive",
-      });
-      setAdminRoleClaimed(true); // Update state to reflect claim attempt
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const renderContent = () => {
-    if (isLoading) {
-      return <FullPageLoader />;
-    }
-     if (!authUser) {
-      router.push('/login');
-      return <FullPageLoader />;
-    }
-
-    if (isAdmin) {
-         return (
-            <div className="flex flex-col items-center gap-2 text-center">
-                <UserCheck className="h-10 w-10 text-green-500" />
-                <h3 className="font-semibold">You are an Administrator</h3>
-                <p className="text-sm text-muted-foreground">You already have full administrative privileges.</p>
-                <Button onClick={() => router.push('/users')} className="mt-4">Manage Users</Button>
-            </div>
-        );
-    }
-    
-    if (adminRoleClaimed) {
-      return (
-        <div className="flex flex-col items-center gap-2 text-center">
-            <ShieldCheck className="h-10 w-10 text-primary" />
-            <h3 className="font-semibold">Administrator Role Claimed</h3>
-            <p className="text-sm text-muted-foreground">The primary administrator role for this application has already been assigned.</p>
-            <Button onClick={() => router.push('/')} className="mt-4">Go to Dashboard</Button>
-        </div>
-      );
-    }
-    
-    if (adminRoleClaimed === false) {
-       return (
-        <div className="flex flex-col items-center gap-4 text-center">
-            <ShieldAlert className="h-10 w-10 text-primary" />
-            <h3 className="font-semibold">Claim Administrator Role</h3>
-            <p className="text-sm text-muted-foreground">You are the first user. Click the button below to become the primary administrator for this application. This action can only be performed once.</p>
-            <Button onClick={handleClaimAdmin} disabled={isProcessing} className="mt-2">
-                {isProcessing ? 'Claiming...' : 'Claim Admin Role & Log Out'}
-            </Button>
-        </div>
-       );
-    }
-
-    return (
-        <div className="flex flex-col items-center gap-2 text-center text-destructive">
-            <ServerCrash className="h-10 w-10" />
-            <h3 className="font-semibold">Verification Failed</h3>
-            <p className="text-sm">Could not verify admin status. Please check your Firestore security rules for the `_init` collection.</p>
-        </div>
-    );
-  };
-  
-  return (
-    <>
-      <PageHeader title="Setup Administrator" />
-      <div className="flex justify-center items-start py-8">
-        <Card className="w-full max-w-md">
-            <CardHeader>
-                <CardTitle>First Time Setup</CardTitle>
-                <CardDescription>Finalize the application setup by claiming the admin role.</CardDescription>
-            </CardHeader>
-            <CardContent className="py-8">
-                {renderContent()}
-            </CardContent>
-        </Card>
-      </div>
-    </>
-  );
 }
 </file>
 
@@ -4611,432 +4094,6 @@ export const columns = (options: {
     cell: ({ row }) => <ActionsCell purchaseOrder={row.original} vendors={options.vendors} onDelete={options.onDelete} onReceiveStock={options.onReceiveStock} onMarkAsFullyReceived={options.onMarkAsFullyReceived} onUpdateShippingStatus={options.onUpdateShippingStatus} onShare={options.onShare} />,
   },
 ]
-</file>
-
-<file path="src/app/purchases/page.tsx">
-'use client';
-import { PageHeader } from '@/components/layout/page-header';
-import { Button } from '@/components/ui/button';
-import { CheckCircle2, CircleDollarSign, Clock, PlusCircle, Truck, Download, Mail, Printer, Share } from 'lucide-react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { DataTable } from '@/components/data-table';
-import { columns } from './columns';
-import { useState, useMemo } from 'react';
-import { PurchaseOrder, InventoryItem, Product, Vendor, Company, User, PriceHistoryEntry } from '@/lib/types';
-import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
-import { GenericChart } from '@/components/dashboard/generic-chart';
-import type { ChartConfig } from '@/components/ui/chart';
-import { format } from 'date-fns';
-import { toast } from '@/hooks/use-toast';
-import { PurchaseOrderDialog } from './purchase-order-dialog';
-import { UpdatePoStatusDialog, ReceivedStockInfo } from './update-po-status-dialog';
-import { exportToExcel, downloadBulkPurchaseOrders, generatePurchaseOrderEmailBody, generateShareText } from '@/lib/actions';
-import { useIsMounted } from '@/hooks/use-is-mounted';
-import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { useCurrentUser } from '@/hooks/use-current-user';
-import { collection, doc, query, where, writeBatch, getDocs, orderBy, limit, deleteDoc, updateDoc, setDoc, runTransaction } from 'firebase/firestore';
-import { useShareDialog } from '@/hooks/use-share-dialog';
-import { ShareDialog } from '@/components/share-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-// TODO: Implement a store selection mechanism
-const STORE_ID = 'store_main';
-
-export default function PurchasesPage() {
-    const firestore = useFirestore();
-    const { isShareDialogOpen, shareDialogData, openShareDialog, closeShareDialog } = useShareDialog();
-    const { currentUser } = useCurrentUser();
-    const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
-    
-    const poCollectionRef = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'), orderBy('orderDate', sortOrder), limit(50));
-    }, [firestore, sortOrder]);
-    const { data: purchaseOrdersData, isLoading: arePOsLoading } = useCollection<PurchaseOrder>(poCollectionRef);
-
-    const productsCollectionRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
-    const { data: products } = useCollection<Product>(productsCollectionRef);
-
-    const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
-    const { data: vendorsData, isLoading: areVendorsLoading } = useCollection<Vendor>(vendorsRef);
-    
-    const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
-    const { data: companyDetails } = useDoc<Company>(companyDocRef);
-    
-    const usersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
-    const { data: usersData } = useCollection<User>(usersRef);
-
-
-    const [isPODialogOpen, setIsPODialogOpen] = useState(false);
-    const [isUpdateStatusDialogOpen, setIsUpdateStatusDialogOpen] = useState(false);
-    const [editingPO, setEditingPO] = useState<PurchaseOrder | undefined>();
-    const isMounted = useIsMounted();
-
-    const safeVendors = vendorsData || [];
-    const safeUsers = usersData || [];
-
-    const purchaseOrders = useMemo(() => {
-        if (!purchaseOrdersData || !usersData) return [];
-        return purchaseOrdersData.map(po => ({
-            ...po,
-            createdByName: usersData.find(u => u.id === po.createdBy)?.displayName || 'Unknown User'
-        }));
-    }, [purchaseOrdersData, usersData]);
-
-    const handleDelete = async (poId: string) => {
-        if (!firestore) return;
-        try {
-            await deleteDoc(doc(firestore, 'stores', STORE_ID, 'purchaseOrders', poId));
-            toast({
-                title: "Purchase Order Deleted",
-                description: "The purchase order has been successfully deleted.",
-            });
-        } catch (error) {
-            console.error("Error deleting PO:", error);
-            toast({ title: "Error", description: "Could not delete purchase order.", variant: "destructive" });
-        }
-    }
-
-    const handleAddPurchaseOrder = () => {
-        setEditingPO(undefined);
-        setIsPODialogOpen(true);
-    }
-
-    const handleOpenReceiveStock = (po: PurchaseOrder) => {
-        setEditingPO(po);
-        setIsUpdateStatusDialogOpen(true);
-    }
-    
-    const handleSuccess = async (po: Omit<PurchaseOrder, 'id' | 'purchaseOrderNumber'>) => {
-        if (!firestore || !currentUser || !products) {
-            toast({ title: "Error", description: "Core data is not loaded yet.", variant: "destructive" });
-            return;
-        }
-
-        try {
-            await runTransaction(firestore, async (transaction) => {
-                const companyDocRef = doc(firestore, 'settings', 'global', 'companies', 'main_company');
-                const companyDoc = await transaction.get(companyDocRef);
-                if (!companyDoc.exists()) throw new Error("Company details not found.");
-                
-                const companyData = companyDoc.data();
-                const isGst = po.purchaseType === 'GST';
-                const numberField = isGst ? 'lastGstPoNumber' : 'lastCashPoNumber';
-                const prefix = isGst ? 'POGST' : 'POCSH';
-                const lastNumber = companyData[numberField] || 0;
-                const newNumber = lastNumber + 1;
-                const purchaseOrderNumber = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
-
-                const poDocRef = doc(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'));
-                const finalPO: PurchaseOrder = {
-                    ...po,
-                    id: poDocRef.id,
-                    purchaseOrderNumber,
-                    createdBy: currentUser.id,
-                    createdByName: currentUser.displayName || 'Unknown User'
-                } as PurchaseOrder;
-
-                // Price update logic
-                for (const item of finalPO.items) {
-                    const product = products.find(p => p.id === item.productId);
-                    if (product && product.purchasePrice !== item.unitCost) {
-                        const productRef = doc(firestore, 'stores', STORE_ID, 'products', product.id);
-                        const newPriceHistoryEntry: PriceHistoryEntry = {
-                            purchasePrice: item.unitCost,
-                            sellingPrice: product.sellingPrice,
-                            date: new Date().toISOString(),
-                        };
-                        const updatedPriceHistory = [...(product.priceHistory || []), newPriceHistoryEntry];
-                        transaction.update(productRef, {
-                            purchasePrice: item.unitCost,
-                            priceHistory: updatedPriceHistory
-                        });
-                    }
-                }
-
-                transaction.set(poDocRef, finalPO);
-                transaction.update(companyDocRef, { [numberField]: newNumber });
-            });
-
-            setIsPODialogOpen(false);
-            toast({
-                title: "Success!",
-                description: `Purchase Order created successfully.`
-            });
-        } catch(error) {
-            console.error("Error creating PO and updating prices:", error);
-            toast({ title: "Error", description: (error as Error).message || "Could not create purchase order or update prices.", variant: "destructive" });
-        }
-    }
-
-    const handleStatusUpdateSuccess = async (receivedInfo: ReceivedStockInfo, purchaseOrder: PurchaseOrder) => {
-        if (!firestore) return;
-        const batch = writeBatch(firestore);
-
-        const inventoryCollectionRef = collection(firestore, 'stores', purchaseOrder.deliveryStoreId, 'inventoryItems');
-        
-        for (const itemToReceive of receivedInfo.items) {
-            if (itemToReceive.quantityToReceive > 0) {
-                const q = query(inventoryCollectionRef, where("productId", "==", itemToReceive.productId));
-                const querySnapshot = await getDocs(q);
-
-                const newBatch = {
-                    date: receivedInfo.receiptDate.toISOString(),
-                    quantity: itemToReceive.quantityToReceive,
-                    purchasePrice: purchaseOrder.items.find(i => i.productId === itemToReceive.productId)!.unitCost,
-                    vendorId: purchaseOrder.vendorId,
-                    invoiceNumber: receivedInfo.invoiceNumber,
-                };
-                
-                if (!querySnapshot.empty) {
-                    const inventoryDoc = querySnapshot.docs[0];
-                    const existingBatches = inventoryDoc.data().stockBatches || [];
-                    batch.update(inventoryDoc.ref, {
-                        stockBatches: [...existingBatches, newBatch],
-                        lastStockUpdate: new Date().toISOString()
-                    });
-                } else {
-                     const newInvDocRef = doc(inventoryCollectionRef);
-                     batch.set(newInvDocRef, {
-                        id: newInvDocRef.id,
-                        productId: itemToReceive.productId,
-                        storeId: purchaseOrder.deliveryStoreId,
-                        stockBatches: [newBatch],
-                        locationComment: 'N/A',
-                        lastStockUpdate: new Date().toISOString()
-                     });
-                }
-            }
-        }
-
-        // 2. Update Purchase Order
-        const poDocRef = doc(firestore, 'stores', STORE_ID, 'purchaseOrders', purchaseOrder.id);
-        const poToUpdate = { ...purchaseOrder };
-        let totalOrdered = 0;
-        let totalReceived = 0;
-
-        poToUpdate.items.forEach((item: any) => {
-            const receivedItem = receivedInfo.items.find(ri => ri.productId === item.productId);
-            if(receivedItem) {
-                item.quantityReceived = (item.quantityReceived || 0) + receivedItem.quantityToReceive;
-            }
-            totalOrdered += item.quantity;
-            totalReceived += item.quantityReceived;
-        });
-
-        if (totalReceived >= totalOrdered) {
-            poToUpdate.status = 'Received';
-        } else if (totalReceived > 0) {
-            poToUpdate.status = 'Partially Received';
-        }
-
-        batch.update(poDocRef, { items: poToUpdate.items, status: poToUpdate.status });
-        
-        await batch.commit();
-
-        // 3. Close dialog and show toast
-        setIsUpdateStatusDialogOpen(false);
-        setEditingPO(undefined);
-        toast({
-            title: "Stock Received!",
-            description: `Inventory updated for PO #${purchaseOrder.purchaseOrderNumber}.`
-        });
-    }
-
-
-    const handleMarkAsFullyReceived = (poToUpdate: PurchaseOrder) => {
-        const receivedInfo: ReceivedStockInfo = {
-            poId: poToUpdate.id,
-            receiptDate: new Date(),
-            items: poToUpdate.items.map(item => ({
-                productId: item.productId,
-                quantityToReceive: item.quantity - (item.quantityReceived || 0)
-            })).filter(item => item.quantityToReceive > 0)
-        };
-
-        if (receivedInfo.items.length === 0) {
-            toast({
-                title: "Already Received",
-                description: `PO #${poToUpdate.purchaseOrderNumber} has already been fully received.`,
-                variant: "default"
-            });
-            return;
-        }
-
-        handleStatusUpdateSuccess(receivedInfo, poToUpdate);
-    };
-
-    const handleUpdateShippingStatus = async (poId: string, status: 'Pending' | 'Shipped' | 'Cancelled') => {
-        if (!firestore) return;
-        try {
-            const poDocRef = doc(firestore, 'stores', STORE_ID, 'purchaseOrders', poId);
-            await updateDoc(poDocRef, { status });
-            toast({
-                title: "Status Updated",
-                description: `Purchase order status changed to ${status}.`,
-            });
-        } catch (error) {
-            console.error("Error updating PO status:", error);
-            toast({ title: "Error", description: "Could not update status.", variant: "destructive" });
-        }
-    };
-
-    const handleBulkAction = (action: 'email' | 'print' | 'download' | 'share', selectedPOs: PurchaseOrder[]) => {
-        if (!companyDetails) {
-            toast({ title: "Error", description: "Company details not loaded.", variant: "destructive" });
-            return;
-        }
-        if (action === 'share') {
-             const message = selectedPOs.map(po => {
-                return generateShareText('Purchase Order', po.purchaseOrderNumber, po.vendorName, companyDetails?.name || 'our store', `${window.location.origin}/purchase-order/${po.id}`);
-            }).join('\n\n');
-            openShareDialog({title: 'Your Purchase Orders', text: message});
-        } else if (action === 'email') {
-            selectedPOs.forEach(po => {
-                const subject = `Purchase Order #${po.purchaseOrderNumber} from ${companyDetails.name}`;
-                const body = generatePurchaseOrderEmailBody(po, companyDetails);
-                window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
-            });
-        } else if (action === 'print') {
-            selectedPOs.forEach(po => {
-                 window.open(`/purchase-order/${po.id}`, '_blank');
-            });
-        } else if (action === 'download') {
-            downloadBulkPurchaseOrders(selectedPOs, safeVendors, companyDetails);
-        }
-    };
-
-    const handleExport = () => {
-        if (!products) return;
-        const dataToExport = purchaseOrders.flatMap(po => 
-            po.items.map(item => ({
-                'PO Number': po.purchaseOrderNumber,
-                'Vendor': po.vendorName,
-                'Order Date': format(new Date(po.orderDate), 'yyyy-MM-dd'),
-                'Status': po.status,
-                'Product Name': item.productName,
-                'SKU': products.find(p => p.id === item.productId)?.sku || '',
-                'Quantity': item.quantity,
-                'Unit Cost': item.unitCost,
-                'Total Cost': item.totalCost,
-                'Comments': po.comments || '',
-            }))
-        );
-        exportToExcel(dataToExport, 'purchase_orders_export');
-    };
-
-    const summaryData: SummaryCardData[] = useMemo(() => {
-        const totalAmount = purchaseOrders.reduce((acc, po) => acc + po.totalAmount, 0);
-        const receivedCount = purchaseOrders.filter(po => po.status === 'Received').length;
-        const pendingCount = purchaseOrders.filter(po => po.status === 'Pending' || po.status === 'Shipped' || po.status === 'Partially Received').length;
-        
-        return [
-            { title: "Total POs", value: purchaseOrders.length.toString(), icon: Truck },
-            { title: "Total Purchase Value", value: isMounted ? `₹${totalAmount.toLocaleString('en-IN')}` : '₹...', icon: CircleDollarSign },
-            { title: "POs Received", value: receivedCount.toString(), icon: CheckCircle2 },
-            { title: "Pending Delivery", value: pendingCount.toString(), icon: Clock },
-        ];
-    }, [purchaseOrders, isMounted]);
-
-    const chartData = useMemo(() => {
-        const sortedPOs = [...purchaseOrders].sort((a,b) => new Date(a.orderDate).getTime() - new Date(b.orderDate).getTime());
-        return sortedPOs.map(po => ({
-            name: format(new Date(po.orderDate), 'MMM dd'),
-            amount: po.totalAmount,
-        }));
-    }, [purchaseOrders]);
-
-    const chartConfig: ChartConfig = useMemo(() => ({
-        amount: { label: 'Amount', color: 'hsl(var(--chart-1))' },
-    }), []);
-
-  return (
-    <>
-      <PageHeader title="Purchases">
-         <Button variant="outline" onClick={handleExport} size="sm" disabled={purchaseOrders.length === 0}>
-          <Download className="mr-2 h-4 w-4" />
-          Export All
-        </Button>
-        <Button onClick={handleAddPurchaseOrder}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          New Purchase Order
-        </Button>
-      </PageHeader>
-      <div className="flex flex-col gap-8">
-        <ShareDialog open={isShareDialogOpen} onOpenChange={closeShareDialog} shareData={shareDialogData} />
-        <PageSummary cards={summaryData} />
-        <PurchaseOrderDialog 
-            open={isPODialogOpen}
-            onOpenChange={setIsPODialogOpen}
-            onSuccess={handleSuccess}
-        />
-        {editingPO && (
-            <UpdatePoStatusDialog
-                open={isUpdateStatusDialogOpen}
-                onOpenChange={setIsUpdateStatusDialogOpen}
-                purchaseOrder={editingPO}
-                onSuccess={(info) => handleStatusUpdateSuccess(info, editingPO)}
-            />
-        )}
-         <Card>
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <CardTitle>Purchase Orders</CardTitle>
-                    <CardDescription>
-                    Create and manage your purchase orders.
-                    </CardDescription>
-                </div>
-                 <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'desc' | 'asc')}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue placeholder="Sort by date" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="desc">Newest to Oldest</SelectItem>
-                        <SelectItem value="asc">Oldest to Newest</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <DataTable 
-                columns={columns({ 
-                    vendors: safeVendors,
-                    users: safeUsers,
-                    onDelete: handleDelete, 
-                    onReceiveStock: handleOpenReceiveStock, 
-                    onMarkAsFullyReceived: handleMarkAsFullyReceived, 
-                    onUpdateShippingStatus: handleUpdateShippingStatus,
-                    onShare: (po) => {
-                        const text = generateShareText('Purchase Order', po.purchaseOrderNumber, po.vendorName, companyDetails?.name || 'our store', `${window.location.origin}/purchase-order/${po.id}`);
-                        openShareDialog({title: `Purchase Order #${po.purchaseOrderNumber}`, text});
-                    }
-                })} 
-                data={purchaseOrders}
-                onBulkAction={handleBulkAction}
-                onDeleteSelected={(pos) => pos.forEach(po => handleDelete(po.id))} 
-            />
-          </CardContent>
-        </Card>
-        <GenericChart
-            title="Purchase Orders Over Time"
-            description="Total value of purchase orders placed over time."
-            data={chartData}
-            dataKeyX="name"
-            dataKeysY={['amount']}
-            chartConfig={chartConfig}
-            yAxisFormatter={(value) => `₹${(value / 1000).toLocaleString()}k`}
-        />
-      </div>
-    </>
-  );
-}
 </file>
 
 <file path="src/app/purchases/update-po-status-dialog.tsx">
@@ -18006,6 +17063,165 @@ export function ExpenseDialog({ open, onOpenChange, expense, onSuccess }: Expens
 }
 </file>
 
+<file path="src/app/inventory/columns.tsx">
+"use client"
+
+import { ColumnDef } from "@tanstack/react-table"
+import { Product, InventoryItem } from "@/lib/types"
+import { MoreHorizontal, Edit, History } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import Image from "next/image"
+import { FormattedNumberCell } from "@/components/formatted-number-cell"
+import { cn } from "@/lib/utils"
+
+export type InventoryDetail = InventoryItem & Partial<Product> & {
+    productName: string;
+    brandName?: string;
+    categoryName?: string;
+    subCategoryName?: string;
+    sku?: string;
+    sellingPrice: number;
+    purchasePrice: number;
+    miscellaneousCost?: number;
+    imageUrl?: string;
+}
+
+interface ActionsCellProps {
+    item: InventoryDetail;
+    onViewHistory: (item: InventoryDetail) => void;
+    onEditProduct: (item: InventoryDetail) => void;
+}
+
+const ActionsCell = ({ item, onViewHistory, onEditProduct }: ActionsCellProps) => {
+    return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <span className="sr-only">Open menu</span>
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => onEditProduct(item)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit Product Details
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onViewHistory(item)}>
+                <History className="mr-2 h-4 w-4" />
+                View History
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}
+
+export const columns = (options: { 
+    onAdjustStock: (item: InventoryDetail) => void; 
+    onViewHistory: (item: InventoryDetail) => void;
+    onEditProduct: (item: InventoryDetail) => void;
+}): ColumnDef<InventoryDetail>[] => [
+  {
+    id: "srNo",
+    header: "Sr. No.",
+    cell: ({ row }) => row.index + 1,
+  },
+  {
+    accessorKey: "productName",
+    header: "Product",
+    cell: ({ row }) => {
+      const item = row.original
+      return (
+        <div className="flex items-center gap-4">
+           <Image 
+                src={item.imageUrl || `https://placehold.co/40x40.png`} 
+                alt={item.productName} 
+                width={40} 
+                height={40} 
+                className="rounded-md object-cover"
+                data-ai-hint="product inventory"
+            />
+          <div className="flex flex-col">
+            <Button variant="link" className="p-0 h-auto justify-start font-medium" onClick={() => options.onEditProduct(item)}>
+                {item.productName}
+            </Button>
+            <span className="text-sm text-muted-foreground">{item.sku}</span>
+          </div>
+        </div>
+      )
+    }
+  },
+  {
+    accessorKey: "brandName",
+    header: "Brand",
+  },
+  {
+    accessorKey: "quantity",
+    header: "Quantity",
+    cell: ({ row }) => {
+        const quantity = row.original.quantity;
+        const color = quantity < 10 ? 'text-destructive' : 'text-foreground';
+        return <div className={color}>{quantity} units</div>
+    }
+  },
+  {
+    accessorKey: "purchasePrice",
+    header: "Purchase Price",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.purchasePrice} />,
+  },
+  {
+    accessorKey: "sellingPrice",
+    header: "Selling Price",
+    cell: ({ row }) => <FormattedNumberCell value={row.original.sellingPrice} />,
+  },
+  {
+    id: "potentialProfit",
+    header: "Profit / Qty",
+    cell: ({ row }) => {
+        // Performance Fix: Harden math to handle missing values gracefully
+        const item = row.original;
+        const purchase = Number(item.purchasePrice) || 0;
+        const misc = Number(item.miscellaneousCost) || 0;
+        const totalCost = purchase + misc;
+        const gstRate = Number(item.gstRate) || 0;
+        const sellingPrice = Number(item.sellingPrice) || 0;
+        
+        // Prevent division by zero and handle 0 rate
+        const preGstSellingPrice = gstRate > 0 ? (sellingPrice / (1 + gstRate / 100)) : sellingPrice;
+        
+        let profit = preGstSellingPrice - totalCost;
+        const color = profit >= 0 ? 'text-green-600' : 'text-destructive';
+        
+        return <FormattedNumberCell value={profit} className={color} options={{ maximumFractionDigits: 0 }} />
+    }
+  },
+  {
+    accessorKey: "locationComment",
+    header: "Location in Store",
+  },
+   {
+    id: "adjustStock",
+    header: "Adjust Stock",
+    cell: ({ row }) => (
+      <Button variant="outline" size="sm" onClick={() => options.onAdjustStock(row.original)}>
+        Adjust
+      </Button>
+    )
+  },
+  {
+    id: "actions",
+    cell: ({ row }) => <ActionsCell item={row.original} onViewHistory={options.onViewHistory} onEditProduct={options.onEditProduct} />,
+  },
+]
+</file>
+
 <file path="src/app/inventory/page.tsx">
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
@@ -18616,6 +17832,193 @@ const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         )}
       </div>
     </div>
+  );
+}
+</file>
+
+<file path="src/app/make-admin/page.tsx">
+'use client';
+
+import { PageHeader } from '@/components/layout/page-header';
+import { Button } from '@/components/ui/button';
+import { useFirestore, useAuth, useUser } from '@/firebase';
+import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { ShieldCheck, ServerCrash, ShieldAlert, UserCheck } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from '@/hooks/use-toast';
+import { signOut, getIdTokenResult } from "firebase/auth";
+import { FullPageLoader } from '@/components/full-page-loader';
+import { setAdminClaim } from '@/app/actions/admin';
+
+export default function MakeAdminPage() {
+  const { user: authUser, isUserLoading: isAuthLoading } = useUser();
+  const firestore = useFirestore();
+  const auth = useAuth();
+  const router = useRouter();
+  
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [adminRoleClaimed, setAdminRoleClaimed] = useState<boolean | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const checkAdminStatus = useCallback(async () => {
+    if (!authUser || !auth || !firestore) {
+        if (!isAuthLoading) setIsLoading(false);
+        return;
+    }
+
+    setIsLoading(true);
+
+    try {
+        // 1. Check for custom admin claim on the token
+        const idTokenResult = await getIdTokenResult(authUser);
+        const userIsAdmin = idTokenResult.claims.admin === true;
+        setIsAdmin(userIsAdmin);
+
+        // 2. Check if the admin role has ever been claimed in the system
+        const adminInitDocRef = doc(firestore, '_init', 'admin');
+        const docSnap = await getDoc(adminInitDocRef);
+        setAdminRoleClaimed(docSnap.exists() && docSnap.data().claimed === true);
+    } catch (error) {
+        console.error("Error verifying admin status:", error);
+        toast({
+            title: "Error",
+            description: "Could not verify admin status. Please try again.",
+            variant: "destructive"
+        });
+        // Fail safe to prevent claim attempts on error
+        setIsAdmin(false);
+        setAdminRoleClaimed(true);
+    } finally {
+        setIsLoading(false);
+    }
+  }, [authUser, auth, firestore, isAuthLoading]);
+
+  useEffect(() => {
+    if (!isAuthLoading) {
+      checkAdminStatus();
+    }
+  }, [isAuthLoading, checkAdminStatus]);
+
+  const handleClaimAdmin = async () => {
+    // Logic Gap Fix: Ensure user is logged in
+    if (!authUser || !firestore || !auth) {
+        toast({ title: "Auth Error", description: "You must be logged in to claim this role.", variant: "destructive" });
+        return;
+    }
+
+    setIsProcessing(true);
+    const adminInitDocRef = doc(firestore, '_init', 'admin');
+    const userDocRef = doc(firestore, 'users', authUser.uid);
+    
+    try {
+      await runTransaction(firestore, async (transaction) => {
+        const adminInitDoc = await transaction.get(adminInitDocRef);
+        if (adminInitDoc.exists() && adminInitDoc.data().claimed) {
+          throw new Error("The admin role has already been claimed by another user.");
+        }
+        transaction.set(adminInitDocRef, { claimed: true, claimedBy: authUser.uid, claimedAt: serverTimestamp() });
+        transaction.update(userDocRef, { role: 'admin', isApproved: true });
+      });
+      
+      // Logic Gap Fix: Await the server action correctly
+      const claimResult = await setAdminClaim(authUser.uid);
+      if (!claimResult || !claimResult.success) {
+          throw new Error(claimResult?.error || "Failed to set custom admin claim.");
+      }
+
+      toast({
+        title: "Success! You are now an administrator.",
+        description: "Logging out to refresh your security session. Please log back in.",
+      });
+
+      // Logic Gap Fix: Force logout to refresh the user's JWT token
+      await signOut(auth);
+      router.push('/login');
+
+    } catch (error: any) {
+      console.error("Failed to claim admin role:", error);
+      toast({
+        title: "Claim Failed",
+        description: error.message || "An error occurred. The admin role may have already been claimed.",
+        variant: "destructive",
+      });
+      setAdminRoleClaimed(true); // Update state to reflect claim attempt
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const renderContent = () => {
+    if (isLoading) {
+      return <FullPageLoader />;
+    }
+     if (!authUser) {
+      router.push('/login');
+      return <FullPageLoader />;
+    }
+
+    if (isAdmin) {
+         return (
+            <div className="flex flex-col items-center gap-2 text-center">
+                <UserCheck className="h-10 w-10 text-green-500" />
+                <h3 className="font-semibold">You are an Administrator</h3>
+                <p className="text-sm text-muted-foreground">You already have full administrative privileges.</p>
+                <Button onClick={() => router.push('/settings')} className="mt-4">Go to Settings</Button>
+            </div>
+        );
+    }
+    
+    if (adminRoleClaimed) {
+      return (
+        <div className="flex flex-col items-center gap-2 text-center">
+            <ShieldCheck className="h-10 w-10 text-primary" />
+            <h3 className="font-semibold">Administrator Role Claimed</h3>
+            <p className="text-sm text-muted-foreground">The primary administrator role for this application has already been assigned.</p>
+            <Button onClick={() => router.push('/')} className="mt-4">Go to Dashboard</Button>
+        </div>
+      );
+    }
+    
+    if (adminRoleClaimed === false) {
+       return (
+        <div className="flex flex-col items-center gap-4 text-center">
+            <ShieldAlert className="h-10 w-10 text-primary" />
+            <h3 className="font-semibold">Claim Administrator Role</h3>
+            <p className="text-sm text-muted-foreground">You are the first user. Click the button below to become the primary administrator for this application. This action can only be performed once.</p>
+            <Button onClick={handleClaimAdmin} disabled={isProcessing} className="mt-2">
+                {isProcessing ? 'Claiming...' : 'Claim Admin Role & Log Out'}
+            </Button>
+        </div>
+       );
+    }
+
+    return (
+        <div className="flex flex-col items-center gap-2 text-center text-destructive">
+            <ServerCrash className="h-10 w-10" />
+            <h3 className="font-semibold">Verification Failed</h3>
+            <p className="text-sm">Could not verify admin status. Please check your Firestore security rules for the `_init` collection.</p>
+        </div>
+    );
+  };
+  
+  return (
+    <>
+      <PageHeader title="Setup Administrator" />
+      <div className="flex justify-center items-start py-8">
+        <Card className="w-full max-w-md">
+            <CardHeader>
+                <CardTitle>First Time Setup</CardTitle>
+                <CardDescription>Finalize the application setup by claiming the admin role.</CardDescription>
+            </CardHeader>
+            <CardContent className="py-8">
+                {renderContent()}
+            </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }
 </file>
@@ -19556,6 +18959,434 @@ export default function ProductsPage() {
         />
       </div>
     </div>
+  );
+}
+</file>
+
+<file path="src/app/purchases/page.tsx">
+'use client';
+import { PageHeader } from '@/components/layout/page-header';
+import { Button } from '@/components/ui/button';
+import { CheckCircle2, CircleDollarSign, Clock, PlusCircle, Truck, Download, Mail, Printer, Share } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { DataTable } from '@/components/data-table';
+import { columns } from './columns';
+import { useState, useMemo } from 'react';
+import { PurchaseOrder, InventoryItem, Product, Vendor, Company, User, PriceHistoryEntry } from '@/lib/types';
+import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
+import { GenericChart } from '@/components/dashboard/generic-chart';
+import type { ChartConfig } from '@/components/ui/chart';
+import { format } from 'date-fns';
+import { toast } from '@/hooks/use-toast';
+import { PurchaseOrderDialog } from './purchase-order-dialog';
+import { UpdatePoStatusDialog, ReceivedStockInfo } from './update-po-status-dialog';
+import { exportToExcel, downloadBulkPurchaseOrders, generatePurchaseOrderEmailBody, generateShareText } from '@/lib/actions';
+import { useIsMounted } from '@/hooks/use-is-mounted';
+import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { collection, doc, query, where, writeBatch, getDocs, orderBy, limit, deleteDoc, updateDoc, setDoc, runTransaction } from 'firebase/firestore';
+import { useShareDialog } from '@/hooks/use-share-dialog';
+import { ShareDialog } from '@/components/share-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+// TODO: Implement a store selection mechanism
+const STORE_ID = 'store_main';
+
+export default function PurchasesPage() {
+    const firestore = useFirestore();
+    const { isShareDialogOpen, shareDialogData, openShareDialog, closeShareDialog } = useShareDialog();
+    const { currentUser } = useCurrentUser();
+    const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+    
+    const poCollectionRef = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'), orderBy('orderDate', sortOrder), limit(50));
+    }, [firestore, sortOrder]);
+    const { data: purchaseOrdersData, isLoading: arePOsLoading } = useCollection<PurchaseOrder>(poCollectionRef);
+
+    const productsCollectionRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
+    const { data: products } = useCollection<Product>(productsCollectionRef);
+
+    const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
+    const { data: vendorsData, isLoading: areVendorsLoading } = useCollection<Vendor>(vendorsRef);
+    
+    const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
+    const { data: companyDetails } = useDoc<Company>(companyDocRef);
+    
+    const usersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+    const { data: usersData } = useCollection<User>(usersRef);
+
+
+    const [isPODialogOpen, setIsPODialogOpen] = useState(false);
+    const [isUpdateStatusDialogOpen, setIsUpdateStatusDialogOpen] = useState(false);
+    const [editingPO, setEditingPO] = useState<PurchaseOrder | undefined>();
+    const isMounted = useIsMounted();
+
+    const safeVendors = vendorsData || [];
+    const safeUsers = usersData || [];
+
+    const purchaseOrders = useMemo(() => {
+        if (!purchaseOrdersData || !usersData) return [];
+        return purchaseOrdersData.map(po => ({
+            ...po,
+            createdByName: usersData.find(u => u.id === po.createdBy)?.displayName || 'Unknown User'
+        }));
+    }, [purchaseOrdersData, usersData]);
+
+    const handleDelete = async (poId: string) => {
+        if (!firestore) return;
+        try {
+            await deleteDoc(doc(firestore, 'stores', STORE_ID, 'purchaseOrders', poId));
+            toast({
+                title: "Purchase Order Deleted",
+                description: "The purchase order has been successfully deleted.",
+            });
+        } catch (error) {
+            console.error("Error deleting PO:", error);
+            toast({ title: "Error", description: "Could not delete purchase order.", variant: "destructive" });
+        }
+    }
+
+    const handleAddPurchaseOrder = () => {
+        setEditingPO(undefined);
+        setIsPODialogOpen(true);
+    }
+
+    const handleOpenReceiveStock = (po: PurchaseOrder) => {
+        setEditingPO(po);
+        setIsUpdateStatusDialogOpen(true);
+    }
+    
+    const handleSuccess = async (po: Omit<PurchaseOrder, 'id' | 'purchaseOrderNumber'>) => {
+        if (!firestore || !currentUser || !products) {
+            toast({ title: "Error", description: "Core data is not loaded yet.", variant: "destructive" });
+            return;
+        }
+
+        try {
+            await runTransaction(firestore, async (transaction) => {
+                const companyDocRef = doc(firestore, 'settings', 'global', 'companies', 'main_company');
+                const companyDoc = await transaction.get(companyDocRef);
+                if (!companyDoc.exists()) throw new Error("Company details not found.");
+                
+                const companyData = companyDoc.data();
+                const isGst = po.purchaseType === 'GST';
+                const numberField = isGst ? 'lastGstPoNumber' : 'lastCashPoNumber';
+                const prefix = isGst ? 'POGST' : 'POCSH';
+                
+                // Data Integrity Fix: Ensure numbering fields default to 0
+                const lastNumber = (companyData && companyData[numberField]) ? Number(companyData[numberField]) : 0;
+                const newNumber = lastNumber + 1;
+                const purchaseOrderNumber = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
+
+                const poDocRef = doc(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'));
+                const finalPO: PurchaseOrder = {
+                    ...po,
+                    id: poDocRef.id,
+                    purchaseOrderNumber,
+                    createdBy: currentUser.id,
+                    createdByName: currentUser.displayName || 'Unknown User'
+                } as PurchaseOrder;
+
+                // Price update logic
+                for (const item of finalPO.items) {
+                    const product = products.find(p => p.id === item.productId);
+                    if (product && product.purchasePrice !== item.unitCost) {
+                        const productRef = doc(firestore, 'stores', STORE_ID, 'products', product.id);
+                        const newPriceHistoryEntry: PriceHistoryEntry = {
+                            purchasePrice: item.unitCost,
+                            sellingPrice: product.sellingPrice,
+                            date: new Date().toISOString(),
+                        };
+                        const updatedPriceHistory = [...(product.priceHistory || []), newPriceHistoryEntry];
+                        transaction.update(productRef, {
+                            purchasePrice: item.unitCost,
+                            priceHistory: updatedPriceHistory
+                        });
+                    }
+                }
+
+                transaction.set(poDocRef, finalPO);
+                transaction.update(companyDocRef, { [numberField]: newNumber });
+            });
+
+            setIsPODialogOpen(false);
+            toast({
+                title: "Success!",
+                description: `Purchase Order created successfully.`
+            });
+        } catch(error) {
+            console.error("Error creating PO and updating prices:", error);
+            toast({ title: "Error", description: (error as Error).message || "Could not create purchase order or update prices.", variant: "destructive" });
+        }
+    }
+
+    const handleStatusUpdateSuccess = async (receivedInfo: ReceivedStockInfo, purchaseOrder: PurchaseOrder) => {
+        if (!firestore) return;
+        const batch = writeBatch(firestore);
+
+        const inventoryCollectionRef = collection(firestore, 'stores', purchaseOrder.deliveryStoreId, 'inventoryItems');
+        
+        for (const itemToReceive of receivedInfo.items) {
+            if (itemToReceive.quantityToReceive > 0) {
+                const q = query(inventoryCollectionRef, where("productId", "==", itemToReceive.productId));
+                const querySnapshot = await getDocs(q);
+
+                const newBatch = {
+                    date: receivedInfo.receiptDate.toISOString(),
+                    quantity: itemToReceive.quantityToReceive,
+                    purchasePrice: purchaseOrder.items.find(i => i.productId === itemToReceive.productId)!.unitCost,
+                    vendorId: purchaseOrder.vendorId,
+                    invoiceNumber: receivedInfo.invoiceNumber,
+                };
+                
+                if (!querySnapshot.empty) {
+                    const inventoryDoc = querySnapshot.docs[0];
+                    const existingBatches = inventoryDoc.data().stockBatches || [];
+                    batch.update(inventoryDoc.ref, {
+                        stockBatches: [...existingBatches, newBatch],
+                        lastStockUpdate: new Date().toISOString()
+                    });
+                } else {
+                     const newInvDocRef = doc(inventoryCollectionRef);
+                     batch.set(newInvDocRef, {
+                        id: newInvDocRef.id,
+                        productId: itemToReceive.productId,
+                        storeId: purchaseOrder.deliveryStoreId,
+                        stockBatches: [newBatch],
+                        locationComment: 'N/A',
+                        lastStockUpdate: new Date().toISOString()
+                     });
+                }
+            }
+        }
+
+        // 2. Update Purchase Order
+        const poDocRef = doc(firestore, 'stores', STORE_ID, 'purchaseOrders', purchaseOrder.id);
+        const poToUpdate = { ...purchaseOrder };
+        let totalOrdered = 0;
+        let totalReceived = 0;
+
+        poToUpdate.items.forEach((item: any) => {
+            const receivedItem = receivedInfo.items.find(ri => ri.productId === item.productId);
+            if(receivedItem) {
+                item.quantityReceived = (item.quantityReceived || 0) + receivedItem.quantityToReceive;
+            }
+            totalOrdered += item.quantity;
+            totalReceived += item.quantityReceived;
+        });
+
+        if (totalReceived >= totalOrdered) {
+            poToUpdate.status = 'Received';
+        } else if (totalReceived > 0) {
+            poToUpdate.status = 'Partially Received';
+        }
+
+        batch.update(poDocRef, { items: poToUpdate.items, status: poToUpdate.status });
+        
+        await batch.commit();
+
+        // 3. Close dialog and show toast
+        setIsUpdateStatusDialogOpen(false);
+        setEditingPO(undefined);
+        toast({
+            title: "Stock Received!",
+            description: `Inventory updated for PO #${purchaseOrder.purchaseOrderNumber}.`
+        });
+    }
+
+
+    const handleMarkAsFullyReceived = (poToUpdate: PurchaseOrder) => {
+        const receivedInfo: ReceivedStockInfo = {
+            poId: poToUpdate.id,
+            receiptDate: new Date(),
+            items: poToUpdate.items.map(item => ({
+                productId: item.productId,
+                quantityToReceive: item.quantity - (item.quantityReceived || 0)
+            })).filter(item => item.quantityToReceive > 0)
+        };
+
+        if (receivedInfo.items.length === 0) {
+            toast({
+                title: "Already Received",
+                description: `PO #${poToUpdate.purchaseOrderNumber} has already been fully received.`,
+                variant: "default"
+            });
+            return;
+        }
+
+        handleStatusUpdateSuccess(receivedInfo, poToUpdate);
+    };
+
+    const handleUpdateShippingStatus = async (poId: string, status: 'Pending' | 'Shipped' | 'Cancelled') => {
+        if (!firestore) return;
+        try {
+            const poDocRef = doc(firestore, 'stores', STORE_ID, 'purchaseOrders', poId);
+            await updateDoc(poDocRef, { status });
+            toast({
+                title: "Status Updated",
+                description: `Purchase order status changed to ${status}.`,
+            });
+        } catch (error) {
+            console.error("Error updating PO status:", error);
+            toast({ title: "Error", description: "Could not update status.", variant: "destructive" });
+        }
+    };
+
+    const handleBulkAction = (action: 'email' | 'print' | 'download' | 'share', selectedPOs: PurchaseOrder[]) => {
+        if (!companyDetails) {
+            toast({ title: "Error", description: "Company details not loaded.", variant: "destructive" });
+            return;
+        }
+        if (action === 'share') {
+             const message = selectedPOs.map(po => {
+                return generateShareText('Purchase Order', po.purchaseOrderNumber, po.vendorName, companyDetails?.name || 'our store', `${window.location.origin}/purchase-order/${po.id}`);
+            }).join('\n\n');
+            openShareDialog({title: 'Your Purchase Orders', text: message});
+        } else if (action === 'email') {
+            selectedPOs.forEach(po => {
+                const subject = `Purchase Order #${po.purchaseOrderNumber} from ${companyDetails.name}`;
+                const body = generatePurchaseOrderEmailBody(po, companyDetails);
+                window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+            });
+        } else if (action === 'print') {
+            selectedPOs.forEach(po => {
+                 window.open(`/purchase-order/${po.id}`, '_blank');
+            });
+        } else if (action === 'download') {
+            downloadBulkPurchaseOrders(selectedPOs, safeVendors, companyDetails);
+        }
+    };
+
+    const handleExport = () => {
+        if (!products) return;
+        const dataToExport = purchaseOrders.flatMap(po => 
+            po.items.map(item => ({
+                'PO Number': po.purchaseOrderNumber,
+                'Vendor': po.vendorName,
+                'Order Date': format(new Date(po.orderDate), 'yyyy-MM-dd'),
+                'Status': po.status,
+                'Product Name': item.productName,
+                'SKU': products.find(p => p.id === item.productId)?.sku || '',
+                'Quantity': item.quantity,
+                'Unit Cost': item.unitCost,
+                'Total Cost': item.totalCost,
+                'Comments': po.comments || '',
+            }))
+        );
+        exportToExcel(dataToExport, 'purchase_orders_export');
+    };
+
+    const summaryData: SummaryCardData[] = useMemo(() => {
+        const totalAmount = purchaseOrders.reduce((acc, po) => acc + po.totalAmount, 0);
+        const receivedCount = purchaseOrders.filter(po => po.status === 'Received').length;
+        const pendingCount = purchaseOrders.filter(po => po.status === 'Pending' || po.status === 'Shipped' || po.status === 'Partially Received').length;
+        
+        return [
+            { title: "Total POs", value: purchaseOrders.length.toString(), icon: Truck },
+            { title: "Total Purchase Value", value: isMounted ? `₹${totalAmount.toLocaleString('en-IN')}` : '₹...', icon: CircleDollarSign },
+            { title: "POs Received", value: receivedCount.toString(), icon: CheckCircle2 },
+            { title: "Pending Delivery", value: pendingCount.toString(), icon: Clock },
+        ];
+    }, [purchaseOrders, isMounted]);
+
+    const chartData = useMemo(() => {
+        const sortedPOs = [...purchaseOrders].sort((a,b) => new Date(a.orderDate).getTime() - new Date(b.orderDate).getTime());
+        return sortedPOs.map(po => ({
+            name: format(new Date(po.orderDate), 'MMM dd'),
+            amount: po.totalAmount,
+        }));
+    }, [purchaseOrders]);
+
+    const chartConfig: ChartConfig = useMemo(() => ({
+        amount: { label: 'Amount', color: 'hsl(var(--chart-1))' },
+    }), []);
+
+  return (
+    <>
+      <PageHeader title="Purchases">
+         <Button variant="outline" onClick={handleExport} size="sm" disabled={purchaseOrders.length === 0}>
+          <Download className="mr-2 h-4 w-4" />
+          Export All
+        </Button>
+        <Button onClick={handleAddPurchaseOrder}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          New Purchase Order
+        </Button>
+      </PageHeader>
+      <div className="flex flex-col gap-8">
+        <ShareDialog open={isShareDialogOpen} onOpenChange={closeShareDialog} shareData={shareDialogData} />
+        <PageSummary cards={summaryData} />
+        <PurchaseOrderDialog 
+            open={isPODialogOpen}
+            onOpenChange={setIsPODialogOpen}
+            onSuccess={handleSuccess}
+        />
+        {editingPO && (
+            <UpdatePoStatusDialog
+                open={isUpdateStatusDialogOpen}
+                onOpenChange={setIsUpdateStatusDialogOpen}
+                purchaseOrder={editingPO}
+                onSuccess={(info) => handleStatusUpdateSuccess(info, editingPO)}
+            />
+        )}
+         <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <CardTitle>Purchase Orders</CardTitle>
+                    <CardDescription>
+                    Create and manage your purchase orders.
+                    </CardDescription>
+                </div>
+                 <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'desc' | 'asc')}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Sort by date" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="desc">Newest to Oldest</SelectItem>
+                        <SelectItem value="asc">Oldest to Newest</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <DataTable 
+                columns={columns({ 
+                    vendors: safeVendors,
+                    users: safeUsers,
+                    onDelete: handleDelete, 
+                    onReceiveStock: handleOpenReceiveStock, 
+                    onMarkAsFullyReceived: handleMarkAsFullyReceived, 
+                    onUpdateShippingStatus: handleUpdateShippingStatus,
+                    onShare: (po) => {
+                        const text = generateShareText('Purchase Order', po.purchaseOrderNumber, po.vendorName, companyDetails?.name || 'our store', `${window.location.origin}/purchase-order/${po.id}`);
+                        openShareDialog({title: `Purchase Order #${po.purchaseOrderNumber}`, text});
+                    }
+                })} 
+                data={purchaseOrders}
+                onBulkAction={handleBulkAction}
+                onDeleteSelected={(pos) => pos.forEach(po => handleDelete(po.id))} 
+            />
+          </CardContent>
+        </Card>
+        <GenericChart
+            title="Purchase Orders Over Time"
+            description="Total value of purchase orders placed over time."
+            data={chartData}
+            dataKeyX="name"
+            dataKeysY={['amount']}
+            chartConfig={chartConfig}
+            yAxisFormatter={(value) => `₹${(value / 1000).toLocaleString()}k`}
+        />
+      </div>
+    </>
   );
 }
 </file>
@@ -20530,106 +20361,6 @@ export const salesColumns = (options: {onDelete: (saleId: string) => void, onEdi
     cell: ({ row }) => <ActionsCell sale={row.original} products={options.products} customers={options.customers} onDelete={options.onDelete} onEdit={options.onEdit} onShare={options.onShare} />,
   },
 ]
-</file>
-
-<file path="src/app/sales/pending-invoices-dialog.tsx">
-'use client';
-
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { CustomerFinancialsData } from './customer-financials';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { format, isPast } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import Link from 'next/link';
-import { FormattedNumberCell } from '@/components/formatted-number-cell';
-import { useIsMounted } from '@/hooks/use-is-mounted';
-
-interface PendingInvoicesDialogProps {
-  data: CustomerFinancialsData | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-export function PendingInvoicesDialog({ data, open, onOpenChange }: PendingInvoicesDialogProps) {
-  const isMounted = useIsMounted();
-  
-  if (!data) return null;
-
-  const { customer, pendingInvoices, totalPendingAmount } = data;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Pending Invoices for {customer.name}</DialogTitle>
-          <DialogDescription>
-            Total pending amount: {isMounted ? `₹${totalPendingAmount.toLocaleString('en-IN')}` : <Skeleton className="h-4 w-24 inline-block" />}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="max-h-[60vh] overflow-y-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice #</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pendingInvoices.map((invoice) => {
-                if (!isMounted) {
-                  return (
-                    <TableRow key={invoice.id}>
-                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                    </TableRow>
-                  );
-                }
-                const isOverdue = isPast(new Date(invoice.dueDate));
-                const status = isOverdue ? 'Overdue' : 'Pending';
-                return (
-                    <TableRow key={invoice.id} className={cn(status === 'Overdue' && 'bg-destructive/10')}>
-                        <TableCell>
-                            <Link 
-                              href={`/invoice/${invoice.id}`}
-                              className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto")}
-                            >
-                                #{invoice.invoiceSequence}
-                            </Link>
-                        </TableCell>
-                        <TableCell>{format(new Date(invoice.saleDate), 'dd MMM yyyy')}</TableCell>
-                        <TableCell>{format(new Date(invoice.dueDate), 'dd MMM yyyy')}</TableCell>
-                        <TableCell>
-                          {/* Fix: Use 'total' instead of 'totalAmount' to match interface */}
-                          <FormattedNumberCell value={invoice.total} />
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={isOverdue ? 'destructive' : 'secondary'}>{status}</Badge>
-                        </TableCell>
-                    </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 </file>
 
 <file path="src/components/dashboard/recent-sales.tsx">
@@ -22866,49 +22597,6 @@ export const numberToWordsInr = (num: number): string => {
 }
 </file>
 
-<file path="next.config.js">
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  /* config options here */
-  typescript: {
-    // !! WARN !!
-    // Dangerously allow production builds to successfully complete even if
-    // your project has type errors.
-    // !! WARN !!
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
-    ignoreDuringBuilds: true,
-  },
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'placehold.co',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**',
-      },
-    ],
-  },
-};
-
-module.exports = nextConfig;
-</file>
-
 <file path="src/app/add-customer/actions.ts">
 'use server';
 
@@ -22981,6 +22669,186 @@ export async function addPendingCustomer(data: z.infer<typeof formSchema>): Prom
         
         return { success: false, error: error.message || 'An internal error occurred. The issue has been logged.' };
     }
+}
+</file>
+
+<file path="src/app/customer/[id]/page.tsx">
+'use client';
+
+import { useParams } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Printer, FileDown, ArrowLeft, Phone, Mail, MapPin, ReceiptText } from 'lucide-react';
+import { format } from 'date-fns';
+import { Sale, Customer, Company, Payment } from '@/lib/types';
+import Link from 'next/link';
+import { useDoc, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, collection, query, where, orderBy, setDoc } from 'firebase/firestore';
+import { AppShell } from '@/components/layout/app-shell';
+import { FormattedNumberCell } from '@/components/formatted-number-cell';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useState } from 'react';
+import { PaymentDialog } from '@/app/sales/payment-dialog';
+import { toast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+
+const STORE_ID = 'store_main';
+
+function CustomerContent() {
+    const params = useParams();
+    const { id } = params;
+    const firestore = useFirestore();
+    const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+
+    const customerRef = useMemoFirebase(() => firestore && id ? doc(firestore, 'stores', STORE_ID, 'customers', id as string) : null, [firestore, id]);
+    const { data: customer, isLoading: isCustomerLoading } = useDoc<Customer>(customerRef);
+
+    const salesRef = useMemoFirebase(() => {
+        if (!firestore || !id) return null;
+        return query(collection(firestore, 'stores', STORE_ID, 'sales'), where('customerId', '==', id), orderBy('saleDate', 'desc'));
+    }, [firestore, id]);
+    const { data: sales, isLoading: isSalesLoading } = useCollection<Sale>(salesRef);
+
+    const paymentsRef = useMemoFirebase(() => {
+        if (!firestore || !id) return null;
+        return query(collection(firestore, 'stores', STORE_ID, 'customers', id as string, 'payments'), orderBy('date', 'desc'));
+    }, [firestore, id]);
+    const { data: payments, isLoading: isPaymentsLoading } = useCollection<Payment>(paymentsRef);
+    
+    const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
+    const { data: companyDetails } = useDoc<Company>(companyDocRef);
+
+    if (isCustomerLoading || isSalesLoading || isPaymentsLoading) return <div className="flex items-center justify-center h-screen"><p>Loading profile...</p></div>;
+    if (!customer) return <div className="flex items-center justify-center h-screen"><p>Customer not found.</p></div>;
+
+    const totalInvoiced = sales?.reduce((acc, sale) => acc + (sale.total || 0), 0) || 0;
+    const totalPaymentsReceived = payments?.reduce((acc, pay) => acc + pay.amount, 0) || 0;
+    const netBalance = totalInvoiced - totalPaymentsReceived;
+    
+    const primaryAddress = customer.addresses.find(a => a.isPrimary) || customer.addresses[0];
+
+    const handlePaymentSuccess = async (payment: Payment) => {
+        if (!firestore) return;
+        try {
+            const payRef = doc(firestore, 'stores', STORE_ID, 'customers', customer.id, 'payments', payment.id);
+            await setDoc(payRef, payment);
+            setIsPaymentDialogOpen(false);
+            toast({ title: "Payment Recorded", description: `Lump sum of ₹${payment.amount.toLocaleString()} received.` });
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Error", description: "Failed to record payment.", variant: "destructive" });
+        }
+    }
+
+    const ledger = [
+        ...(sales || []).map(s => ({ type: 'Invoice' as const, id: s.id, no: s.invoiceSequence, date: s.saleDate, amount: s.total, debit: true })),
+        ...(payments || []).map(p => ({ type: 'Payment' as const, id: p.id, no: p.reference || 'Lump Sum', date: p.date, amount: p.amount, debit: false }))
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return (
+        <div className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8" id="customer-statement">
+            <PaymentDialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen} customerId={customer.id} onSuccess={handlePaymentSuccess} />
+            
+            <div className="flex justify-between items-center print:hidden">
+                <Button variant="ghost" asChild><Link href="/customers"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link></Button>
+                <div className="flex gap-2">
+                    <Button onClick={() => setIsPaymentDialogOpen(true)}><ReceiptText className="mr-2 h-4 w-4" /> Receive Payment</Button>
+                    <Button variant="outline" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" /> Print Statement</Button>
+                </div>
+            </div>
+
+            <div className="bg-white text-black p-8 rounded-lg shadow-lg border border-gray-200 printable-content">
+                <div className="flex justify-between items-start border-b pb-8 mb-8">
+                    <div>
+                        <h1 className="text-4xl font-black mb-2 uppercase">{customer.name}</h1>
+                        <p className="text-gray-500 font-bold text-xs uppercase tracking-widest">{customer.companyName}</p>
+                        <div className="mt-6 space-y-1 text-xs font-bold text-gray-400">
+                            {customer.email && <p className="flex items-center gap-2"><Mail className="h-3 w-3" /> {customer.email}</p>}
+                            {customer.phone && <p className="flex items-center gap-2"><Phone className="h-3 w-3" /> {customer.phone}</p>}
+                            {primaryAddress && (
+                                <p className="flex items-center gap-2 max-w-xs">
+                                    <MapPin className="h-3 w-3 shrink-0" /> 
+                                    {`${primaryAddress.street}, ${primaryAddress.city}, ${primaryAddress.state} ${primaryAddress.zip}`}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <div className="mb-6">
+                            <p className="text-[10px] uppercase font-black text-gray-400 tracking-[0.2em] mb-1">Net Outstanding Balance</p>
+                            <p className={cn("text-4xl font-black tracking-tighter", netBalance > 0 ? "text-destructive" : "text-green-600")}>
+                                <FormattedNumberCell value={netBalance} />
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-8">
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-gray-400">Total Billed</p>
+                                <p className="text-lg font-black"><FormattedNumberCell value={totalInvoiced} /></p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-gray-400">Total Paid</p>
+                                <p className="text-lg font-black text-green-600"><FormattedNumberCell value={totalPaymentsReceived} /></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gray-400">Chronological Ledger</h3>
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-gray-50 border-b-2 border-black">
+                                <TableHead className="font-black text-[10px] text-black uppercase">Date</TableHead>
+                                <TableHead className="font-black text-[10px] text-black uppercase">Transaction No / Type</TableHead>
+                                <TableHead className="text-right font-black text-[10px] text-black uppercase">Debit (Invoice)</TableHead>
+                                <TableHead className="text-right font-black text-[10px] text-black uppercase">Credit (Payment)</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {ledger.length ? ledger.map((entry, idx) => (
+                                <TableRow key={`${entry.type}-${entry.id}-${idx}`} className="hover:bg-gray-50 border-b border-gray-100">
+                                    <TableCell className="text-xs font-bold text-gray-500">{format(new Date(entry.date), 'dd MMM yyyy')}</TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-black">{entry.type === 'Invoice' ? `#${entry.no}` : entry.no}</span>
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{entry.type}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right text-sm font-black">
+                                        {entry.debit ? <FormattedNumberCell value={entry.amount} /> : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-right text-sm font-black text-green-600">
+                                        {!entry.debit ? <FormattedNumberCell value={entry.amount} /> : '-'}
+                                    </TableCell>
+                                </TableRow>
+                            )) : (
+                                <TableRow><TableCell colSpan={4} className="text-center py-12 text-gray-400 font-bold uppercase tracking-widest text-xs">No ledger activity recorded.</TableCell></TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+
+                <div className="mt-16 pt-8 border-t text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                    <p>Generated on {format(new Date(), 'PPP p')} • {companyDetails?.name || 'Store Management System'}</p>
+                </div>
+            </div>
+
+            <style jsx global>{`
+                @media print {
+                    body { background: white !important; }
+                    .printable-content { box-shadow: none !important; border: none !important; padding: 0 !important; }
+                    .print\\:hidden { display: none !important; }
+                }
+            `}</style>
+        </div>
+    );
+}
+
+export default function CustomerProfilePage() {
+    return (
+        <AppShell>
+            <CustomerContent />
+        </AppShell>
+    );
 }
 </file>
 
@@ -23117,6 +22985,106 @@ export function CustomerFinancials({ sales, customers, companyDetails }: Custome
             </CardContent>
         </Card>
     </>
+  );
+}
+</file>
+
+<file path="src/app/sales/pending-invoices-dialog.tsx">
+'use client';
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { CustomerFinancialsData } from './customer-financials';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { format, isPast } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { buttonVariants } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
+import { FormattedNumberCell } from '@/components/formatted-number-cell';
+import { useIsMounted } from '@/hooks/use-is-mounted';
+
+interface PendingInvoicesDialogProps {
+  data: CustomerFinancialsData | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function PendingInvoicesDialog({ data, open, onOpenChange }: PendingInvoicesDialogProps) {
+  const isMounted = useIsMounted();
+  
+  if (!data) return null;
+
+  const { customer, pendingInvoices, totalPendingAmount } = data;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Pending Invoices for {customer.name}</DialogTitle>
+          <DialogDescription>
+            Total pending amount: {isMounted ? `₹${totalPendingAmount.toLocaleString('en-IN')}` : <Skeleton className="h-4 w-24 inline-block" />}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Invoice #</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pendingInvoices.map((invoice) => {
+                if (!isMounted) {
+                  return (
+                    <TableRow key={invoice.id}>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    </TableRow>
+                  );
+                }
+                const isOverdue = invoice.dueDate ? isPast(new Date(invoice.dueDate)) : false;
+                const status = isOverdue ? 'Overdue' : 'Pending';
+                return (
+                    <TableRow key={invoice.id} className={cn(status === 'Overdue' && 'bg-destructive/10')}>
+                        <TableCell>
+                            <Link 
+                              href={`/invoice/${invoice.id}`}
+                              className={cn(buttonVariants({ variant: 'link' }), "p-0 h-auto")}
+                            >
+                                #{invoice.invoiceSequence}
+                            </Link>
+                        </TableCell>
+                        <TableCell>{format(new Date(invoice.saleDate), 'dd MMM yyyy')}</TableCell>
+                        <TableCell>{invoice.dueDate ? format(new Date(invoice.dueDate), 'dd MMM yyyy') : 'N/A'}</TableCell>
+                        <TableCell>
+                          {/* Fix: Use 'total' instead of 'totalAmount' to match interface */}
+                          <FormattedNumberCell value={invoice.total} />
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={isOverdue ? 'destructive' : 'secondary'}>{status}</Badge>
+                        </TableCell>
+                    </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 </file>
@@ -23316,102 +23284,6 @@ export function TicketDialog({ open, onOpenChange, ticket, allTickets, onSuccess
       </DialogContent>
     </Dialog>
   );
-}
-</file>
-
-<file path="src/app/globals.css">
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  :root {
-    --background: 220 16% 95%;
-    --foreground: 220 30% 10%;
-    --card: 220 16% 100%;
-    --card-foreground: 220 30% 10%;
-    --popover: 220 16% 100%;
-    --popover-foreground: 220 30% 10%;
-    --primary: 220 30% 40%;
-    --primary-foreground: 220 30% 98%;
-    --secondary: 220 20% 85%;
-    --secondary-foreground: 220 30% 10%;
-    --muted: 220 20% 90%;
-    --muted-foreground: 220 20% 40%;
-    --accent: 210 80% 55%;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 20% 80%;
-    --input: 220 20% 88%;
-    --ring: 210 80% 55%;
-    --chart-1: 205 80% 60%;
-    --chart-2: 240 60% 45%;
-    --chart-3: 25 95% 55%;
-    --chart-4: 340 85% 65%;
-    --chart-5: 260 70% 60%;
-    --chart-6: 110 50% 50%;
-    --chart-7: 45 90% 55%;
-    --chart-8: 300 70% 65%;
-    --chart-9: 0 70% 60%;
-    --chart-10: 200 60% 50%;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 220 18% 12%; /* Dark Blue-Gray */
-    --foreground: 210 20% 90%; /* Light Gray */
-    --card: 220 18% 16%; /* Slightly Lighter Card Background */
-    --card-foreground: 210 20% 90%;
-    --popover: 220 18% 12%;
-    --popover-foreground: 210 20% 90%;
-    --primary: 33 94% 58%; /* Warm Orange */
-    --primary-foreground: 220 18% 12%; /* Dark Blue for text on orange button */
-    --secondary: 220 18% 20%;
-    --secondary-foreground: 210 20% 90%;
-    --muted: 220 18% 20%;
-    --muted-foreground: 210 20% 60%;
-    --accent: 160 70% 45%;
-    --accent-foreground: 160 70% 98%;
-    --destructive: 25 95% 53%; /* Bright Orange for destructive actions */
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 18% 20%;
-    --input: 210 20% 85%; /* Light Gray for input fields */
-    --ring: 160 70% 45%;
-    --chart-1: 205 80% 70%;
-    --chart-2: 160 70% 55%;
-    --chart-3: 25 95% 65%;
-    --chart-4: 340 85% 75%;
-    --chart-5: 260 70% 70%;
-    --chart-6: 110 50% 60%;
-    --chart-7: 45 90% 65%;
-    --chart-8: 300 70% 75%;
-    --chart-9: 0 70% 70%;
-    --chart-10: 200 60% 60%;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-
-@layer utilities {
-    @media print {
-        @page {
-            size: auto;
-            margin: 0mm;
-        }
-        html, body {
-            height: initial !important;
-            overflow: visible !important;
-            -webkit-print-color-adjust: exact;
-        }
-    }
 }
 </file>
 
@@ -24281,6 +24153,42 @@ Use this prompt to replicate the Storage Analytics functionality:
    - Restrict the module strictly to 'admin' roles with a professional 'Access Denied' state for others."
 </file>
 
+<file path="next.config.js">
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'picsum.photos',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+  },
+};
+
+module.exports = nextConfig;
+</file>
+
 <file path="storage.rules">
 rules_version = '2';
 service firebase.storage {
@@ -24756,6 +24664,102 @@ function FolderNode({ folder, level }: { folder: StorageFolder, level: number })
 }
 </file>
 
+<file path="src/app/globals.css">
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 16% 95%;
+    --foreground: 220 30% 10%;
+    --card: 220 16% 100%;
+    --card-foreground: 220 30% 10%;
+    --popover: 220 16% 100%;
+    --popover-foreground: 220 30% 10%;
+    --primary: 220 30% 40%;
+    --primary-foreground: 220 30% 98%;
+    --secondary: 220 20% 85%;
+    --secondary-foreground: 220 30% 10%;
+    --muted: 220 20% 90%;
+    --muted-foreground: 220 20% 40%;
+    --accent: 210 80% 55%;
+    --accent-foreground: 210 20% 98%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 20% 80%;
+    --input: 220 20% 88%;
+    --ring: 210 80% 55%;
+    --chart-1: 205 80% 60%;
+    --chart-2: 240 60% 45%;
+    --chart-3: 25 95% 55%;
+    --chart-4: 340 85% 65%;
+    --chart-5: 260 70% 60%;
+    --chart-6: 110 50% 50%;
+    --chart-7: 45 90% 55%;
+    --chart-8: 300 70% 65%;
+    --chart-9: 0 70% 60%;
+    --chart-10: 200 60% 50%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 220 18% 12%;
+    --foreground: 210 20% 90%;
+    --card: 220 18% 16%;
+    --card-foreground: 210 20% 90%;
+    --popover: 220 18% 12%;
+    --popover-foreground: 210 20% 90%;
+    --primary: 33 94% 58%;
+    --primary-foreground: 220 18% 12%;
+    --secondary: 220 18% 20%;
+    --secondary-foreground: 210 20% 90%;
+    --muted: 220 18% 20%;
+    --muted-foreground: 210 20% 60%;
+    --accent: 160 70% 45%;
+    --accent-foreground: 160 70% 98%;
+    --destructive: 25 95% 53%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 18% 20%;
+    --input: 210 20% 85%;
+    --ring: 160 70% 45%;
+    --chart-1: 205 80% 70%;
+    --chart-2: 160 70% 55%;
+    --chart-3: 25 95% 65%;
+    --chart-4: 340 85% 75%;
+    --chart-5: 260 70% 70%;
+    --chart-6: 110 50% 60%;
+    --chart-7: 45 90% 65%;
+    --chart-8: 300 70% 75%;
+    --chart-9: 0 70% 70%;
+    --chart-10: 200 60% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+    @media print {
+        @page {
+            size: auto;
+            margin: 0mm;
+        }
+        html, body {
+            height: initial !important;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact;
+        }
+    }
+}
+</file>
+
 <file path="src/app/layout.tsx">
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
@@ -24806,121 +24810,6 @@ export default function RootLayout({
         <Analytics />
       </body>
     </html>
-  );
-}
-</file>
-
-<file path="src/components/dashboard/pending-invoices.tsx">
-'use client';
-
-import { useMemo, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { isPast, formatDistanceToNow } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '../ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '../ui/skeleton';
-import { useIsMounted } from '@/hooks/use-is-mounted';
-import { Sale, Customer } from '@/lib/types';
-import Link from 'next/link';
-
-interface PendingInvoicesProps {
-    sales: Sale[];
-    customers: Customer[];
-}
-
-export function PendingInvoices({ sales, customers }: PendingInvoicesProps) {
-  const [selectedCustomer, setSelectedCustomer] = useState('all');
-  const isMounted = useIsMounted();
-
-  const pendingSales = useMemo(() => {
-    return sales
-      .filter(s => {
-        // Fix: Use 'status' instead of 'invoiceStatus'
-        const isPending = s.status === 'pending' || (s.balanceAmount && s.balanceAmount > 0);
-        const customerMatch = selectedCustomer === 'all' || s.customerId === selectedCustomer;
-        return isPending && customerMatch;
-      })
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-  }, [sales, selectedCustomer]);
-
-  const customersWithPending = useMemo(() => {
-    const pendingIds = new Set(sales.filter(s => s.status !== 'paid').map(s => s.customerId));
-    return customers.filter(c => pendingIds.has(c.id));
-  }, [sales, customers]);
-
-  const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    'paid': 'default',
-    'pending': 'destructive',
-    'cancelled': 'secondary',
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className='flex-1'>
-                <CardTitle>Pending Invoices</CardTitle>
-                <CardDescription>
-                {pendingSales.length} invoices require attention.
-                </CardDescription>
-            </div>
-            <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                <SelectTrigger className="w-full sm:w-[180px] text-xs h-8">
-                    <SelectValue placeholder="Filter by debtor" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Debtors</SelectItem>
-                    {customersWithPending.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-[280px]">
-            <div className="space-y-6">
-                {pendingSales.length > 0 ? pendingSales.map(sale => {
-                    return (
-                        <div key={sale.id} className="flex items-center">
-                            <div className="flex-1 space-y-1">
-                                <p className="font-medium text-sm leading-none">{sale.customerName}</p>
-                                <Link
-                                    href={`/invoice/${sale.id}`}
-                                    target="_blank"
-                                    className="text-xs text-muted-foreground hover:underline hover:text-primary"
-                                >
-                                    #{sale.invoiceSequence}
-                                </Link>
-                                {isMounted ? (() => {
-                                    const isOverdue = sale.dueDate ? isPast(new Date(sale.dueDate)) : false;
-                                    return (
-                                        <p className={cn("text-[10px] font-medium", isOverdue ? 'text-destructive' : 'text-muted-foreground')}>
-                                            {sale.dueDate ? `Due ${formatDistanceToNow(new Date(sale.dueDate), { addSuffix: true })}` : 'No due date'}
-                                        </p>
-                                    )
-                                })() : (
-                                    <Skeleton className="h-4 w-24" />
-                                )}
-                            </div>
-                            <div className="ml-auto text-right">
-                                {/* Fix: Use 'total' instead of 'totalAmount' */}
-                                <p className="font-medium text-sm">₹{(sale.total || 0).toLocaleString()}</p>
-                                <Badge variant={statusVariant[sale.status]} className="text-[10px] h-5 px-1.5 uppercase">{sale.status}</Badge>
-                            </div>
-                        </div>
-                    )
-                }) : (
-                    <div className="text-center text-muted-foreground pt-10">
-                        <p>No pending invoices.</p>
-                    </div>
-                )}
-            </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
   );
 }
 </file>
@@ -25739,6 +25628,121 @@ export function CompanySettingsForm({ onSaveSuccess }: CompanySettingsFormProps)
 }
 </file>
 
+<file path="src/components/dashboard/pending-invoices.tsx">
+'use client';
+
+import { useMemo, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { isPast, formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '../ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '../ui/skeleton';
+import { useIsMounted } from '@/hooks/use-is-mounted';
+import { Sale, Customer } from '@/lib/types';
+import Link from 'next/link';
+
+interface PendingInvoicesProps {
+    sales: Sale[];
+    customers: Customer[];
+}
+
+export function PendingInvoices({ sales, customers }: PendingInvoicesProps) {
+  const [selectedCustomer, setSelectedCustomer] = useState('all');
+  const isMounted = useIsMounted();
+
+  const pendingSales = useMemo(() => {
+    return sales
+      .filter(s => {
+        // Fix: Use standardized status and balance checks
+        const isPending = s.status === 'pending' || (s.balanceAmount && s.balanceAmount > 0);
+        const customerMatch = selectedCustomer === 'all' || s.customerId === selectedCustomer;
+        return isPending && customerMatch;
+      })
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  }, [sales, selectedCustomer]);
+
+  const customersWithPending = useMemo(() => {
+    const pendingIds = new Set(sales.filter(s => s.status === 'pending' || (s.balanceAmount && s.balanceAmount > 0)).map(s => s.customerId));
+    return customers.filter(c => pendingIds.has(c.id));
+  }, [sales, customers]);
+
+  const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+    'paid': 'default',
+    'pending': 'destructive',
+    'cancelled': 'secondary',
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className='flex-1'>
+                <CardTitle>Pending Invoices</CardTitle>
+                <CardDescription>
+                {pendingSales.length} invoices require attention.
+                </CardDescription>
+            </div>
+            <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                <SelectTrigger className="w-full sm:w-[180px] text-xs h-8">
+                    <SelectValue placeholder="Filter by debtor" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Debtors</SelectItem>
+                    {customersWithPending.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[280px]">
+            <div className="space-y-6">
+                {pendingSales.length > 0 ? pendingSales.map(sale => {
+                    return (
+                        <div key={sale.id} className="flex items-center">
+                            <div className="flex-1 space-y-1">
+                                <p className="font-medium text-sm leading-none">{sale.customerName}</p>
+                                <Link
+                                    href={`/invoice/${sale.id}`}
+                                    target="_blank"
+                                    className="text-xs text-muted-foreground hover:underline hover:text-primary"
+                                >
+                                    #{sale.invoiceSequence}
+                                </Link>
+                                {isMounted ? (() => {
+                                    const isOverdue = sale.dueDate ? isPast(new Date(sale.dueDate)) : false;
+                                    return (
+                                        <p className={cn("text-[10px] font-medium", isOverdue ? 'text-destructive' : 'text-muted-foreground')}>
+                                            {sale.dueDate ? `Due ${formatDistanceToNow(new Date(sale.dueDate), { addSuffix: true })}` : 'No due date'}
+                                        </p>
+                                    )
+                                })() : (
+                                    <Skeleton className="h-4 w-24" />
+                                )}
+                            </div>
+                            <div className="ml-auto text-right">
+                                {/* Fix: Use 'total' instead of 'totalAmount' */}
+                                <p className="font-medium text-sm">₹{(sale.total || 0).toLocaleString()}</p>
+                                <Badge variant={statusVariant[sale.status]} className="text-[10px] h-5 px-1.5 uppercase">{sale.status}</Badge>
+                            </div>
+                        </div>
+                    )
+                }) : (
+                    <div className="text-center text-muted-foreground pt-10">
+                        <p>No pending invoices.</p>
+                    </div>
+                )}
+            </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+}
+</file>
+
 <file path="src/app/purchase-order/[id]/page.tsx">
 'use client';
 
@@ -26165,143 +26169,6 @@ export default function ReportsPage() {
 }
 </file>
 
-<file path="src/app/sales/customer-ledger.tsx">
-'use client';
-
-import { useState, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sale, SaleReturn, Customer } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { Download, FileDown, UserSearch } from 'lucide-react';
-import { format } from 'date-fns';
-import { FormattedNumberCell } from '@/components/formatted-number-cell';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { exportToExcel, downloadGenericReportPdf } from '@/lib/actions';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import Link from 'next/link';
-
-interface CustomerLedgerProps {
-    sales: Sale[];
-    returns: SaleReturn[];
-    customers: Customer[];
-}
-
-export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProps) {
-    const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-
-    const customerData = useMemo(() => {
-        if (!selectedCustomerId) return null;
-        
-        const customerSales = sales.filter(s => s.customerId === selectedCustomerId && (s.invoiceStatus === 'Unpaid' || s.invoiceStatus === 'Partially Paid'));
-        const customerReturns = returns.filter(r => r.customerId === selectedCustomerId);
-        
-        const totalPending = customerSales.reduce((acc, s) => acc + (s.balanceAmount || s.totalAmount), 0);
-        const totalRefunded = customerReturns.reduce((acc, r) => acc + r.totalRefundAmount, 0);
-        
-        return {
-            sales: customerSales,
-            returns: customerReturns,
-            totalPending,
-            totalRefunded,
-            netBalance: totalPending - totalRefunded
-        };
-    }, [selectedCustomerId, sales, returns]);
-
-    const handleExportExcel = () => {
-        if (!customerData || !selectedCustomerId) return;
-        const customer = customers.find(c => c.id === selectedCustomerId);
-        const exportData = [
-            ...customerData.sales.map(s => ({ Type: 'Invoice', Number: s.invoiceSequence, Date: format(new Date(s.saleDate), 'yyyy-MM-dd'), Amount: s.totalAmount, Balance: s.balanceAmount || s.totalAmount })),
-            ...customerData.returns.map(r => ({ Type: 'Return', Number: r.returnSequence, Date: format(new Date(r.returnDate), 'yyyy-MM-dd'), Amount: r.totalRefundAmount, Balance: 0 }))
-        ];
-        exportToExcel(exportData, `ledger_${customer?.name.replace(/\s+/g, '_')}`);
-    };
-
-    const handleExportPdf = () => {
-        if (!customerData || !selectedCustomerId) return;
-        const customer = customers.find(c => c.id === selectedCustomerId);
-        const title = `Pending Ledger: ${customer?.name}`;
-        const headers = [['Type', 'No.', 'Date', 'Amount', 'Balance']];
-        const body = [
-            ...customerData.sales.map(s => ['Invoice', s.invoiceSequence, format(new Date(s.saleDate), 'dd/MM/yy'), `Rs.${s.totalAmount.toLocaleString()}`, `Rs.${(s.balanceAmount || s.totalAmount).toLocaleString()}`]),
-            ...customerData.returns.map(r => ['Return', r.returnSequence, format(new Date(r.returnDate), 'dd/MM/yy'), `Rs.-${r.totalRefundAmount.toLocaleString()}`, '-'])
-        ];
-        downloadGenericReportPdf(title, headers, body, `ledger_${customer?.name.replace(/\s+/g, '_')}`);
-    };
-
-    return (
-        <Card className="border-2 shadow-sm min-w-0">
-            <CardHeader className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                <div className="flex-1">
-                    <CardTitle>Customer Pending Ledger</CardTitle>
-                    <CardDescription>Statement of outstanding invoices and returns.</CardDescription>
-                </div>
-                <div className="flex items-center gap-2 w-full md:max-w-sm">
-                    <Select onValueChange={setSelectedCustomerId} value={selectedCustomerId}>
-                        <SelectTrigger className="h-10 flex-1"><SelectValue placeholder="Select customer..." /></SelectTrigger>
-                        <SelectContent>{customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                    {selectedCustomerId && (
-                        <div className="flex gap-1">
-                            <Button variant="outline" size="icon" onClick={handleExportExcel}><Download className="h-4 w-4" /></Button>
-                            <Button variant="outline" size="icon" onClick={handleExportPdf}><FileDown className="h-4 w-4" /></Button>
-                        </div>
-                    )}
-                </div>
-            </CardHeader>
-            <CardContent className="min-w-0">
-                {!selectedCustomerId ? (
-                    <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border-2 border-dashed">
-                        <UserSearch className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                        <p className="text-sm">Select a customer profile to view their balance.</p>
-                    </div>
-                ) : (
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-center">
-                                <p className="text-[10px] font-black uppercase text-destructive/70 tracking-widest">Pending</p>
-                                <p className="text-xl font-black text-destructive"><FormattedNumberCell value={customerData?.totalPending || 0} /></p>
-                            </div>
-                            <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 text-center">
-                                <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Returns</p>
-                                <p className="text-xl font-black text-blue-600"><FormattedNumberCell value={customerData?.totalRefunded || 0} /></p>
-                            </div>
-                            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 text-center">
-                                <p className="text-[10px] font-black uppercase text-primary/70 tracking-widest">Net Due</p>
-                                <p className="text-xl font-black text-primary"><FormattedNumberCell value={customerData?.netBalance || 0} /></p>
-                            </div>
-                        </div>
-                        <div className="rounded-md border overflow-x-auto">
-                            <Table className="min-w-[500px]">
-                                <TableHeader><TableRow className="bg-muted/20"><TableHead>No.</TableHead><TableHead>Type</TableHead><TableHead>Date</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                    {customerData?.sales.map(s => (
-                                        <TableRow key={s.id}>
-                                            <TableCell className="font-medium text-xs"><Link href={`/invoice/${s.id}`} target="_blank" className="hover:underline text-primary">#{s.invoiceSequence}</Link></TableCell>
-                                            <TableCell className="text-xs">Invoice</TableCell>
-                                            <TableCell className="text-xs">{format(new Date(s.saleDate), 'dd MMM yy')}</TableCell>
-                                            <TableCell className="text-right font-black text-destructive text-xs"><FormattedNumberCell value={s.balanceAmount || s.totalAmount} /></TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {customerData?.returns.map(r => (
-                                        <TableRow key={r.id}>
-                                            <TableCell className="font-medium text-xs"><Link href={`/return-slip/${r.id}`} target="_blank" className="hover:underline text-primary">{r.returnSequence}</Link></TableCell>
-                                            <TableCell className="text-xs">Credit</TableCell>
-                                            <TableCell className="text-xs">{format(new Date(r.returnDate), 'dd MMM yy')}</TableCell>
-                                            <TableCell className="text-right font-bold text-blue-600 text-xs">-<FormattedNumberCell value={r.totalRefundAmount} /></TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-</file>
-
 <file path="src/components/dashboard/page-summary.tsx">
 'use client';
 
@@ -26465,6 +26332,143 @@ export function PageHeader({ title, children }: PageHeaderProps) {
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }
+}
+</file>
+
+<file path="src/app/sales/customer-ledger.tsx">
+'use client';
+
+import { useState, useMemo } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Sale, SaleReturn, Customer } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Download, FileDown, UserSearch } from 'lucide-react';
+import { format } from 'date-fns';
+import { FormattedNumberCell } from '@/components/formatted-number-cell';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { exportToExcel, downloadGenericReportPdf } from '@/lib/actions';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import Link from 'next/link';
+
+interface CustomerLedgerProps {
+    sales: Sale[];
+    returns: SaleReturn[];
+    customers: Customer[];
+}
+
+export function CustomerLedger({ sales, returns, customers }: CustomerLedgerProps) {
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+
+    const customerData = useMemo(() => {
+        if (!selectedCustomerId) return null;
+        
+        const customerSales = sales.filter(s => s.customerId === selectedCustomerId && (s.status === 'pending' || (s.balanceAmount && s.balanceAmount > 0)));
+        const customerReturns = returns.filter(r => r.customerId === selectedCustomerId);
+        
+        const totalPending = customerSales.reduce((acc, s) => acc + (s.balanceAmount || s.total || 0), 0);
+        const totalRefunded = customerReturns.reduce((acc, r) => acc + r.totalRefundAmount, 0);
+        
+        return {
+            sales: customerSales,
+            returns: customerReturns,
+            totalPending,
+            totalRefunded,
+            netBalance: totalPending - totalRefunded
+        };
+    }, [selectedCustomerId, sales, returns]);
+
+    const handleExportExcel = () => {
+        if (!customerData || !selectedCustomerId) return;
+        const customer = customers.find(c => c.id === selectedCustomerId);
+        const exportData = [
+            ...customerData.sales.map(s => ({ Type: 'Invoice', Number: s.invoiceSequence, Date: format(new Date(s.saleDate), 'yyyy-MM-dd'), Amount: s.total || 0, Balance: s.balanceAmount || s.total || 0 })),
+            ...customerData.returns.map(r => ({ Type: 'Return', Number: r.returnSequence, Date: format(new Date(r.returnDate), 'yyyy-MM-dd'), Amount: r.totalRefundAmount, Balance: 0 }))
+        ];
+        exportToExcel(exportData, `ledger_${customer?.name.replace(/\s+/g, '_')}`);
+    };
+
+    const handleExportPdf = () => {
+        if (!customerData || !selectedCustomerId) return;
+        const customer = customers.find(c => c.id === selectedCustomerId);
+        const title = `Pending Ledger: ${customer?.name}`;
+        const headers = [['Type', 'No.', 'Date', 'Amount', 'Balance']];
+        const body = [
+            ...customerData.sales.map(s => ['Invoice', s.invoiceSequence, format(new Date(s.saleDate), 'dd/MM/yy'), `Rs.${(s.total || 0).toLocaleString()}`, `Rs.${(s.balanceAmount || s.total || 0).toLocaleString()}`]),
+            ...customerData.returns.map(r => ['Return', r.returnSequence, format(new Date(r.returnDate), 'dd/MM/yy'), `Rs.-${r.totalRefundAmount.toLocaleString()}`, '-'] as string[])
+        ];
+        downloadGenericReportPdf(title, headers, body, `ledger_${customer?.name.replace(/\s+/g, '_')}`);
+    };
+
+    return (
+        <Card className="border-2 shadow-sm min-w-0">
+            <CardHeader className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                <div className="flex-1">
+                    <CardTitle>Customer Pending Ledger</CardTitle>
+                    <CardDescription>Statement of outstanding invoices and returns.</CardDescription>
+                </div>
+                <div className="flex items-center gap-2 w-full md:max-w-sm">
+                    <Select onValueChange={setSelectedCustomerId} value={selectedCustomerId}>
+                        <SelectTrigger className="h-10 flex-1"><SelectValue placeholder="Select customer..." /></SelectTrigger>
+                        <SelectContent>{customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {selectedCustomerId && (
+                        <div className="flex gap-1">
+                            <Button variant="outline" size="icon" onClick={handleExportExcel}><Download className="h-4 w-4" /></Button>
+                            <Button variant="outline" size="icon" onClick={handleExportPdf}><FileDown className="h-4 w-4" /></Button>
+                        </div>
+                    )}
+                </div>
+            </CardHeader>
+            <CardContent className="min-w-0">
+                {!selectedCustomerId ? (
+                    <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border-2 border-dashed">
+                        <UserSearch className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                        <p className="text-sm">Select a customer profile to view their balance.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-center">
+                                <p className="text-[10px] font-black uppercase text-destructive/70 tracking-widest">Pending</p>
+                                <p className="text-xl font-black text-destructive"><FormattedNumberCell value={customerData?.totalPending || 0} /></p>
+                            </div>
+                            <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 text-center">
+                                <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Returns</p>
+                                <p className="text-xl font-black text-blue-600"><FormattedNumberCell value={customerData?.totalRefunded || 0} /></p>
+                            </div>
+                            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 text-center">
+                                <p className="text-[10px] font-black uppercase text-primary/70 tracking-widest">Net Due</p>
+                                <p className="text-xl font-black text-primary"><FormattedNumberCell value={customerData?.netBalance || 0} /></p>
+                            </div>
+                        </div>
+                        <div className="rounded-md border overflow-x-auto">
+                            <Table className="min-w-[500px]">
+                                <TableHeader><TableRow className="bg-muted/20"><TableHead>No.</TableHead><TableHead>Type</TableHead><TableHead>Date</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    {customerData?.sales.map(s => (
+                                        <TableRow key={s.id}>
+                                            <TableCell className="font-medium text-xs"><Link href={`/invoice/${s.id}`} target="_blank" className="hover:underline text-primary">#{s.invoiceSequence}</Link></TableCell>
+                                            <TableCell className="text-xs">Invoice</TableCell>
+                                            <TableCell className="text-xs">{format(new Date(s.saleDate), 'dd MMM yy')}</TableCell>
+                                            <TableCell className="text-right font-black text-destructive text-xs"><FormattedNumberCell value={s.balanceAmount || s.total || 0} /></TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {customerData?.returns.map(r => (
+                                        <TableRow key={r.id}>
+                                            <TableCell className="font-medium text-xs"><Link href={`/return-slip/${r.id}`} target="_blank" className="hover:underline text-primary">{r.returnSequence}</Link></TableCell>
+                                            <TableCell className="text-xs">Credit</TableCell>
+                                            <TableCell className="text-xs">{format(new Date(r.returnDate), 'dd MMM yy')}</TableCell>
+                                            <TableCell className="text-right font-bold text-blue-600 text-xs">-<FormattedNumberCell value={r.totalRefundAmount} /></TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
 }
 </file>
 
@@ -27829,359 +27833,6 @@ export function Combobox({ options, value, onChange, placeholder, searchPlacehol
 }
 </file>
 
-<file path="src/lib/actions.ts">
-'use client';
-
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
-import type { Sale, PurchaseOrder, Address, SaleReturn, Product, Customer, Vendor, Expense, Coupon, Store, StockTransfer, InventoryItem, Company, Quotation, Enquiry } from './types';
-import { numberToWordsInr } from '@/lib/utils';
-
-// =================================================================================
-// PDF Content Generation Helpers
-// =================================================================================
-
-const formatCurrency = (amount: number): string => {
-    if (typeof amount !== 'number') return '₹0.00';
-    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
-const addCompanyHeader = (doc: jsPDF, companyDetails: Company) => {
-    const pageWidth = doc.internal.pageSize.getWidth();
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text(companyDetails.name, pageWidth / 2, 20, { align: 'center' });
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    if (companyDetails.address) {
-        const addressLines = doc.splitTextToSize(companyDetails.address, pageWidth - 40);
-        doc.text(addressLines, pageWidth / 2, 26, { align: 'center' });
-    }
-    let contactLine = [
-        companyDetails.gstin ? `GSTIN: ${companyDetails.gstin}` : null,
-        companyDetails.email ? `Email: ${companyDetails.email}` : null,
-        companyDetails.phone ? `Phone: ${companyDetails.phone}` : null,
-    ].filter(Boolean).join(' | ');
-    doc.text(contactLine, pageWidth / 2, 34, { align: 'center' });
-    doc.line(14, 38, pageWidth - 14, 38);
-};
-
-const addAddressBlock = (doc: jsPDF, label: string, name: string, address: Address, contact: {email?: string, phone?: string, gst?: string}, x: number, y: number) => {
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text(label, x, y);
-    let yPos = y + 5;
-    doc.text(name, x, yPos);
-    yPos += 5;
-
-    doc.setFont('helvetica', 'normal');
-    if (address.street) { doc.text(address.street, x, yPos); yPos += 5; }
-    doc.text(`${address.city}, ${address.state}${address.zip ? ` - ${address.zip}` : ''}`, x, yPos); yPos += 5;
-    doc.text(address.country, x, yPos); yPos += 7;
-
-    if (contact.email) { doc.text(`Email: ${contact.email}`, x, yPos); yPos += 5; }
-    if (contact.phone) { doc.text(`Phone: ${contact.phone}`, x, yPos); yPos += 5; }
-    if (contact.gst) { doc.text(`GSTIN: ${contact.gst || '-'}`, x, yPos); }
-    return yPos;
-};
-
-
-// =================================================================================
-// Invoice PDF Generation
-// =================================================================================
-const generateInvoiceDoc = (doc: jsPDF, sale: Sale, customers: Customer[], companyDetails: Company): jsPDF => {
-    addCompanyHeader(doc, companyDetails);
-    
-    const pageWidth = doc.internal.pageSize.getWidth();
-
-    const customer = customers.find(c => c.id === sale.customerId);
-    let lastY = 45;
-
-    if (customer) {
-        const billingContact = { email: customer.email, phone: customer.phone, gst: sale.customerGstNumber || customer.gstNumber };
-        const addressEndY = addAddressBlock(doc, 'Bill To:', sale.customerName, sale.billingAddress, billingContact, 14, lastY);
-        lastY = Math.max(lastY, addressEndY);
-    }
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Date: ${new Date(sale.saleDate).toLocaleDateString('en-IN')}`, pageWidth - 14, 47, { align: 'right' });
-    doc.text(`Invoice #: ${sale.invoiceSequence}`, pageWidth - 14, 52, { align: 'right' });
-    
-    doc.line(14, lastY + 5, pageWidth - 14, lastY + 5);
-    lastY += 10;
-
-    const isGstSale = sale.saleType === 'GST';
-    const head = isGstSale 
-        ? [['Sr.', 'Description', 'SKU', 'HSN', 'GST %', 'Qty', 'Rate', 'Total']] 
-        : [['Sr.', 'Description', 'SKU', 'Qty', 'Rate', 'Total']];
-    
-    const body = sale.items.map((item, index) => {
-        const desc = `${item.productName}${item.brandName ? ` (${item.brandName})` : ''}`;
-        return isGstSale 
-        ? [String(index + 1), desc, item.sku || 'N/A', String(item.hsnCode || ''), `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalPrice)]
-        : [String(index + 1), desc, item.sku || 'N/A', String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalPrice)]
-    });
-
-    const footerStyles = { halign: 'right' as const };
-    const totalFooterStyles = { ...footerStyles, fontStyle: 'bold' as const, fontSize: 11 };
-    
-    const summaryData = [
-        [{ content: 'Subtotal', styles: footerStyles }, { content: formatCurrency(sale.subTotal), styles: footerStyles }],
-    ];
-
-    const totalDiscount = (sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0);
-    if (totalDiscount > 0) {
-        summaryData.push([{ content: 'Total Discount', styles: footerStyles }, { content: `-${formatCurrency(totalDiscount)}`, styles: footerStyles }]);
-    }
-
-    if (isGstSale) {
-        if (sale.cgstAmount > 0) summaryData.push([{ content: 'CGST', styles: footerStyles }, { content: formatCurrency(sale.cgstAmount), styles: footerStyles }]);
-        if (sale.sgstAmount > 0) summaryData.push([{ content: 'SGST', styles: footerStyles }, { content: formatCurrency(sale.sgstAmount), styles: footerStyles }]);
-        if (sale.igstAmount > 0) summaryData.push([{ content: 'IGST', styles: footerStyles }, { content: formatCurrency(sale.igstAmount), styles: footerStyles }]);
-    }
-
-    const roundOff = sale.roundOffAmount || 0;
-    if (Math.abs(roundOff) > 0.01) {
-        summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: `${roundOff < 0 ? '-' : '+'}${formatCurrency(Math.abs(roundOff))}`, styles: footerStyles }]);
-    }
-    
-    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(sale.total), styles: totalFooterStyles }]);
-
-    // Dynamic column styles based on column count
-    const colStyles: any = { 0: { cellWidth: 10 }, 2: { cellWidth: 25 } };
-    if (isGstSale) {
-        colStyles[4] = { halign: 'right', cellWidth: 20 };
-        colStyles[5] = { halign: 'right', cellWidth: 20 };
-        colStyles[6] = { halign: 'right', cellWidth: 30 };
-        colStyles[7] = { halign: 'right', cellWidth: 35 };
-    } else {
-        colStyles[3] = { halign: 'right', cellWidth: 20 };
-        colStyles[4] = { halign: 'right', cellWidth: 30 };
-        colStyles[5] = { halign: 'right', cellWidth: 35 };
-    }
-
-    (doc as any).autoTable({
-        startY: lastY, head, body, theme: 'grid',
-        headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255] },
-        columnStyles: colStyles,
-        foot: summaryData.map(row => ([{ ...row[0], colSpan: isGstSale ? 7 : 5 }, row[1]])),
-        footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
-    });
-
-    let finalY = (doc as any).lastAutoTable.finalY + 10;
-    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(sale.total)}`, 14, finalY);
-    
-    if (companyDetails.invoiceTerms) {
-        finalY += 15;
-        doc.setFontSize(10).setFont('helvetica', 'bold').text('Terms & Conditions:', 14, finalY);
-        doc.setFontSize(8).setFont('helvetica', 'normal');
-        const termsLines = doc.splitTextToSize(companyDetails.invoiceTerms, pageWidth - 28);
-        doc.text(termsLines, 14, finalY + 5);
-    }
-
-    return doc;
-};
-
-
-// =================================================================================
-// PO PDF Generation
-// =================================================================================
-const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor[], companyDetails: Company): jsPDF => {
-    addCompanyHeader(doc, companyDetails);
-    const pageWidth = doc.internal.pageSize.getWidth();
-    doc.setFontSize(16).setFont('helvetica', 'bold').text('PURCHASE ORDER', pageWidth / 2, 45, { align: 'center' });
-    
-    doc.setFontSize(10).setFont('helvetica', 'normal');
-    doc.text(`PO #: ${po.purchaseOrderNumber}`, 14, 55);
-    doc.text(`Date: ${new Date(po.orderDate).toLocaleDateString('en-IN')}`, pageWidth - 14, 55, { align: 'right' });
-
-    const vendor = vendors.find(v => v.id === po.vendorId);
-    let lastY = 65;
-    if (vendor && vendor.addresses[0]) {
-        lastY = addAddressBlock(doc, 'Vendor:', po.vendorName, vendor.addresses[0], { email: vendor.email, phone: vendor.phone, gst: vendor.gstNumber }, 14, 65);
-    }
-
-    const head = [['Sr.', 'Description', 'SKU', 'HSN', 'GST %', 'Qty', 'Unit Cost', 'Total']];
-    const body = po.items.map((item, i) => [String(i+1), item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitCost), formatCurrency(item.totalCost)]);
-
-    const footerStyles = { halign: 'right' as const };
-    const totalFooterStyles = { ...footerStyles, fontStyle: 'bold' as const, fontSize: 11 };
-
-    const roundOff = po.roundOffAmount || 0;
-
-    const summaryData = [
-        [{ content: 'Subtotal', styles: footerStyles }, { content: formatCurrency(po.subTotal), styles: footerStyles }],
-        [{ content: 'GST Amount', styles: footerStyles }, { content: formatCurrency(po.gstAmount), styles: footerStyles }],
-    ];
-
-    if (Math.abs(roundOff) > 0.01) {
-        summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: `${roundOff < 0 ? '-' : '+'}${formatCurrency(Math.abs(roundOff))}`, styles: footerStyles }]);
-    }
-    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(po.totalAmount), styles: totalFooterStyles }]);
-
-    (doc as any).autoTable({
-        startY: lastY + 10, head, body, theme: 'grid',
-        headStyles: { fillColor: [40, 40, 40] },
-        columnStyles: { 
-            0: { cellWidth: 10 },
-            2: { cellWidth: 30 },
-            4: { halign: 'right' }, 
-            5: { halign: 'right' }, 
-            6: { halign: 'right' }, 
-            7: { halign: 'right' } 
-        },
-        foot: summaryData.map(row => ([{ ...row[0], colSpan: 7 }, row[1]])),
-        footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
-    });
-
-    let finalY = (doc as any).lastAutoTable.finalY + 10;
-    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(po.totalAmount)}`, 14, finalY);
-
-    return doc;
-}
-
-// =================================================================================
-// Quotation PDF Generation
-// =================================================================================
-const generateQuotationDoc = (doc: jsPDF, quotation: Quotation, customers: Customer[], companyDetails: Company): jsPDF => {
-    addCompanyHeader(doc, companyDetails);
-    const pageWidth = doc.internal.pageSize.getWidth();
-    doc.setFontSize(16).setFont('helvetica', 'bold').text('QUOTATION', pageWidth / 2, 45, { align: 'center' });
-    
-    doc.setFontSize(10).setFont('helvetica', 'normal');
-    doc.text(`Quote #: ${quotation.quotationNumber}`, 14, 55);
-    doc.text(`Valid Until: ${new Date(quotation.validUntil).toLocaleDateString('en-IN')}`, pageWidth - 14, 55, { align: 'right' });
-
-    const customer = customers.find(c => c.id === quotation.customerId);
-    let lastY = 65;
-    if (customer) {
-        lastY = addAddressBlock(doc, 'Proposal for:', quotation.customerName, quotation.billingAddress, { email: customer.email, phone: customer.phone }, 14, 65);
-    }
-
-    const head = [['Description', 'SKU', 'HSN', 'GST %', 'Qty', 'Price', 'Total']];
-    const body = quotation.items.map(item => [item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalPrice)]);
-
-    (doc as any).autoTable({
-        startY: lastY + 10, head, body, theme: 'grid',
-        headStyles: { fillColor: [40, 40, 40] },
-        columnStyles: { 
-            1: { cellWidth: 30 },
-            3: { halign: 'right' }, 
-            4: { halign: 'right' }, 
-            5: { halign: 'right' }, 
-            6: { halign: 'right' } 
-        },
-        foot: [[{ content: 'Grand Total', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(Math.round(quotation.totalAmount)), styles: { halign: 'right', fontStyle: 'bold' } }]],
-        footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
-    });
-
-    return doc;
-}
-
-// =================================================================================
-// Enquiry PDF Generation
-// =================================================================================
-const generateEnquiryDoc = (doc: jsPDF, enquiry: Enquiry, companyDetails: Company): jsPDF => {
-    addCompanyHeader(doc, companyDetails);
-    const pageWidth = doc.internal.pageSize.getWidth();
-    doc.setFontSize(16).setFont('helvetica', 'bold').text('ENQUIRY SLIP', pageWidth / 2, 45, { align: 'center' });
-    
-    doc.setFontSize(10).setFont('helvetica', 'normal');
-    doc.text(`Enquiry #: ${enquiry.enquiryNumber}`, 14, 55);
-    doc.text(`Date: ${new Date(enquiry.date).toLocaleDateString('en-IN')}`, pageWidth - 14, 55, { align: 'right' });
-
-    doc.setFont('helvetica', 'bold').text('Customer Name:', 14, 65);
-    doc.setFont('helvetica', 'normal').text(enquiry.customerName || 'N/A', 45, 65);
-
-    doc.setFont('helvetica', 'bold').text('Requirement Details:', 14, 75);
-    const enquiryLines = doc.splitTextToSize(enquiry.enquiry, pageWidth - 28);
-    doc.setFont('helvetica', 'normal').text(enquiryLines, 14, 80);
-
-    if (enquiry.items && enquiry.items.length > 0) {
-        const head = [['Product Interested', 'SKU', 'GST %', 'Quantity', 'Approx. Value']];
-        const body = enquiry.items.map(item => [item.productName, item.sku || 'N/A', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice)]);
-        (doc as any).autoTable({
-            startY: doc.getTextDimensions(enquiryLines).h + 85, head, body, theme: 'grid',
-            headStyles: { fillColor: [100, 100, 100] },
-            columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
-        });
-    }
-
-    return doc;
-}
-
-// =================================================================================
-// Public Actions
-// =================================================================================
-
-export const downloadInvoice = (sale: Sale, customers: Customer[], companyDetails: Company) => {
-    const doc = new jsPDF();
-    generateInvoiceDoc(doc, sale, customers, companyDetails).save(`invoice-${sale.invoiceSequence}.pdf`);
-};
-
-export const downloadPurchaseOrder = (po: PurchaseOrder, vendors: Vendor[], companyDetails: Company) => {
-    const doc = new jsPDF();
-    generatePurchaseOrderDoc(doc, po, vendors, companyDetails).save(`po-${po.purchaseOrderNumber}.pdf`);
-};
-
-export const downloadQuotation = (quotation: Quotation, customers: Customer[], companyDetails: Company) => {
-    const doc = new jsPDF();
-    generateQuotationDoc(doc, quotation, customers, companyDetails).save(`quotation-${quotation.quotationNumber}.pdf`);
-}
-
-export const downloadEnquiry = (enquiry: Enquiry, companyDetails: Company) => {
-    const doc = new jsPDF();
-    generateEnquiryDoc(doc, enquiry, companyDetails).save(`enquiry-${enquiry.enquiryNumber}.pdf`);
-}
-
-export const downloadBulkInvoices = (sales: Sale[], customers: Customer[], companyDetails: Company) => {
-    const doc = new jsPDF();
-    sales.forEach((sale, index) => {
-        generateInvoiceDoc(doc, sale, customers, companyDetails);
-        if (index < sales.length - 1) doc.addPage();
-    });
-    doc.save(`invoices-bulk-${Date.now()}.pdf`);
-};
-
-export const exportToExcel = (data: any[], fileName: string) => {
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = { Sheets: { 'data': worksheet }, SheetNames: ['data'] };
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], {type: "application/octet-stream"});
-    saveAs(blob, `${fileName}.xlsx`);
-};
-
-export const downloadReturnSlip = (saleReturn: SaleReturn, customers: Customer[], stores: Store[], companyDetails: Company) => {
-    const doc = new jsPDF();
-    doc.text(`Return Slip ${saleReturn.returnSequence}`, 14, 20);
-    doc.save(`return-${saleReturn.returnSequence}.pdf`);
-};
-
-export const downloadGenericReportPdf = (title: string, headers: string[][], data: any[][], fileName: string) => {
-  const doc = new jsPDF({ orientation: 'landscape' });
-  doc.text(title, 14, 15);
-  (doc as any).autoTable({ head: headers, body: data, startY: 20, theme: 'grid' });
-  doc.save(`${fileName}.pdf`);
-};
-
-export const generateShareText = (docType: string, number: string, name: string, companyName: string, link: string) => {
-    return `Hi ${name},\n\nPlease find your ${docType} #${number} from ${companyName} here:\n${link}\n\nThank you!`;
-}
-
-export const generateInvoiceEmailBody = (sale: Sale, companyDetails: Company) => "Invoice Details Attached";
-export const generatePurchaseOrderEmailBody = (po: PurchaseOrder, companyDetails: Company) => "PO Details Attached";
-export const generateQuotationEmailBody = (quotation: Quotation, companyDetails: Company) => "Quotation Details Attached";
-export const generateReturnSlipEmailBody = (saleReturn: SaleReturn, companyDetails: Company) => "Return Details Attached";
-export const generatePendingInvoicesEmailBody = (customer: Customer, pending: Sale[], companyDetails: Company) => "Pending Invoice List Attached";
-export const generateBirthdayGreetingEmailBody = (name: string, company: Company) => `Happy Birthday ${name}`;
-export const generateAnniversaryGreetingEmailBody = (name: string, company: Company) => `Happy Anniversary ${name}`;
-export const downloadBulkPurchaseOrders = (pos: any[], vendors: any[], company: any) => {};
-export const exportFullBackup = (data: any, name: string) => {};
-</file>
-
 <file path="src/app/quotations/quotation-dialog.tsx">
 'use client';
 
@@ -28494,6 +28145,426 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
     </Dialog>
   );
 }
+</file>
+
+<file path="src/lib/actions.ts">
+'use client';
+
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
+import type { Sale, PurchaseOrder, Address, SaleReturn, Product, Customer, Vendor, Expense, Coupon, Store, StockTransfer, InventoryItem, Company, Quotation, Enquiry } from './types';
+import { numberToWordsInr } from '@/lib/utils';
+
+// =================================================================================
+// PDF Content Generation Helpers
+// =================================================================================
+
+const formatCurrency = (amount: number): string => {
+    if (typeof amount !== 'number') return '₹0.00';
+    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const addCompanyHeader = (doc: jsPDF, companyDetails: Company) => {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(companyDetails.name, pageWidth / 2, 20, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    if (companyDetails.address) {
+        const addressLines = doc.splitTextToSize(companyDetails.address, pageWidth - 40);
+        doc.text(addressLines, pageWidth / 2, 26, { align: 'center' });
+    }
+    let contactLine = [
+        companyDetails.gstin ? `GSTIN: ${companyDetails.gstin}` : null,
+        companyDetails.email ? `Email: ${companyDetails.email}` : null,
+        companyDetails.phone ? `Phone: ${companyDetails.phone}` : null,
+    ].filter(Boolean) as string[];
+    doc.text(contactLine.join(' | '), pageWidth / 2, 34, { align: 'center' });
+    doc.line(14, 38, pageWidth - 14, 38);
+};
+
+const addAddressBlock = (doc: jsPDF, label: string, name: string, address: Address, contact: {email?: string, phone?: string, gst?: string}, x: number, y: number) => {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(label, x, y);
+    let yPos = y + 5;
+    doc.text(name, x, yPos);
+    yPos += 5;
+
+    doc.setFont('helvetica', 'normal');
+    if (address.street) { doc.text(address.street, x, yPos); yPos += 5; }
+    doc.text(`${address.city}, ${address.state}${address.zip ? ` - ${address.zip}` : ''}`, x, yPos); yPos += 5;
+    doc.text(address.country, x, yPos); yPos += 7;
+
+    if (contact.email) { doc.text(`Email: ${contact.email}`, x, yPos); yPos += 5; }
+    if (contact.phone) { doc.text(`Phone: ${contact.phone}`, x, yPos); yPos += 5; }
+    if (contact.gst) { doc.text(`GSTIN: ${contact.gst || '-'}`, x, yPos); }
+    return yPos;
+};
+
+
+// =================================================================================
+// Invoice PDF Generation
+// =================================================================================
+const generateInvoiceDoc = (doc: jsPDF, sale: Sale, customers: Customer[], companyDetails: Company): jsPDF => {
+    addCompanyHeader(doc, companyDetails);
+    
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    const customer = customers.find(c => c.id === sale.customerId);
+    let lastY = 45;
+
+    if (customer) {
+        const billingContact = { email: customer.email, phone: customer.phone, gst: sale.customerGstNumber || customer.gstNumber };
+        const addressEndY = addAddressBlock(doc, 'Bill To:', sale.customerName, sale.billingAddress, billingContact, 14, lastY);
+        lastY = Math.max(lastY, addressEndY);
+    }
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Date: ${new Date(sale.saleDate).toLocaleDateString('en-IN')}`, pageWidth - 14, 47, { align: 'right' });
+    doc.text(`Invoice #: ${sale.invoiceSequence}`, pageWidth - 14, 52, { align: 'right' });
+    
+    doc.line(14, lastY + 5, pageWidth - 14, lastY + 5);
+    lastY += 10;
+
+    const isGstSale = sale.saleType === 'GST';
+    const head = isGstSale 
+        ? [['Sr.', 'Description', 'SKU', 'HSN', 'GST %', 'Qty', 'Rate', 'Total']] 
+        : [['Sr.', 'Description', 'SKU', 'Qty', 'Rate', 'Total']];
+    
+    const body = sale.items.map((item, index) => {
+        const desc = `${item.productName}${item.brandName ? ` (${item.brandName})` : ''}`;
+        return isGstSale 
+        ? [String(index + 1), desc, item.sku || 'N/A', String(item.hsnCode || ''), `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalPrice)]
+        : [String(index + 1), desc, item.sku || 'N/A', String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalPrice)]
+    });
+
+    const footerStyles = { halign: 'right' as const };
+    const totalFooterStyles = { ...footerStyles, fontStyle: 'bold' as const, fontSize: 11 };
+    
+    const summaryData = [
+        [{ content: 'Subtotal', styles: footerStyles }, { content: formatCurrency(sale.subTotal), styles: footerStyles }],
+    ];
+
+    const totalDiscount = (sale.couponDiscount || 0) + (sale.manualDiscountAmount || 0);
+    if (totalDiscount > 0) {
+        summaryData.push([{ content: 'Total Discount', styles: footerStyles }, { content: `-${formatCurrency(totalDiscount)}`, styles: footerStyles }]);
+    }
+
+    if (isGstSale) {
+        if (sale.cgstAmount > 0) summaryData.push([{ content: 'CGST', styles: footerStyles }, { content: formatCurrency(sale.cgstAmount), styles: footerStyles }]);
+        if (sale.sgstAmount > 0) summaryData.push([{ content: 'SGST', styles: footerStyles }, { content: formatCurrency(sale.sgstAmount), styles: footerStyles }]);
+        if (sale.igstAmount > 0) summaryData.push([{ content: 'IGST', styles: footerStyles }, { content: formatCurrency(sale.igstAmount), styles: footerStyles }]);
+    }
+
+    const roundOff = sale.roundOffAmount || 0;
+    if (Math.abs(roundOff) > 0.01) {
+        summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: `${roundOff < 0 ? '-' : '+'}${formatCurrency(Math.abs(roundOff))}`, styles: footerStyles }]);
+    }
+    
+    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(sale.total), styles: totalFooterStyles }]);
+
+    // Dynamic column styles based on column count
+    const colStyles: any = { 0: { cellWidth: 10 }, 2: { cellWidth: 25 } };
+    if (isGstSale) {
+        colStyles[4] = { halign: 'right', cellWidth: 20 };
+        colStyles[5] = { halign: 'right', cellWidth: 20 };
+        colStyles[6] = { halign: 'right', cellWidth: 30 };
+        colStyles[7] = { halign: 'right', cellWidth: 35 };
+    } else {
+        colStyles[3] = { halign: 'right', cellWidth: 20 };
+        colStyles[4] = { halign: 'right', cellWidth: 30 };
+        colStyles[5] = { halign: 'right', cellWidth: 35 };
+    }
+
+    (doc as any).autoTable({
+        startY: lastY, head, body, theme: 'grid',
+        headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255] },
+        columnStyles: colStyles,
+        foot: summaryData.map(row => ([{ ...row[0], colSpan: isGstSale ? 7 : 5 }, row[1]])),
+        footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
+    });
+
+    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(sale.total)}`, 14, finalY);
+    
+    if (companyDetails.invoiceTerms) {
+        finalY += 15;
+        doc.setFontSize(10).setFont('helvetica', 'bold').text('Terms & Conditions:', 14, finalY);
+        doc.setFontSize(8).setFont('helvetica', 'normal');
+        const termsLines = doc.splitTextToSize(companyDetails.invoiceTerms, pageWidth - 28);
+        doc.text(termsLines, 14, finalY + 5);
+    }
+
+    return doc;
+};
+
+
+// =================================================================================
+// PO PDF Generation
+// =================================================================================
+const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor[], companyDetails: Company): jsPDF => {
+    addCompanyHeader(doc, companyDetails);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFontSize(16).setFont('helvetica', 'bold').text('PURCHASE ORDER', pageWidth / 2, 45, { align: 'center' });
+    
+    doc.setFontSize(10).setFont('helvetica', 'normal');
+    doc.text(`PO #: ${po.purchaseOrderNumber}`, 14, 55);
+    doc.text(`Date: ${new Date(po.orderDate).toLocaleDateString('en-IN')}`, pageWidth - 14, 55, { align: 'right' });
+
+    const vendor = vendors.find(v => v.id === po.vendorId);
+    let lastY = 65;
+    if (vendor && vendor.addresses[0]) {
+        lastY = addAddressBlock(doc, 'Vendor:', po.vendorName, vendor.addresses[0], { email: vendor.email, phone: vendor.phone, gst: vendor.gstNumber }, 14, 65);
+    }
+
+    const head = [['Sr.', 'Description', 'SKU', 'HSN', 'GST %', 'Qty', 'Unit Cost', 'Total']];
+    const body = po.items.map((item, i) => [String(i+1), item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalCost)]);
+
+    const footerStyles = { halign: 'right' as const };
+    const totalFooterStyles = { ...footerStyles, fontStyle: 'bold' as const, fontSize: 11 };
+
+    const roundOff = po.roundOffAmount || 0;
+
+    const summaryData = [
+        [{ content: 'Subtotal', styles: footerStyles }, { content: formatCurrency(po.subTotal), styles: footerStyles }],
+        [{ content: 'GST Amount', styles: footerStyles }, { content: formatCurrency(po.gstAmount), styles: footerStyles }],
+    ];
+
+    if (Math.abs(roundOff) > 0.01) {
+        summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: `${roundOff < 0 ? '-' : '+'}${formatCurrency(Math.abs(roundOff))}`, styles: footerStyles }]);
+    }
+    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(po.totalAmount), styles: totalFooterStyles }]);
+
+    (doc as any).autoTable({
+        startY: lastY + 10, head, body, theme: 'grid',
+        headStyles: { fillColor: [40, 40, 40] },
+        columnStyles: { 
+            0: { cellWidth: 10 },
+            2: { cellWidth: 30 },
+            4: { halign: 'right' }, 
+            5: { halign: 'right' }, 
+            6: { halign: 'right' }, 
+            7: { halign: 'right' } 
+        },
+        foot: summaryData.map(row => ([{ ...row[0], colSpan: 7 }, row[1]])),
+        footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
+    });
+
+    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(po.totalAmount)}`, 14, finalY);
+
+    return doc;
+}
+
+// =================================================================================
+// Quotation PDF Generation
+// =================================================================================
+const generateQuotationDoc = (doc: jsPDF, quotation: Quotation, customers: Customer[], companyDetails: Company): jsPDF => {
+    addCompanyHeader(doc, companyDetails);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFontSize(16).setFont('helvetica', 'bold').text('QUOTATION', pageWidth / 2, 45, { align: 'center' });
+    
+    doc.setFontSize(10).setFont('helvetica', 'normal');
+    doc.text(`Quote #: ${quotation.quotationNumber}`, 14, 55);
+    doc.text(`Valid Until: ${new Date(quotation.validUntil).toLocaleDateString('en-IN')}`, pageWidth - 14, 55, { align: 'right' });
+
+    const customer = customers.find(c => c.id === quotation.customerId);
+    let lastY = 65;
+    if (customer) {
+        lastY = addAddressBlock(doc, 'Proposal for:', quotation.customerName, quotation.billingAddress, { email: customer.email, phone: customer.phone }, 14, 65);
+    }
+
+    const head = [['Description', 'SKU', 'HSN', 'GST %', 'Qty', 'Price', 'Total']];
+    const body = quotation.items.map(item => [item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalPrice)]);
+
+    (doc as any).autoTable({
+        startY: lastY + 10, head, body, theme: 'grid',
+        headStyles: { fillColor: [40, 40, 40] },
+        columnStyles: { 
+            1: { cellWidth: 30 },
+            3: { halign: 'right' }, 
+            4: { halign: 'right' }, 
+            5: { halign: 'right' }, 
+            6: { halign: 'right' } 
+        },
+        foot: [[{ content: 'Grand Total', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(Math.round(quotation.totalAmount)), styles: { halign: 'right', fontStyle: 'bold' } }]],
+        footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineWidth: 0.1 }
+    });
+
+    return doc;
+}
+
+// =================================================================================
+// Enquiry PDF Generation
+// =================================================================================
+const generateEnquiryDoc = (doc: jsPDF, enquiry: Enquiry, companyDetails: Company): jsPDF => {
+    addCompanyHeader(doc, companyDetails);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFontSize(16).setFont('helvetica', 'bold').text('ENQUIRY SLIP', pageWidth / 2, 45, { align: 'center' });
+    
+    doc.setFontSize(10).setFont('helvetica', 'normal');
+    doc.text(`Enquiry #: ${enquiry.enquiryNumber}`, 14, 55);
+    doc.text(`Date: ${new Date(enquiry.date).toLocaleDateString('en-IN')}`, pageWidth - 14, 55, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold').text('Customer Name:', 14, 65);
+    doc.setFont('helvetica', 'normal').text(enquiry.customerName || 'N/A', 45, 65);
+
+    doc.setFont('helvetica', 'bold').text('Requirement Details:', 14, 75);
+    const enquiryLines = doc.splitTextToSize(enquiry.enquiry, pageWidth - 28);
+    doc.setFont('helvetica', 'normal').text(enquiryLines, 14, 80);
+
+    if (enquiry.items && enquiry.items.length > 0) {
+        const head = [['Product Interested', 'SKU', 'GST %', 'Quantity', 'Approx. Value']];
+        const body = enquiry.items.map(item => [item.productName, item.sku || 'N/A', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice)]);
+        (doc as any).autoTable({
+            startY: doc.getTextDimensions(enquiryLines).h + 85, head, body, theme: 'grid',
+            headStyles: { fillColor: [100, 100, 100] },
+            columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
+        });
+    }
+
+    return doc;
+}
+
+// =================================================================================
+// Public Actions
+// =================================================================================
+
+export const printContent = (doc: jsPDF) => {
+    const pdfDataUri = doc.output('datauristring');
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Print Document</title>
+                    <style>
+                        body { margin: 0; padding: 0; }
+                        iframe { width: 100%; height: 100%; border: none; }
+                    </style>
+                </head>
+                <body>
+                    <iframe src="${pdfDataUri}"></iframe>
+                    <script>
+                        setTimeout(() => {
+                            const iframe = document.querySelector('iframe');
+                            if (iframe && iframe.contentWindow) {
+                                iframe.contentWindow.focus();
+                                iframe.contentWindow.print();
+                            }
+                            setTimeout(() => window.close(), 500);
+                        }, 500);
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+    }
+};
+
+export const downloadPdf = (doc: jsPDF, filename: string) => {
+    doc.save(filename);
+};
+
+export const downloadInvoice = (sale: Sale, customers: Customer[], companyDetails: Company) => {
+    const doc = new jsPDF();
+    generateInvoiceDoc(doc, sale, customers, companyDetails).save(`invoice-${sale.invoiceSequence}.pdf`);
+};
+
+export const downloadPurchaseOrder = (po: PurchaseOrder, vendors: Vendor[], companyDetails: Company) => {
+    const doc = new jsPDF();
+    generatePurchaseOrderDoc(doc, po, vendors, companyDetails).save(`po-${po.purchaseOrderNumber}.pdf`);
+};
+
+export const downloadQuotation = (quotation: Quotation, customers: Customer[], companyDetails: Company) => {
+    const doc = new jsPDF();
+    generateQuotationDoc(doc, quotation, customers, companyDetails).save(`quotation-${quotation.quotationNumber}.pdf`);
+}
+
+export const downloadEnquiry = (enquiry: Enquiry, companyDetails: Company) => {
+    const doc = new jsPDF();
+    generateEnquiryDoc(doc, enquiry, companyDetails).save(`enquiry-${enquiry.enquiryNumber}.pdf`);
+}
+
+export const downloadBulkInvoices = (sales: Sale[], customers: Customer[], companyDetails: Company) => {
+    const doc = new jsPDF();
+    sales.forEach((sale, index) => {
+        generateInvoiceDoc(doc, sale, customers, companyDetails);
+        if (index < sales.length - 1) doc.addPage();
+    });
+    doc.save(`invoices-bulk-${Date.now()}.pdf`);
+};
+
+export const exportToExcel = (data: any[], fileName: string) => {
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = { Sheets: { 'data': worksheet }, SheetNames: ['data'] };
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], {type: "application/octet-stream"});
+    saveAs(blob, `${fileName}.xlsx`);
+};
+
+export const downloadReturnSlip = (saleReturn: SaleReturn, customers: Customer[], stores: Store[], companyDetails: Company) => {
+    const doc = new jsPDF();
+    doc.text(`Return Slip ${saleReturn.returnSequence}`, 14, 20);
+    doc.save(`return-${saleReturn.returnSequence}.pdf`);
+};
+
+export const downloadGenericReportPdf = (title: string, headers: string[][], data: any[][], fileName: string) => {
+  const doc = new jsPDF({ orientation: 'landscape' });
+  doc.text(title, 14, 15);
+  (doc as any).autoTable({ head: headers, body: data, startY: 20, theme: 'grid' });
+  doc.save(`${fileName}.pdf`);
+};
+
+export const generateShareText = (docType: string, number: string, name: string, companyName: string, link: string) => {
+    return `Hi ${name},\n\nPlease find your ${docType} #${number} from ${companyName} here:\n${link}\n\nThank you!`;
+}
+
+export const generateInvoiceEmailBody = (sale: Sale, companyDetails: Company) => "Invoice Details Attached";
+export const generatePurchaseOrderEmailBody = (po: PurchaseOrder, companyDetails: Company) => "PO Details Attached";
+export const generateQuotationEmailBody = (quotation: Quotation, companyDetails: Company) => "Quotation Details Attached";
+export const generateReturnSlipEmailBody = (saleReturn: SaleReturn, companyDetails: Company) => "Return Details Attached";
+export const generatePendingInvoicesEmailBody = (customer: Customer, pending: Sale[], companyDetails: Company) => "Pending Invoice List Attached";
+export const generateBirthdayGreetingEmailBody = (name: string, company: Company) => `Happy Birthday ${name}`;
+export const generateAnniversaryGreetingEmailBody = (name: string, company: Company) => `Happy Anniversary ${name}`;
+
+export const downloadBulkPurchaseOrders = (pos: any[], vendors: any[], company: any) => {
+    if (!pos || pos.length === 0) return;
+    const doc = new jsPDF();
+    pos.forEach((po, index) => {
+        if (index > 0) doc.addPage();
+        const vendor = vendors?.find(v => v.id === po.vendorId);
+        addCompanyHeader(doc, company);
+        doc.setFontSize(14).setFont('helvetica', 'bold').text(`PURCHASE ORDER: ${po.purchaseOrderNumber}`, 14, 45);
+        if (vendor) {
+            doc.setFontSize(10).setFont('helvetica', 'normal');
+            doc.text(`Vendor: ${vendor.name}`, 14, 55);
+            doc.text(`Date: ${new Date(po.orderDate).toLocaleDateString()}`, 14, 60);
+        }
+        const head = [['Item', 'Qty', 'Unit Cost', 'Total']];
+        const body = po.items.map((item: any, i: number) => [item.productName, String(item.quantity), `₹${item.unitCost}`, `₹${item.totalCost}`]);
+        (doc as any).autoTable({ startY: 70, head, body, theme: 'grid' });
+    });
+    doc.save(`purchase-orders-bulk-${Date.now()}.pdf`);
+};
+
+export const exportFullBackup = async (data: any, name: string) => {
+    const backupData = {
+        exportedAt: new Date().toISOString(),
+        data: data,
+        version: '1.0'
+    };
+    const jsonStr = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    saveAs(blob, `${name}_backup_${Date.now()}.json`);
+};
+
+export const exportWithDataValidation = (data: any, sheetName: string, validations: any, fileName: string) => {};
 </file>
 
 <file path="src/app/sales/page.tsx">
@@ -30385,8 +30456,8 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
       items: validItems,
       subTotal: finalTotals.subTotal,
       gstAmount: finalTotals.gstAmount,
-      cgstAmount: finalTotals.gstAmount / 2,
-      sgstAmount: finalTotals.gstAmount / 2,
+      cgstAmount: finalTotals.cgstAmount,
+      sgstAmount: finalTotals.sgstAmount,
       igstAmount: finalTotals.igstAmount,
       couponDiscount: finalTotals.couponDiscount,
       manualDiscountAmount: finalTotals.manualDiscountAmount,

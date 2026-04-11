@@ -37,6 +37,9 @@ import { EnquiryDialog } from '@/app/enquiries/enquiry-dialog';
 import { QuotationDialog } from '@/app/quotations/quotation-dialog';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useRouter } from 'next/navigation';
+import { useShareDialog } from '@/hooks/use-share-dialog';
+import { generateShareText } from '@/lib/actions';
+import { ShareDialog } from '@/components/share-dialog';
 
 const STORE_ID = 'store_main';
 
@@ -53,6 +56,7 @@ export default function Dashboard() {
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const router = useRouter();
+  const { isShareDialogOpen, shareDialogData, openShareDialog, closeShareDialog } = useShareDialog();
 
   const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc')) : null, [firestore]);
   const { data: sales } = useCollection<Sale>(salesRef);
@@ -127,7 +131,7 @@ export default function Dashboard() {
         purchasesChange: calcPercentageChange(totalPurchases, totalPurchasesLastMonth),
         expensesChange: calcPercentageChange(totalExpenses, totalExpensesLastMonth)
     };
-  }, [sales, purchaseOrders, expenses]);
+  }, [safeSales, purchaseOrders, expenses]);
 
   const salesChartData = useMemo(() => {
     const monthlySales: Record<string, number> = {};
@@ -139,7 +143,7 @@ export default function Dashboard() {
     const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     return monthOrder.map(month => ({ name: month, total: monthlySales[month] || 0 }));
     
-  }, [sales]);
+  }, [safeSales]);
 
   const customerHistory = useMemo(() => {
     if (!selectedHistoryCustomer) return [];
@@ -341,6 +345,7 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader title="Dashboard" />
+      <ShareDialog open={isShareDialogOpen} onOpenChange={closeShareDialog} shareData={shareDialogData} />
       <div className="flex flex-1 flex-col gap-4 md:gap-8">
         <QuickActions
             onNewSale={() => setIsSaleDialogOpen(true)}
@@ -393,7 +398,20 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
                 {selectedHistoryCustomer ? (
-                    <DataTable columns={salesColumns({ onDelete: () => {}, products: safeProducts, customers: safeCustomers, onEdit: () => {} })} data={customerHistory} />
+                    <DataTable 
+                        columns={salesColumns({ 
+                            onDelete: () => {}, 
+                            products: safeProducts, 
+                            customers: safeCustomers, 
+                            onEdit: () => {},
+                            onShare: (sale) => {
+                                if (!companyDetails) return;
+                                const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`);
+                                openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text});
+                            }
+                        })} 
+                        data={customerHistory} 
+                    />
                 ) : (
                     <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
                         <Users className="mx-auto h-12 w-12 opacity-20" />

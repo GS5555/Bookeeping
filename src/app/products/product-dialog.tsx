@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -257,15 +256,15 @@ export function ProductDialog({ children, open, onOpenChange, product, onSuccess
   }, [watchedPurchasePrice, watchedMiscCost]);
 
   const handleFinalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const finalPrice = parseFloat(e.target.value) || 0;
-    form.setValue('finalPrice', finalPrice, { shouldValidate: true });
+    const finalPriceValue = parseFloat(e.target.value) || 0;
+    form.setValue('finalPrice', finalPriceValue, { shouldValidate: true });
     
-    if (finalPrice > 0) {
-      const { purchasePrice, miscellaneousCost, gstRate } = form.getValues();
+    if (finalPriceValue > 0) {
+      const { purchasePrice = 0, miscellaneousCost = 0, gstRate = 0 } = form.getValues();
       const landing = (Number(purchasePrice) || 0) + (Number(miscellaneousCost) || 0);
       const gst = Number(gstRate) || 0;
 
-      const preGstPrice = finalPrice / (1 + (gst / 100));
+      const preGstPrice = finalPriceValue / (1 + (gst / 100));
       const newProfitAmount = preGstPrice - landing;
 
       if (landing > 0) {
@@ -275,7 +274,7 @@ export function ProductDialog({ children, open, onOpenChange, product, onSuccess
         form.setValue('profitPercentage', 0, { shouldValidate: true });
       }
       form.setValue('profitAmount', parseFloat(newProfitAmount.toFixed(2)), { shouldValidate: true });
-      form.setValue('sellingPrice', finalPrice, { shouldValidate: true });
+      form.setValue('sellingPrice', finalPriceValue, { shouldValidate: true });
     }
   };
 
@@ -779,5 +778,3 @@ export function ProductDialog({ children, open, onOpenChange, product, onSuccess
     </Dialog>
   );
 }
-
-    
