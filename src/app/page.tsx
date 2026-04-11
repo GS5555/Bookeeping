@@ -189,7 +189,6 @@ export default function Dashboard() {
                 
                 const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
                 
-                // Final sanitization to remove undefined values
                 const finalSaleData = JSON.parse(JSON.stringify({
                     ...sale,
                     id: saleDocRef.id,
@@ -219,7 +218,6 @@ export default function Dashboard() {
     try {
       const docRef = doc(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'));
       
-      // Final sanitization to remove undefined values
       const finalPoData = JSON.parse(JSON.stringify({ 
           ...po, 
           id: docRef.id,
