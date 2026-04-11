@@ -1,4 +1,3 @@
-
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -93,37 +92,36 @@ export default function CustomersPage() {
     const handleSuccess = async (customer: Customer) => {
         if (!firestore || !customers) return;
 
-        // --- DUPLICATION CHECK ---
+        // --- ENHANCED DUPLICATION CHECK ---
         const isEditing = !!editingCustomer;
         const duplicate = customers.find(c => {
-            // Exclude the current customer being edited from the check
-            if (isEditing && c.id === customer.id) {
-                return false;
-            }
+            if (isEditing && c.id === customer.id) return false;
             
-            const hasSameEmail = customer.email && customer.email !== '' && c.email && c.email.toLowerCase() === customer.email.toLowerCase();
-            const hasSamePhone = customer.phone && customer.phone !== '' && c.phone && c.phone === customer.phone;
+            const emailMatch = customer.email?.trim().toLowerCase() !== '' && 
+                               c.email?.trim().toLowerCase() === customer.email?.trim().toLowerCase();
+            const phoneMatch = customer.phone?.trim() !== '' && 
+                               c.phone?.trim() === customer.phone?.trim();
             
-            return hasSameEmail || hasSamePhone;
+            return emailMatch || phoneMatch;
         });
 
         if (duplicate) {
             let errorMessage = '';
-            if (duplicate.email && customer.email && duplicate.email.toLowerCase() === customer.email.toLowerCase()) {
-                errorMessage = `Email address is already in use by ${duplicate.name}.`;
-            } else if (duplicate.phone && customer.phone && duplicate.phone === customer.phone) {
-                errorMessage = `Phone number is already in use by ${duplicate.name}.`;
+            if (duplicate.email?.toLowerCase() === customer.email?.toLowerCase()) {
+                errorMessage = `Email address '${customer.email}' is already registered to ${duplicate.name}.`;
+            } else {
+                errorMessage = `Phone number '${customer.phone}' is already registered to ${duplicate.name}.`;
             }
             toast({
-                title: "Duplicate Entry",
+                title: "Duplicate Registration Detected",
                 description: errorMessage,
                 variant: "destructive",
             });
-            return; // Stop the save operation
+            return;
         }
         // --- END DUPLICATION CHECK ---
 
-        const message = editingCustomer ? "Customer updated successfully." : "Customer added successfully.";
+        const message = editingCustomer ? "Customer profile updated." : "New customer added successfully.";
         
         try {
             const customerDocRef = doc(firestore, 'stores', STORE_ID, 'customers', customer.id);
@@ -134,7 +132,7 @@ export default function CustomersPage() {
             toast({ title: "Success!", description: message });
         } catch (error) {
             console.error("Error saving customer:", error);
-            toast({ title: "Error", description: "Could not save customer.", variant: "destructive" });
+            toast({ title: "Save Failed", description: "Could not update the database.", variant: "destructive" });
         }
     }
 
@@ -197,7 +195,6 @@ export default function CustomersPage() {
                     return;
                 }
 
-                // Helper to read headers case-insensitively
                 const getHeader = (item: any, keys: string[]) => {
                     for (const key of keys) {
                         const itemKey = Object.keys(item).find(k => k.trim().toLowerCase() === key.toLowerCase());
@@ -219,7 +216,7 @@ export default function CustomersPage() {
                     const name = getHeader(item, ['name', 'customer name']);
                     if (!name) {
                         toast({ title: "Import Failed", description: `Row ${rowNum}: 'name' is a required field.`, variant: "destructive" });
-                        return; // Stop processing
+                        return;
                     }
                     
                     const email = getHeader(item, ['email']) || '';
@@ -254,12 +251,10 @@ export default function CustomersPage() {
                     }
 
                     if (!querySnapshot || querySnapshot.empty) {
-                        // New customer
                         const newDocRef = doc(customersRef);
                         batch.set(newDocRef, { ...customerData, id: newDocRef.id });
                         newCount++;
                     } else {
-                        // Existing customer
                         const existingDocRef = querySnapshot.docs[0].ref;
                         batch.update(existingDocRef, customerData);
                         updateCount++;
@@ -277,7 +272,7 @@ export default function CustomersPage() {
                 console.error("Import Error:", error);
                 toast({
                     title: "Import Error",
-                    description: "There was an error processing the file. Please ensure it's a valid Excel file and the format is correct.",
+                    description: "There was an error processing the file.",
                     variant: "destructive",
                 });
             }

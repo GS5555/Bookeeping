@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -146,8 +144,8 @@ export function ExpenseDialog({ open, onOpenChange, expense, onSuccess }: Expens
   }, [watchedVendor, form, vendors]);
 
   const { gstAmount, totalAmount } = useMemo(() => {
-    const amount = watchedAmount || 0;
-    const rate = watchedGstRate || 0;
+    const amount = Number(watchedAmount) || 0;
+    const rate = Number(watchedGstRate) || 0;
     const gst = amount * (rate / 100);
     return {
         gstAmount: gst,

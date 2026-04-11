@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -138,7 +137,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
   const { setValue, reset, watch, getValues } = form;
 
-  // useWatch handles nested field updates efficiently for live totals
   const watchedItems = useWatch({ control: form.control, name: "items" }) || [];
   const watchedCouponCode = useWatch({ control: form.control, name: "couponCode" });
   const watchedSaleType = useWatch({ control: form.control, name: "saleType" });
@@ -267,7 +265,6 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
     const customer = customers.find(c => c.id === data.customerId);
     const billingAddress = customer?.addresses.find(a => a.isPrimary) || customer?.addresses[0];
 
-    // Force final recalculation before saving to avoid zero totals
     const finalTotals = calculateTotals(validItems, data.saleType, data.storeId, billingAddress, data.couponCode, data.manualDiscountPercentage);
 
     const finalSale = JSON.parse(JSON.stringify({
@@ -373,7 +370,11 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
                                   <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
                                       <FormItem>
                                           <Combobox
-                                              options={allProducts?.map(p => ({ value: p.id, label: `${p.name} (${p.sku})`, searchTerms: `${p.name} ${p.sku}`.toLowerCase() })) || []}
+                                              options={allProducts?.map(p => ({ 
+                                                  value: p.id, 
+                                                  label: `${p.name} (${p.sku})`,
+                                                  searchTerms: `${p.name} ${p.sku}`.toLowerCase()
+                                              })) || []}
                                               value={f.value || ""}
                                               onChange={(val) => handleProductSelect(val, index)}
                                               placeholder="Select Product"
