@@ -1,4 +1,3 @@
-
 'use client';
 
 import jsPDF from 'jspdf';
@@ -117,7 +116,7 @@ const generateInvoiceDoc = (doc: jsPDF, sale: Sale, customers: Customer[], compa
         summaryData.push([{ content: 'Round Off', styles: footerStyles }, { content: `${roundOff < 0 ? '-' : '+'}${formatCurrency(Math.abs(roundOff))}`, styles: footerStyles }]);
     }
     
-    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(sale.totalAmount), styles: totalFooterStyles }]);
+    summaryData.push([{ content: 'Grand Total', styles: totalFooterStyles }, { content: formatCurrency(sale.total), styles: totalFooterStyles }]);
 
     // Dynamic column styles based on column count
     const colStyles: any = { 0: { cellWidth: 10 }, 2: { cellWidth: 25 } };
@@ -141,7 +140,7 @@ const generateInvoiceDoc = (doc: jsPDF, sale: Sale, customers: Customer[], compa
     });
 
     let finalY = (doc as any).lastAutoTable.finalY + 10;
-    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(sale.totalAmount)}`, 14, finalY);
+    doc.setFontSize(9).setFont('helvetica', 'italic').text(`Amount in Words: ${numberToWordsInr(sale.total)}`, 14, finalY);
     
     if (companyDetails.invoiceTerms) {
         finalY += 15;

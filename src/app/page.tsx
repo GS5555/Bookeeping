@@ -1,4 +1,3 @@
-
 'use client';
 import { PageHeader } from '@/components/layout/page-header';
 import {
@@ -104,8 +103,8 @@ export default function Dashboard() {
     const expensesThisMonth = (expenses || []).filter(e => new Date(e.expenseDate) >= currentMonthStart);
     const expensesLastMonth = (expenses || []).filter(e => isWithinInterval(new Date(e.expenseDate), { start: lastMonthStart, end: lastMonthEnd }));
 
-    const totalSales = salesThisMonth.reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const totalSalesLastMonth = salesLastMonth.reduce((sum, sale) => sum + sale.totalAmount, 0);
+    const totalSales = salesThisMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
+    const totalSalesLastMonth = salesLastMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
 
     const totalPurchases = purchasesThisMonth.reduce((sum, po) => sum + po.totalAmount, 0);
     const totalPurchasesLastMonth = purchasesLastMonth.reduce((sum, po) => sum + po.totalAmount, 0);
@@ -134,7 +133,7 @@ export default function Dashboard() {
     const monthlySales: Record<string, number> = {};
     safeSales.forEach(sale => {
       const month = format(new Date(sale.saleDate), 'MMM');
-      monthlySales[month] = (monthlySales[month] || 0) + sale.totalAmount;
+      monthlySales[month] = (monthlySales[month] || 0) + (sale.total || 0);
     });
 
     const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
