@@ -33,7 +33,6 @@ interface ComboboxProps {
 /**
  * A portal-free Combobox that works reliably inside Dialogs.
  * Uses local absolute positioning with z-[100] to avoid focus trap bugs and UI clipping.
- * Implements a robust manual filter to avoid TypeScript/built-in filter issues.
  */
 export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notFoundText, className, disabled }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
