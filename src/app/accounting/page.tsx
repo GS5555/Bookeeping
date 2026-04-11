@@ -5,7 +5,7 @@ import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summar
 import { GenericChart } from '@/components/dashboard/generic-chart';
 import type { ChartConfig } from '@/components/ui/chart';
 import { useMemo } from 'react';
-import { Sale, Product, Expense } from '@/lib/types';
+import { Sale, Expense } from '@/lib/types';
 import { Scale, TrendingUp, TrendingDown, CircleDollarSign, Banknote } from 'lucide-react';
 import { format, getMonth } from 'date-fns';
 import { useIsMounted } from '@/hooks/use-is-mounted';

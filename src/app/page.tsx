@@ -226,7 +226,7 @@ export default function Dashboard() {
         toast({ title: "Error", description: "Failed to update stock.", variant: "destructive" });
     }
     setIsStockDialogOpen(false);
-  }
+  };
 
   return (
     <>
@@ -248,7 +248,17 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
                 {selectedHistoryCustomer ? (
-                    <DataTable columns={salesColumns({ onDelete: () => {}, products: safeProducts, customers: safeCustomers, onEdit: () => {}, onShare: (sale) => { if (!companyDetails) return; const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`); openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text}); } })} data={customerHistory} />
+                    <DataTable columns={salesColumns({ 
+                        onDelete: () => {}, 
+                        products: safeProducts, 
+                        customers: safeCustomers, 
+                        onEdit: () => {}, 
+                        onShare: (sale) => { 
+                            if (!companyDetails) return; 
+                            const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`); 
+                            openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text}); 
+                        } 
+                    })} data={customerHistory} />
                 ) : (
                     <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg"><Users className="mx-auto h-12 w-12 opacity-20" /><p className="mt-4 text-xs font-medium uppercase tracking-widest">Select a customer</p></div>
                 )}
@@ -259,7 +269,7 @@ export default function Dashboard() {
       <SaleDialog open={isSaleDialogOpen} onOpenChange={setIsSaleDialogOpen} onSuccess={handleSaleSuccess} />
       <PurchaseOrderDialog open={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen} onSuccess={(po) => setIsPurchaseDialogOpen(false)} />
       <ProductDialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen} product={undefined} onSuccess={(p) => setIsProductDialogOpen(false)} />
-      <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => setIsCustomerDialogOpen(false)} />
+      <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setIsCustomerDialogOpen(false); }} />
       <ExpenseDialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen} onSuccess={(e) => setIsExpenseDialogOpen(false)} />
       <StockDialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen} onSuccess={handleStockUpdateSuccess} />
       <EnquiryDialog open={isEnquiryDialogOpen} onOpenChange={setIsEnquiryDialogOpen} onSuccess={(e) => setIsEnquiryDialogOpen(false)} />

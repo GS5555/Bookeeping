@@ -19528,121 +19528,6 @@ function useToast() {
 export { useToast, toast }
 </file>
 
-<file path="src/app/accounting/page.tsx">
-'use client';
-
-import { PageHeader } from '@/components/layout/page-header';
-import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
-import { GenericChart } from '@/components/dashboard/generic-chart';
-import type { ChartConfig } from '@/components/ui/chart';
-import { useMemo } from 'react';
-import { Sale, Product, Expense } from '@/lib/types';
-import { Scale, TrendingUp, TrendingDown, CircleDollarSign, Banknote } from 'lucide-react';
-import { format, getMonth } from 'date-fns';
-import { useIsMounted } from '@/hooks/use-is-mounted';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
-
-const STORE_ID = 'store_main';
-
-export default function AccountingPage() {
-    const firestore = useFirestore();
-    const isMounted = useIsMounted();
-
-    const salesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'sales') : null, [firestore]);
-    const { data: sales } = useCollection<Sale>(salesRef);
-
-    const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
-    const { data: expenses } = useCollection<Expense>(expensesRef);
-    
-    const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
-    const { data: products } = useCollection<Product>(productsRef);
-
-    const { totalRevenue, totalCogs, grossProfit, totalExpenses, netProfit } = useMemo(() => {
-        const relevantSales = sales || [];
-        const relevantExpenses = expenses || [];
-
-        const totalRevenue = relevantSales.reduce((acc, sale) => acc + (sale.total || 0), 0);
-        
-        const totalCogs = relevantSales.reduce((acc, sale) => {
-            const saleCogs = sale.items.reduce((itemAcc, item) => {
-                return itemAcc + (item.costOfGoodsSold || 0);
-            }, 0);
-            return acc + saleCogs;
-        }, 0);
-
-        const grossProfit = totalRevenue - totalCogs;
-        const totalExpensesValue = relevantExpenses.reduce((acc, expense) => acc + (expense.amount || 0), 0);
-        const netProfit = grossProfit - totalExpensesValue;
-
-        return { totalRevenue, totalCogs, grossProfit, totalExpenses: totalExpensesValue, netProfit };
-    }, [sales, expenses]);
-
-    const summaryData: SummaryCardData[] = useMemo(() => [
-        { title: "Total Revenue", value: isMounted ? `₹${totalRevenue.toLocaleString('en-IN')}` : "₹...", icon: CircleDollarSign },
-        { title: "Cost of Goods Sold", value: isMounted ? `₹${totalCogs.toLocaleString('en-IN')}` : "₹...", icon: TrendingDown },
-        { title: "Gross Profit", value: isMounted ? `₹${grossProfit.toLocaleString('en-IN')}` : "₹...", icon: TrendingUp },
-        { title: "Operating Expenses", value: isMounted ? `₹${totalExpenses.toLocaleString('en-IN')}` : "₹...", icon: Banknote },
-        { title: "Net Profit", value: isMounted ? `₹${netProfit.toLocaleString('en-IN')}` : "₹...", icon: Scale, description: `After all costs & expenses` },
-    ], [totalRevenue, totalCogs, grossProfit, totalExpenses, netProfit, isMounted]);
-    
-    const profitChartData = useMemo(() => {
-        const relevantSales = sales || [];
-        const relevantExpenses = expenses || [];
-        
-        const monthlyData: Record<number, { revenue: number; cogs: number; expenses: number }> = {};
-        
-        relevantSales.forEach(sale => {
-            const month = getMonth(new Date(sale.saleDate));
-            if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
-            
-            monthlyData[month].revenue += (sale.total || 0);
-            
-            const saleCogs = sale.items.reduce((acc, item) => {
-                 return acc + (item.costOfGoodsSold || 0);
-            }, 0);
-            monthlyData[month].cogs += saleCogs;
-        });
-
-        relevantExpenses.forEach(expense => {
-            const month = getMonth(new Date(expense.date));
-            if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
-            monthlyData[month].expenses += expense.amount;
-        });
-        
-        return Object.entries(monthlyData).map(([monthIndex, data]) => ({
-            name: format(new Date(2024, parseInt(monthIndex)), 'MMM'),
-            Revenue: data.revenue,
-            NetProfit: data.revenue - data.cogs - data.expenses
-        })).sort((a,b) => new Date(`2024 ${a.name}`).getMonth() - new Date(`2024 ${b.name}`).getMonth());
-
-    }, [sales, expenses]);
-
-    const chartConfig: ChartConfig = {
-        Revenue: { label: 'Revenue', color: 'hsl(var(--chart-1))' },
-        NetProfit: { label: 'Net Profit', color: 'hsl(var(--chart-3))' },
-    };
-
-    return (
-        <>
-            <PageHeader title="Accounting Overview" />
-            <div className="flex flex-col gap-8">
-                <PageSummary cards={summaryData} />
-                 <GenericChart
-                    title="Financial Performance"
-                    description="Monthly revenue and net profit overview."
-                    data={profitChartData}
-                    dataKeyX="name"
-                    dataKeysY={['Revenue', 'NetProfit']}
-                    chartConfig={chartConfig}
-                    yAxisFormatter={(value) => `₹${value / 1000}k`}
-                />
-            </div>
-        </>
-    );
-}
-</file>
-
 <file path="src/app/add-customer/actions.ts">
 'use server';
 
@@ -22512,6 +22397,118 @@ const config: Config = {
 }
 
 export default config
+</file>
+
+<file path="src/app/accounting/page.tsx">
+'use client';
+
+import { PageHeader } from '@/components/layout/page-header';
+import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
+import { GenericChart } from '@/components/dashboard/generic-chart';
+import type { ChartConfig } from '@/components/ui/chart';
+import { useMemo } from 'react';
+import { Sale, Product, Expense } from '@/lib/types';
+import { Scale, TrendingUp, TrendingDown, CircleDollarSign, Banknote } from 'lucide-react';
+import { format, getMonth } from 'date-fns';
+import { useIsMounted } from '@/hooks/use-is-mounted';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+
+const STORE_ID = 'store_main';
+
+export default function AccountingPage() {
+    const firestore = useFirestore();
+    const isMounted = useIsMounted();
+
+    const salesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'sales') : null, [firestore]);
+    const { data: sales } = useCollection<Sale>(salesRef);
+
+    const expensesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'expenses') : null, [firestore]);
+    const { data: expenses } = useCollection<Expense>(expensesRef);
+    
+    const { totalRevenue, totalCogs, grossProfit, totalExpenses, netProfit } = useMemo(() => {
+        const relevantSales = sales || [];
+        const relevantExpenses = expenses || [];
+
+        const totalRevenue = relevantSales.reduce((acc, sale) => acc + (sale.total || 0), 0);
+        
+        const totalCogs = relevantSales.reduce((acc, sale) => {
+            const saleCogs = sale.items.reduce((itemAcc, item) => {
+                return itemAcc + (item.costOfGoodsSold || 0);
+            }, 0);
+            return acc + saleCogs;
+        }, 0);
+
+        const grossProfit = totalRevenue - totalCogs;
+        const totalExpensesValue = relevantExpenses.reduce((acc, expense) => acc + (expense.amount || 0), 0);
+        const netProfit = grossProfit - totalExpensesValue;
+
+        return { totalRevenue, totalCogs, grossProfit, totalExpenses: totalExpensesValue, netProfit };
+    }, [sales, expenses]);
+
+    const summaryData: SummaryCardData[] = useMemo(() => [
+        { title: "Total Revenue", value: isMounted ? `₹${totalRevenue.toLocaleString('en-IN')}` : "₹...", icon: CircleDollarSign },
+        { title: "Cost of Goods Sold", value: isMounted ? `₹${totalCogs.toLocaleString('en-IN')}` : "₹...", icon: TrendingDown },
+        { title: "Gross Profit", value: isMounted ? `₹${grossProfit.toLocaleString('en-IN')}` : "₹...", icon: TrendingUp },
+        { title: "Operating Expenses", value: isMounted ? `₹${totalExpenses.toLocaleString('en-IN')}` : "₹...", icon: Banknote },
+        { title: "Net Profit", value: isMounted ? `₹${netProfit.toLocaleString('en-IN')}` : "₹...", icon: Scale, description: `After all costs & expenses` },
+    ], [totalRevenue, totalCogs, grossProfit, totalExpenses, netProfit, isMounted]);
+    
+    const profitChartData = useMemo(() => {
+        const relevantSales = sales || [];
+        const relevantExpenses = expenses || [];
+        
+        const monthlyData: Record<number, { revenue: number; cogs: number; expenses: number }> = {};
+        
+        relevantSales.forEach(sale => {
+            const month = getMonth(new Date(sale.saleDate));
+            if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
+            
+            monthlyData[month].revenue += (sale.total || 0);
+            
+            const saleCogs = sale.items.reduce((acc, item) => {
+                 return acc + (item.costOfGoodsSold || 0);
+            }, 0);
+            monthlyData[month].cogs += saleCogs;
+        });
+
+        relevantExpenses.forEach(expense => {
+            const month = getMonth(new Date(expense.date));
+            if(!monthlyData[month]) monthlyData[month] = { revenue: 0, cogs: 0, expenses: 0 };
+            monthlyData[month].expenses += expense.amount;
+        });
+        
+        return Object.entries(monthlyData).map(([monthIndex, data]) => ({
+            name: format(new Date(2024, parseInt(monthIndex)), 'MMM'),
+            Revenue: data.revenue,
+            NetProfit: data.revenue - data.cogs - data.expenses
+        })).sort((a,b) => new Date(`2024 ${a.name}`).getMonth() - new Date(`2024 ${b.name}`).getMonth());
+
+    }, [sales, expenses]);
+
+    const chartConfig: ChartConfig = {
+        Revenue: { label: 'Revenue', color: 'hsl(var(--chart-1))' },
+        NetProfit: { label: 'Net Profit', color: 'hsl(var(--chart-3))' },
+    };
+
+    return (
+        <>
+            <PageHeader title="Accounting Overview" />
+            <div className="flex flex-col gap-8">
+                <PageSummary cards={summaryData} />
+                 <GenericChart
+                    title="Financial Performance"
+                    description="Monthly revenue and net profit overview."
+                    data={profitChartData}
+                    dataKeyX="name"
+                    dataKeysY={['Revenue', 'NetProfit']}
+                    chartConfig={chartConfig}
+                    yAxisFormatter={(value) => `₹${value / 1000}k`}
+                />
+            </div>
+        </>
+    );
+}
 </file>
 
 <file path="src/app/customers/customer-dialog.tsx">
@@ -26930,128 +26927,6 @@ export function RepairDialog({ open, onOpenChange, repair, onSuccess }: RepairDi
 }
 </file>
 
-<file path="src/components/ui/combobox.tsx">
-"use client"
-
-import * as React from "react"
-import { Check, ChevronsUpDown, Search } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-
-export interface ComboboxOption {
-    value: string;
-    label: string;
-    searchTerms?: string; // Optional field for better search relevance
-}
-
-interface ComboboxProps {
-    options: ComboboxOption[];
-    value: string;
-    onChange: (value: string) => void;
-    placeholder: string;
-    searchPlaceholder: string;
-    notFoundText: string;
-    className?: string;
-    disabled?: boolean;
-}
-
-/**
- * A portal-free Combobox that works reliably inside Dialogs.
- * Uses local absolute positioning with z-[100] to avoid focus trap bugs and UI clipping.
- */
-export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notFoundText, className, disabled }: ComboboxProps) {
-  const [open, setOpen] = React.useState(false)
-  const containerRef = React.useRef<HTMLDivElement>(null)
-
-  // Handle click outside to close the dropdown
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  const selectedLabel = React.useMemo(() => {
-    return options.find((option) => option.value === value)?.label || ""
-  }, [options, value])
-
-  return (
-    <div className="relative w-full" ref={containerRef}>
-      <Button
-        type="button"
-        variant="outline"
-        role="combobox"
-        aria-expanded={open}
-        className={cn("w-full justify-between h-10 px-3 font-normal bg-background border-muted-foreground/50", className)}
-        disabled={disabled}
-        onClick={() => setOpen(!open)}
-      >
-        <span className="truncate">
-          {value ? selectedLabel : placeholder}
-        </span>
-        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-      </Button>
-
-      {open && (
-        <div className="absolute top-full left-0 z-[100] w-full mt-1 rounded-md border bg-popover text-popover-foreground shadow-xl outline-none animate-in fade-in-0 zoom-in-95">
-          <Command 
-            shouldFilter={true} 
-            className="w-full"
-            filter={(value, search) => {
-                const option = options.find(o => o.value === value);
-                const terms = (option?.searchTerms || option?.label || "").toLowerCase();
-                return terms.includes(search.toLowerCase()) ? 1 : 0;
-            }}
-          >
-            <CommandInput 
-              placeholder={searchPlaceholder} 
-              autoFocus 
-              onPointerDown={(e) => e.currentTarget.focus()}
-              className="h-10"
-            />
-            <CommandList className="max-h-[250px] overflow-y-auto overflow-x-hidden p-1">
-              <CommandEmpty className="py-6 text-center text-sm">{notFoundText}</CommandEmpty>
-              <CommandGroup>
-                {options.map((option) => (
-                  <CommandItem
-                    key={option.value}
-                    value={option.value}
-                    onSelect={() => {
-                      onChange(option.value === value ? "" : option.value)
-                      setOpen(false)
-                    }}
-                    className="flex items-center justify-between cursor-pointer"
-                  >
-                    <span className="truncate">{option.label}</span>
-                    <Check
-                      className={cn(
-                        "h-4 w-4 ml-2",
-                        value === option.value ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </div>
-      )}
-    </div>
-  )
-}
-</file>
-
 <file path="src/app/quotations/quotation-dialog.tsx">
 'use client';
 
@@ -27366,275 +27241,137 @@ export function QuotationDialog({ open, onOpenChange, quotation, onSuccess, onCo
 }
 </file>
 
-<file path="src/app/page.tsx">
-'use client';
-import { PageHeader } from '@/components/layout/page-header';
+<file path="src/components/ui/combobox.tsx">
+"use client"
+
+import * as React from "react"
+import { Check, ChevronsUpDown, Search } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { StatsCards } from '@/components/dashboard/stats-cards';
-import { RecentSales } from '@/components/dashboard/recent-sales';
-import { QuickActions } from '@/components/dashboard/quick-actions';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 
-import { useState, useMemo } from 'react';
-import { SaleDialog } from '@/app/sales/sale-dialog';
-import { PurchaseOrderDialog } from '@/app/purchases/purchase-order-dialog';
-import { ProductDialog } from '@/app/products/product-dialog';
-import { CustomerDialog } from '@/app/customers/customer-dialog';
-import { ExpenseDialog } from '@/app/expenses/expense-dialog';
-import { StockDialog, StockFormValues } from '@/app/inventory/stock-dialog';
-import { toast } from '@/hooks/use-toast';
-import type { Sale, PurchaseOrder, Product, Customer, Vendor, Expense, InventoryItem, Quotation, Enquiry, Company } from '@/lib/types';
-import { GenericChart } from '@/components/dashboard/generic-chart';
-import type { ChartConfig } from '@/components/ui/chart';
+export interface ComboboxOption {
+    value: string;
+    label: string;
+    searchTerms?: string; // Optional field for better search relevance
+}
 
-import { CustomerFinancials } from '@/app/sales/customer-financials';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { EventReminders } from '@/components/dashboard/event-reminders';
-import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, query, where, getDocs, orderBy, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
-import { getMonth, format, subMonths, startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
-import { DataTable } from '@/components/data-table';
-import { salesColumns } from '@/app/sales/columns';
-import { Users } from 'lucide-react';
-import { EnquiryDialog } from '@/app/enquiries/enquiry-dialog';
-import { QuotationDialog } from '@/app/quotations/quotation-dialog';
-import { useCurrentUser } from '@/hooks/use-current-user';
-import { useRouter } from 'next/navigation';
-import { useShareDialog } from '@/hooks/use-share-dialog';
-import { generateShareText } from '@/lib/actions';
-import { ShareDialog } from '@/components/share-dialog';
+interface ComboboxProps {
+    options: ComboboxOption[];
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    searchPlaceholder: string;
+    notFoundText: string;
+    className?: string;
+    disabled?: boolean;
+}
 
-const STORE_ID = 'store_main';
+/**
+ * A portal-free Combobox that works reliably inside Dialogs.
+ * Uses local absolute positioning with z-[100] to avoid focus trap bugs and UI clipping.
+ */
+export function Combobox({ options, value, onChange, placeholder, searchPlaceholder, notFoundText, className, disabled }: ComboboxProps) {
+  const [open, setOpen] = React.useState(false)
+  const [search, setSearch] = React.useState("")
+  const containerRef = React.useRef<HTMLDivElement>(null)
 
-export default function Dashboard() {
-  const [isSaleDialogOpen, setIsSaleDialogOpen] = useState(false);
-  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
-  const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
-  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
-  const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
-  const [isStockDialogOpen, setIsStockDialogOpen] = useState(false);
-  const [isEnquiryDialogOpen, setIsEnquiryDialogOpen] = useState(false);
-  const [isQuotationDialogOpen, setIsQuotationDialogOpen] = useState(false);
-  
-  const firestore = useFirestore();
-  const { currentUser } = useCurrentUser();
-  const router = useRouter();
-  const { isShareDialogOpen, shareDialogData, openShareDialog, closeShareDialog } = useShareDialog();
+  // Handle click outside to close the dropdown
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
-  const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc')) : null, [firestore]);
-  const { data: sales } = useCollection<Sale>(salesRef);
+  const selectedLabel = React.useMemo(() => {
+    return options.find((option) => option.value === value)?.label || ""
+  }, [options, value])
 
-  const poRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'), orderBy('orderDate', 'desc')) : null, [firestore]);
-  const { data: purchaseOrders } = useCollection<PurchaseOrder>(poRef);
-  
-  const expensesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'expenses'), orderBy('date', 'desc')) : null, [firestore]);
-  const { data: expenses } = useCollection<Expense>(expensesRef);
-
-  const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
-  const { data: products } = useCollection<Product>(productsRef);
-
-  const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
-  const { data: customers } = useCollection<Customer>(customersRef);
-
-  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
-  const { data: vendors } = useCollection<Vendor>(vendorsRef);
-
-  const inventoryRef = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'stores', STORE_ID, 'inventoryItems');
-  }, [firestore]);
-  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
-
-  const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
-  const { data: companyDetails } = useDoc<Company>(companyDocRef);
-
-  const [selectedHistoryCustomer, setSelectedHistoryCustomer] = useState<string>('');
-  
-  const safeSales = sales || [];
-  const safeCustomers = customers || [];
-  const safeProducts = products || [];
-
-  const dynamicStats = useMemo(() => {
-    const now = new Date();
-    const currentMonthStart = startOfMonth(now);
-    const lastMonth = subMonths(now, 1);
-    const lastMonthStart = startOfMonth(lastMonth);
-    const lastMonthEnd = endOfMonth(lastMonth);
-    
-    const salesThisMonth = safeSales.filter(s => new Date(s.saleDate) >= currentMonthStart);
-    const salesLastMonth = safeSales.filter(s => isWithinInterval(new Date(s.saleDate), { start: lastMonthStart, end: lastMonthEnd }));
-    
-    const purchasesThisMonth = (purchaseOrders || []).filter(p => new Date(p.orderDate) >= currentMonthStart);
-    const purchasesLastMonth = (purchaseOrders || []).filter(p => isWithinInterval(new Date(p.orderDate), { start: lastMonthStart, end: lastMonthEnd }));
-
-    const expensesThisMonth = (expenses || []).filter(e => new Date(e.expenseDate) >= currentMonthStart);
-    const expensesLastMonth = (expenses || []).filter(e => isWithinInterval(new Date(e.expenseDate), { start: lastMonthStart, end: lastMonthEnd }));
-
-    const totalSales = salesThisMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
-    const totalSalesLastMonth = salesLastMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
-
-    const totalPurchases = purchasesThisMonth.reduce((sum, po) => sum + po.totalAmount, 0);
-    const totalPurchasesLastMonth = purchasesLastMonth.reduce((sum, po) => sum + po.totalAmount, 0);
-    
-    const totalExpenses = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
-    const totalExpensesLastMonth = expensesLastMonth.reduce((sum, expense) => sum + expense.amount, 0);
-    
-    const calcChange = (current: number, previous: number) => {
-      if (previous === 0) return current > 0 ? 100 : 0;
-      return ((current - previous) / previous) * 100;
-    };
-
-    return { 
-        totalSales, totalPurchases, totalExpenses, 
-        salesChange: calcChange(totalSales, totalSalesLastMonth),
-        purchasesChange: calcChange(totalPurchases, totalPurchasesLastMonth),
-        expensesChange: calcChange(totalExpenses, totalExpensesLastMonth)
-    };
-  }, [safeSales, purchaseOrders, expenses]);
-
-  const salesChartData = useMemo(() => {
-    const monthlySales: Record<string, number> = {};
-    safeSales.forEach(sale => {
-      const month = format(new Date(sale.saleDate), 'MMM');
-      monthlySales[month] = (monthlySales[month] || 0) + (sale.total || 0);
+  const filteredOptions = React.useMemo(() => {
+    if (!search) return options;
+    const lowSearch = search.toLowerCase();
+    return options.filter(option => {
+        const terms = (option.searchTerms || option.label || "").toLowerCase();
+        return terms.includes(lowSearch);
     });
-    const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return monthOrder.map(month => ({ name: month, total: monthlySales[month] || 0 }));
-  }, [safeSales]);
-
-  const customerHistory = useMemo(() => {
-    if (!selectedHistoryCustomer) return [];
-    return safeSales.filter(s => s.customerId === selectedHistoryCustomer);
-  }, [selectedHistoryCustomer, safeSales]);
-
-  const salesChartConfig: ChartConfig = { total: { label: 'Sales', color: 'hsl(var(--chart-1))' } };
-  
-  const handleSaleSuccess = async (sale: Sale) => {
-    if (!firestore || !currentUser) return;
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const companyRef = doc(firestore, 'settings', 'global', 'companies', 'main_company');
-            const companyDoc = await transaction.get(companyRef);
-            let companyData = companyDoc.exists() ? companyDoc.data() : { lastInvoiceNumber: 0, lastBillNumber: 0 };
-            
-            const isGst = sale.saleType === 'GST';
-            const numberField = isGst ? 'lastInvoiceNumber' : 'lastBillNumber';
-            const prefix = isGst ? (companyData.invoicePrefix || 'INV') : 'BILL';
-            const newNumber = (companyData[numberField] || 0) + 1;
-            const invoiceSequence = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
-            
-            const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
-            const finalSaleData = JSON.parse(JSON.stringify({
-                ...sale,
-                id: saleDocRef.id,
-                invoiceSequence,
-                dueDate: addDays(new Date(sale.saleDate), 30).toISOString(),
-                createdBy: currentUser.id,
-                createdByName: currentUser.displayName,
-            }));
-            transaction.set(saleDocRef, finalSaleData);
-            transaction.update(companyRef, { [numberField]: newNumber });
-        });
-        toast({ title: "Success!", description: `Invoice created.` });
-        setIsSaleDialogOpen(false);
-    } catch (error) {
-        console.error(error);
-        toast({ title: "Sale Creation Failed", variant: "destructive" });
-    }
-  };
-
-  const handleStockUpdateSuccess = async ({ productId, storeId, quantity, vendorId, purchasePrice }: StockFormValues) => {
-    if (!firestore) return;
-    try {
-        const inventoryCollectionRef = collection(firestore, 'stores', storeId, 'inventoryItems');
-        const q = query(inventoryCollectionRef, where("productId", "==", productId));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-            const inventoryDoc = querySnapshot.docs[0];
-            const existingBatches = inventoryDoc.data().stockBatches || [];
-            const newBatch = {
-                date: new Date().toISOString(),
-                quantity: quantity,
-                purchasePrice: purchasePrice,
-                vendorId: vendorId,
-            };
-            await updateDoc(inventoryDoc.ref, { 
-                stockBatches: [...existingBatches, newBatch],
-                lastStockUpdate: new Date().toISOString()
-            });
-            toast({ title: "Stock Updated!", description: `Stock adjusted by ${quantity}.` });
-        } else {
-            const productDetails = products?.find(p => p.id === productId);
-            if (productDetails) {
-                const newInvDocRef = doc(inventoryCollectionRef);
-                await setDoc(newInvDocRef, {
-                    id: newInvDocRef.id,
-                    productId: productDetails.id,
-                    storeId: storeId,
-                    stockBatches: [{
-                        date: new Date().toISOString(),
-                        quantity: quantity,
-                        purchasePrice: purchasePrice,
-                        vendorId: vendorId,
-                    }],
-                    locationComment: 'N/A',
-                    lastStockUpdate: new Date().toISOString(),
-                });
-                toast({ title: "Stock Entry Created!", description: `${quantity} units added.` });
-            }
-        }
-    } catch(e) {
-        console.error(e);
-        toast({ title: "Error", description: "Failed to update stock.", variant: "destructive" });
-    }
-    setIsStockDialogOpen(false);
-  }
+  }, [options, search]);
 
   return (
-    <>
-      <PageHeader title="Dashboard" />
-      <ShareDialog open={isShareDialogOpen} onOpenChange={closeShareDialog} shareData={shareDialogData} />
-      <div className="flex flex-1 flex-col gap-4 md:gap-8">
-        <QuickActions onNewSale={() => setIsSaleDialogOpen(true)} onNewPurchase={() => setIsPurchaseDialogOpen(true)} onAddProduct={() => setIsProductDialogOpen(true)} onAddCustomer={() => setIsCustomerDialogOpen(true)} onAddExpense={() => setIsExpenseDialogOpen(true)} onNewStockEntry={() => setIsStockDialogOpen(true)} onNewEnquiry={() => setIsEnquiryDialogOpen(true)} onNewQuotation={() => setIsQuotationDialogOpen(true)} />
-        <StatsCards stats={dynamicStats} />
-        <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-2">
-            <Card><CardHeader><CardTitle>Recent Sales</CardTitle><CardDescription>Latest transactions.</CardDescription></CardHeader><CardContent><RecentSales sales={sales || []} /></CardContent></Card>
-            <EventReminders customers={customers || []} vendors={vendors || []} />
+    <div className="relative w-full" ref={containerRef}>
+      <Button
+        type="button"
+        variant="outline"
+        role="combobox"
+        aria-expanded={open}
+        className={cn("w-full justify-between h-10 px-3 font-normal bg-background border-muted-foreground/50", className)}
+        disabled={disabled}
+        onClick={() => {
+            setOpen(!open);
+            if (!open) setSearch(""); // Reset search when opening
+        }}
+      >
+        <span className="truncate">
+          {value ? selectedLabel : placeholder}
+        </span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+
+      {open && (
+        <div className="absolute top-full left-0 z-[100] w-full mt-1 rounded-md border bg-popover text-popover-foreground shadow-xl outline-none animate-in fade-in-0 zoom-in-95">
+          <Command 
+            shouldFilter={false} // Disable internal filtering to use our manual filter
+            className="w-full"
+          >
+            <CommandInput 
+              placeholder={searchPlaceholder} 
+              autoFocus 
+              onValueChange={setSearch}
+              onPointerDown={(e) => e.currentTarget.focus()}
+              className="h-10"
+            />
+            <CommandList className="max-h-[250px] overflow-y-auto overflow-x-hidden p-1">
+              {filteredOptions.length === 0 ? (
+                <CommandEmpty className="py-6 text-center text-sm">{notFoundText}</CommandEmpty>
+              ) : (
+                <CommandGroup>
+                  {filteredOptions.map((option) => (
+                    <CommandItem
+                      key={option.value}
+                      value={option.value}
+                      onSelect={() => {
+                        onChange(option.value === value ? "" : option.value)
+                        setOpen(false)
+                      }}
+                      className="flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="truncate">{option.label}</span>
+                      <Check
+                        className={cn(
+                          "h-4 w-4 ml-2",
+                          value === option.value ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
         </div>
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                    <div><CardTitle>Customer Sale History</CardTitle><CardDescription>Select a customer to view history.</CardDescription></div>
-                    <div className="w-full max-w-sm"><Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}><SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger><SelectContent>{safeCustomers.map(customer => (<SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>))}</SelectContent></Select></div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                {selectedHistoryCustomer ? (
-                    <DataTable columns={salesColumns({ onDelete: () => {}, products: safeProducts, customers: safeCustomers, onEdit: () => {}, onShare: (sale) => { if (!companyDetails) return; const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`); openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text}); } })} data={customerHistory} />
-                ) : (
-                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg"><Users className="mx-auto h-12 w-12 opacity-20" /><p className="mt-4 text-xs font-medium uppercase tracking-widest">Select a customer</p></div>
-                )}
-            </CardContent>
-        </Card>
-        <GenericChart title="Sales Overview" description="Monthly sales trends." data={salesChartData} dataKeyX="name" dataKeysY={['total']} chartConfig={salesChartConfig} chartType="bar" yAxisFormatter={(v) => `₹${v / 1000}K`} categorical={true} />
-      </div>
-      <SaleDialog open={isSaleDialogOpen} onOpenChange={setIsSaleDialogOpen} onSuccess={handleSaleSuccess} />
-      <PurchaseOrderDialog open={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen} onSuccess={(po) => setIsPurchaseDialogOpen(false)} />
-      <ProductDialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen} product={undefined} onSuccess={(p) => setIsProductDialogOpen(false)} />
-      <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => setIsCustomerDialogOpen(false)} />
-      <ExpenseDialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen} onSuccess={(e) => setIsExpenseDialogOpen(false)} />
-      <StockDialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen} onSuccess={handleStockUpdateSuccess} />
-      <EnquiryDialog open={isEnquiryDialogOpen} onOpenChange={setIsEnquiryDialogOpen} onSuccess={(e) => setIsEnquiryDialogOpen(false)} />
-      <QuotationDialog open={isQuotationDialogOpen} onOpenChange={setIsQuotationDialogOpen} onSuccess={(q) => setIsQuotationDialogOpen(false)} />
-    </>
-  );
+      )}
+    </div>
+  )
 }
 </file>
 
@@ -28056,6 +27793,278 @@ export const exportFullBackup = async (data: any, name: string) => {
 };
 
 export const exportWithDataValidation = (data: any, sheetName: string, validations: any, fileName: string) => {};
+</file>
+
+<file path="src/app/page.tsx">
+'use client';
+import { PageHeader } from '@/components/layout/page-header';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { StatsCards } from '@/components/dashboard/stats-cards';
+import { RecentSales } from '@/components/dashboard/recent-sales';
+import { QuickActions } from '@/components/dashboard/quick-actions';
+
+import { useState, useMemo } from 'react';
+import { SaleDialog } from '@/app/sales/sale-dialog';
+import { PurchaseOrderDialog } from '@/app/purchases/purchase-order-dialog';
+import { ProductDialog } from '@/app/products/product-dialog';
+import { CustomerDialog } from '@/app/customers/customer-dialog';
+import { ExpenseDialog } from '@/app/expenses/expense-dialog';
+import { StockDialog, StockFormValues } from '@/app/inventory/stock-dialog';
+import { toast } from '@/hooks/use-toast';
+import type { Sale, PurchaseOrder, Product, Customer, Vendor, Expense, InventoryItem, Quotation, Enquiry, Company } from '@/lib/types';
+import { GenericChart } from '@/components/dashboard/generic-chart';
+import type { ChartConfig } from '@/components/ui/chart';
+
+import { CustomerFinancials } from '@/app/sales/customer-financials';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { EventReminders } from '@/components/dashboard/event-reminders';
+import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, doc, query, where, getDocs, orderBy, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
+import { getMonth, format, subMonths, startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
+import { DataTable } from '@/components/data-table';
+import { salesColumns } from '@/app/sales/columns';
+import { Users } from 'lucide-react';
+import { EnquiryDialog } from '@/app/enquiries/enquiry-dialog';
+import { QuotationDialog } from '@/app/quotations/quotation-dialog';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { useRouter } from 'next/navigation';
+import { useShareDialog } from '@/hooks/use-share-dialog';
+import { generateShareText } from '@/lib/actions';
+import { ShareDialog } from '@/components/share-dialog';
+
+const STORE_ID = 'store_main';
+
+export default function Dashboard() {
+  const [isSaleDialogOpen, setIsSaleDialogOpen] = useState(false);
+  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
+  const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
+  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
+  const [isStockDialogOpen, setIsStockDialogOpen] = useState(false);
+  const [isEnquiryDialogOpen, setIsEnquiryDialogOpen] = useState(false);
+  const [isQuotationDialogOpen, setIsQuotationDialogOpen] = useState(false);
+  
+  const firestore = useFirestore();
+  const { currentUser } = useCurrentUser();
+  const router = useRouter();
+  const { isShareDialogOpen, shareDialogData, openShareDialog, closeShareDialog } = useShareDialog();
+
+  const salesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'sales'), orderBy('saleDate', 'desc')) : null, [firestore]);
+  const { data: sales } = useCollection<Sale>(salesRef);
+
+  const poRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'purchaseOrders'), orderBy('orderDate', 'desc')) : null, [firestore]);
+  const { data: purchaseOrders } = useCollection<PurchaseOrder>(poRef);
+  
+  const expensesRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'expenses'), orderBy('date', 'desc')) : null, [firestore]);
+  const { data: expenses } = useCollection<Expense>(expensesRef);
+
+  const productsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'products') : null, [firestore]);
+  const { data: products } = useCollection<Product>(productsRef);
+
+  const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
+  const { data: customers } = useCollection<Customer>(customersRef);
+
+  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
+  const { data: vendors } = useCollection<Vendor>(vendorsRef);
+
+  const inventoryRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'stores', STORE_ID, 'inventoryItems');
+  }, [firestore]);
+  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
+
+  const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
+  const { data: companyDetails } = useDoc<Company>(companyDocRef);
+
+  const [selectedHistoryCustomer, setSelectedHistoryCustomer] = useState<string>('');
+  
+  const safeSales = sales || [];
+  const safeCustomers = customers || [];
+  const safeProducts = products || [];
+
+  const dynamicStats = useMemo(() => {
+    const now = new Date();
+    const currentMonthStart = startOfMonth(now);
+    const lastMonth = subMonths(now, 1);
+    const lastMonthStart = startOfMonth(lastMonth);
+    const lastMonthEnd = endOfMonth(lastMonth);
+    
+    const salesThisMonth = safeSales.filter(s => new Date(s.saleDate) >= currentMonthStart);
+    const salesLastMonth = safeSales.filter(s => isWithinInterval(new Date(s.saleDate), { start: lastMonthStart, end: lastMonthEnd }));
+    
+    const purchasesThisMonth = (purchaseOrders || []).filter(p => new Date(p.orderDate) >= currentMonthStart);
+    const purchasesLastMonth = (purchaseOrders || []).filter(p => isWithinInterval(new Date(p.orderDate), { start: lastMonthStart, end: lastMonthEnd }));
+
+    const expensesThisMonth = (expenses || []).filter(e => new Date(e.date) >= currentMonthStart);
+    const expensesLastMonth = (expenses || []).filter(e => isWithinInterval(new Date(e.date), { start: lastMonthStart, end: lastMonthEnd }));
+
+    const totalSales = salesThisMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
+    const totalSalesLastMonth = salesLastMonth.reduce((sum, sale) => sum + (sale.total || 0), 0);
+
+    const totalPurchases = purchasesThisMonth.reduce((sum, po) => sum + po.totalAmount, 0);
+    const totalPurchasesLastMonth = purchasesLastMonth.reduce((sum, po) => sum + po.totalAmount, 0);
+    
+    const totalExpenses = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
+    const totalExpensesLastMonth = expensesLastMonth.reduce((sum, expense) => sum + expense.amount, 0);
+    
+    const calcChange = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return ((current - previous) / previous) * 100;
+    };
+
+    return { 
+        totalSales, totalPurchases, totalExpenses, 
+        salesChange: calcChange(totalSales, totalSalesLastMonth),
+        purchasesChange: calcChange(totalPurchases, totalPurchasesLastMonth),
+        expensesChange: calcChange(totalExpenses, totalExpensesLastMonth)
+    };
+  }, [safeSales, purchaseOrders, expenses]);
+
+  const salesChartData = useMemo(() => {
+    const monthlySales: Record<string, number> = {};
+    safeSales.forEach(sale => {
+      const month = format(new Date(sale.saleDate), 'MMM');
+      monthlySales[month] = (monthlySales[month] || 0) + (sale.total || 0);
+    });
+    const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return monthOrder.map(month => ({ name: month, total: monthlySales[month] || 0 }));
+  }, [safeSales]);
+
+  const customerHistory = useMemo(() => {
+    if (!selectedHistoryCustomer) return [];
+    return safeSales.filter(s => s.customerId === selectedHistoryCustomer);
+  }, [selectedHistoryCustomer, safeSales]);
+
+  const salesChartConfig: ChartConfig = { total: { label: 'Sales', color: 'hsl(var(--chart-1))' } };
+  
+  const handleSaleSuccess = async (sale: Sale) => {
+    if (!firestore || !currentUser) return;
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const companyRef = doc(firestore, 'settings', 'global', 'companies', 'main_company');
+            const companyDoc = await transaction.get(companyRef);
+            let companyData = companyDoc.exists() ? companyDoc.data() : { lastInvoiceNumber: 0, lastBillNumber: 0 };
+            
+            const isGst = sale.saleType === 'GST';
+            const numberField = isGst ? 'lastInvoiceNumber' : 'lastBillNumber';
+            const prefix = isGst ? (companyData.invoicePrefix || 'INV') : 'BILL';
+            const newNumber = (companyData[numberField] || 0) + 1;
+            const invoiceSequence = `${prefix}-${new Date().getFullYear()}-${String(newNumber).padStart(5, '0')}`;
+            
+            const saleDocRef = doc(collection(firestore, 'stores', STORE_ID, 'sales'));
+            const finalSaleData = JSON.parse(JSON.stringify({
+                ...sale,
+                id: saleDocRef.id,
+                invoiceSequence,
+                dueDate: addDays(new Date(sale.saleDate), 30).toISOString(),
+                createdBy: currentUser.id,
+                createdByName: currentUser.displayName,
+            }));
+            transaction.set(saleDocRef, finalSaleData);
+            transaction.update(companyRef, { [numberField]: newNumber });
+        });
+        toast({ title: "Success!", description: `Invoice created.` });
+        setIsSaleDialogOpen(false);
+    } catch (error) {
+        console.error(error);
+        toast({ title: "Sale Creation Failed", variant: "destructive" });
+    }
+  };
+
+  const handleStockUpdateSuccess = async ({ productId, storeId, quantity, vendorId, purchasePrice }: StockFormValues) => {
+    if (!firestore) return;
+    try {
+        const inventoryCollectionRef = collection(firestore, 'stores', storeId, 'inventoryItems');
+        const q = query(inventoryCollectionRef, where("productId", "==", productId));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            const inventoryDoc = querySnapshot.docs[0];
+            const existingBatches = inventoryDoc.data().stockBatches || [];
+            const newBatch = {
+                date: new Date().toISOString(),
+                quantity: quantity,
+                purchasePrice: purchasePrice,
+                vendorId: vendorId,
+            };
+            await updateDoc(inventoryDoc.ref, { 
+                stockBatches: [...existingBatches, newBatch],
+                lastStockUpdate: new Date().toISOString()
+            });
+            toast({ title: "Stock Updated!", description: `Stock adjusted by ${quantity}.` });
+        } else {
+            const productDetails = products?.find(p => p.id === productId);
+            if (productDetails) {
+                const newInvDocRef = doc(inventoryCollectionRef);
+                await setDoc(newInvDocRef, {
+                    id: newInvDocRef.id,
+                    productId: productDetails.id,
+                    storeId: storeId,
+                    stockBatches: [{
+                        date: new Date().toISOString(),
+                        quantity: quantity,
+                        purchasePrice: purchasePrice,
+                        vendorId: vendorId,
+                    }],
+                    locationComment: 'N/A',
+                    lastStockUpdate: new Date().toISOString(),
+                });
+                toast({ title: "Stock Entry Created!", description: `${quantity} units added.` });
+            }
+        }
+    } catch(e) {
+        console.error(e);
+        toast({ title: "Error", description: "Failed to update stock.", variant: "destructive" });
+    }
+    setIsStockDialogOpen(false);
+  }
+
+  return (
+    <>
+      <PageHeader title="Dashboard" />
+      <ShareDialog open={isShareDialogOpen} onOpenChange={closeShareDialog} shareData={shareDialogData} />
+      <div className="flex flex-1 flex-col gap-4 md:gap-8">
+        <QuickActions onNewSale={() => setIsSaleDialogOpen(true)} onNewPurchase={() => setIsPurchaseDialogOpen(true)} onAddProduct={() => setIsProductDialogOpen(true)} onAddCustomer={() => setIsCustomerDialogOpen(true)} onAddExpense={() => setIsExpenseDialogOpen(true)} onNewStockEntry={() => setIsStockDialogOpen(true)} onNewEnquiry={() => setIsEnquiryDialogOpen(true)} onNewQuotation={() => setIsQuotationDialogOpen(true)} />
+        <StatsCards stats={dynamicStats} />
+        <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-2">
+            <Card><CardHeader><CardTitle>Recent Sales</CardTitle><CardDescription>Latest transactions.</CardDescription></CardHeader><CardContent><RecentSales sales={sales || []} /></CardContent></Card>
+            <EventReminders customers={customers || []} vendors={vendors || []} />
+        </div>
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                    <div><CardTitle>Customer Sale History</CardTitle><CardDescription>Select a customer to view history.</CardDescription></div>
+                    <div className="w-full max-w-sm"><Select value={selectedHistoryCustomer} onValueChange={setSelectedHistoryCustomer}><SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger><SelectContent>{safeCustomers.map(customer => (<SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>))}</SelectItem></Select></div>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {selectedHistoryCustomer ? (
+                    <DataTable columns={salesColumns({ onDelete: () => {}, products: safeProducts, customers: safeCustomers, onEdit: () => {}, onShare: (sale) => { if (!companyDetails) return; const text = generateShareText('Invoice', sale.invoiceSequence, sale.customerName, companyDetails.name, `${window.location.origin}/invoice/${sale.id}`); openShareDialog({title: `Invoice #${sale.invoiceSequence}`, text}); } })} data={customerHistory} />
+                ) : (
+                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg"><Users className="mx-auto h-12 w-12 opacity-20" /><p className="mt-4 text-xs font-medium uppercase tracking-widest">Select a customer</p></div>
+                )}
+            </CardContent>
+        </Card>
+        <GenericChart title="Sales Overview" description="Monthly sales trends." data={salesChartData} dataKeyX="name" dataKeysY={['total']} chartConfig={salesChartConfig} chartType="bar" yAxisFormatter={(v) => `₹${v / 1000}K`} categorical={true} />
+      </div>
+      <SaleDialog open={isSaleDialogOpen} onOpenChange={setIsSaleDialogOpen} onSuccess={handleSaleSuccess} />
+      <PurchaseOrderDialog open={isPurchaseDialogOpen} onOpenChange={setIsPurchaseDialogOpen} onSuccess={(po) => setIsPurchaseDialogOpen(false)} />
+      <ProductDialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen} product={undefined} onSuccess={(p) => setIsProductDialogOpen(false)} />
+      <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => setIsCustomerDialogOpen(false)} />
+      <ExpenseDialog open={isExpenseDialogOpen} onOpenChange={setIsExpenseDialogOpen} onSuccess={(e) => setIsExpenseDialogOpen(false)} />
+      <StockDialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen} onSuccess={handleStockUpdateSuccess} />
+      <EnquiryDialog open={isEnquiryDialogOpen} onOpenChange={setIsEnquiryDialogOpen} onSuccess={(e) => setIsEnquiryDialogOpen(false)} />
+      <QuotationDialog open={isQuotationDialogOpen} onOpenChange={setIsQuotationDialogOpen} onSuccess={(q) => setIsQuotationDialogOpen(false)} />
+    </>
+  );
+}
 </file>
 
 <file path="src/app/sales/page.tsx">
