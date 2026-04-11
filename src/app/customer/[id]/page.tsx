@@ -65,7 +65,7 @@ function CustomerContent() {
     }
 
     const ledger = [
-        ...(sales || []).map(s => ({ type: 'Invoice' as const, id: s.id, no: s.invoiceSequence, date: s.saleDate, amount: s.total || 0, debit: true })),
+        ...(sales || []).map(s => ({ type: 'Invoice' as const, id: s.id, no: s.invoiceSequence, date: s.saleDate, amount: s.total, debit: true })),
         ...(payments || []).map(p => ({ type: 'Payment' as const, id: p.id, no: p.reference || 'Lump Sum', date: p.date, amount: p.amount, debit: false }))
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 

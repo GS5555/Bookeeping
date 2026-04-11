@@ -31,8 +31,8 @@ const addCompanyHeader = (doc: jsPDF, companyDetails: Company) => {
         companyDetails.gstin ? `GSTIN: ${companyDetails.gstin}` : null,
         companyDetails.email ? `Email: ${companyDetails.email}` : null,
         companyDetails.phone ? `Phone: ${companyDetails.phone}` : null,
-    ].filter(Boolean).join(' | ');
-    doc.text(contactLine, pageWidth / 2, 34, { align: 'center' });
+    ].filter(Boolean) as string[];
+    doc.text(contactLine.join(' | '), pageWidth / 2, 34, { align: 'center' });
     doc.line(14, 38, pageWidth - 14, 38);
 };
 
