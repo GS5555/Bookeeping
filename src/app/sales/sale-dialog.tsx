@@ -107,6 +107,9 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
   const storesRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores') : null, [firestore]);
   const { data: stores } = useCollection<Store>(storesRef);
 
+  const couriersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'settings', 'global', 'couriers'), orderBy('name')) : null, [firestore]);
+  const { data: couriers } = useCollection<Courier>(couriersRef);
+
   const couponsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'coupons') : null, [firestore]);
   const { data: coupons } = useCollection<Coupon>(couponsRef);
 

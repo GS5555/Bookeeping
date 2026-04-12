@@ -185,8 +185,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
         return;
     }
 
-    const finalTotals = totals; // Ensure we use the latest memoized totals
-
     const poItems = validItems.map(item => {
         const product = products?.find(p => p.id === item.productId);
         return {
@@ -195,6 +193,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             productName: product?.name || 'Unknown Product',
             quantity: item.quantity,
             quantityReceived: 0,
+            unitPrice: item.unitPrice,
             unitCost: item.unitPrice,
             totalCost: item.quantity * item.unitPrice,
             hsnCode: item.hsnCode || '',
@@ -215,13 +214,13 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
       paymentStatus: data.paymentStatus,
       paymentMethod: data.paymentMethod,
       items: poItems as any,
-      subTotal: finalTotals.subTotal,
-      gstAmount: finalTotals.gstAmount,
-      cgstAmount: finalTotals.gstAmount / 2,
-      sgstAmount: finalTotals.gstAmount / 2,
+      subTotal: totals.subTotal,
+      gstAmount: totals.gstAmount,
+      cgstAmount: totals.gstAmount / 2,
+      sgstAmount: totals.gstAmount / 2,
       igstAmount: 0,
-      roundOffAmount: finalTotals.roundOffAmount,
-      totalAmount: finalTotals.totalAmount,
+      roundOffAmount: totals.roundOffAmount,
+      totalAmount: totals.totalAmount,
       comments: data.comments || "",
       courierCompany: data.courierCompany || "",
       trackingNumber: data.trackingNumber || "",
@@ -232,11 +231,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
-        className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden" 
-        onInteractOutside={(e) => e.preventDefault()}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
+      <DialogContent className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-6 pb-4 border-b">
           <DialogTitle>Create Purchase Order</DialogTitle>
           <DialogDescription>Fill in the details to place a new order with a vendor.</DialogDescription>
@@ -281,8 +276,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                     const product = products?.find(p => p.id === selectedProdId);
                     const stockItem = inventory?.find(i => i.productId === selectedProdId);
                     const currentStock = stockItem?.stockBatches?.reduce((sum, b) => sum + b.quantity, 0) || 0;
-                    const category = categories?.find(c => c.id === product?.category);
-                    const subCategory = subCategories?.find(sc => sc.id === product?.subCategory);
 
                     return (
                         <Card key={field.id} className={cn("border-2 shadow-sm overflow-visible", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
@@ -296,8 +289,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
                                             <Badge className={cn("text-[9px] font-black h-5 uppercase", currentStock < 10 ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")}>
                                                 Stock: {currentStock}
                                             </Badge>
-                                            {category && <Badge className="text-[9px] font-black h-5 bg-purple-100 text-purple-700 border-purple-200 uppercase">CAT: {category.name}</Badge>}
-                                            {subCategory && <Badge className="text-[9px] font-black h-5 bg-orange-100 text-orange-700 border-orange-200 uppercase">SUB: {subCategory.name}</Badge>}
                                         </div>
                                     )}
                                 </div>
@@ -353,14 +344,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, onSuccess }: PODialogP
             <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 shadow-inner space-y-3">
                 <div className="flex justify-between text-sm"><span>Subtotal</span><span className="font-bold">₹{totals.subTotal.toLocaleString()}</span></div>
                 <div className="flex justify-between text-sm border-y py-2 border-primary/10"><span>Tax (GST)</span><span className="font-bold">₹{totals.gstAmount.toLocaleString()}</span></div>
-                {Math.abs(totals.roundOffAmount) > 0.01 && (
-                    <div className="flex justify-between text-xs italic text-muted-foreground">
-                        <span>Round Off Adjustment</span>
-                        <span className={cn("font-medium", totals.roundOffAmount < 0 ? "text-destructive" : "text-green-600")}>
-                            {totals.roundOffAmount < 0 ? '-' : '+'}₹{Math.abs(totals.roundOffAmount).toFixed(2)}
-                        </span>
-                    </div>
-                )}
                 <div className="flex justify-between items-center pt-4"><span className="text-xl font-black uppercase">Total Amount</span><span className="text-3xl font-black text-primary tracking-tighter">₹{totals.totalAmount.toLocaleString()}</span></div>
             </div>
           </form>

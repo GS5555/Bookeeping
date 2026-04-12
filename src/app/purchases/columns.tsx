@@ -1,5 +1,3 @@
-
-
 'use client'
 
 import { ColumnDef } from "@tanstack/react-table"
@@ -313,6 +311,6 @@ export const columns = (options: {
   {
     id: "actions",
     header: "Actions",
-    cell: ({ row }) => <ActionsCell purchaseOrder={row.original} vendors={options.vendors} onDelete={options.onDelete} onReceiveStock={options.onReceiveStock} onMarkAsFullyReceived={options.onMarkAsFullyReceived} onUpdateShippingStatus={options.onUpdateShippingStatus} onShare={options.onShare} />,
+    cell: ({ row }) => <ActionsCell purchaseOrder={row.original} vendors={options.vendors} onDelete={options.onDelete} onReceiveStock: onReceiveStock, onMarkAsFullyReceived: onMarkAsFullyReceived, onUpdateShippingStatus: onUpdateShippingStatus, onShare: options.onShare })} />
   },
 ]

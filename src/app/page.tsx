@@ -19,7 +19,7 @@ import { CustomerDialog } from '@/app/customers/customer-dialog';
 import { ExpenseDialog } from '@/app/expenses/expense-dialog';
 import { StockDialog, StockFormValues } from '@/app/inventory/stock-dialog';
 import { toast } from '@/hooks/use-toast';
-import type { Sale, PurchaseOrder, Product, Customer, Vendor, Expense, InventoryItem, Quotation, Enquiry, Company } from '@/lib/types';
+import type { Sale, PurchaseOrder, Product, Customer, Vendor, Expense, InventoryItem, Company } from '@/lib/types';
 import { GenericChart } from '@/components/dashboard/generic-chart';
 import type { ChartConfig } from '@/components/ui/chart';
 
@@ -73,7 +73,7 @@ export default function Dashboard() {
   const customersRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'customers'), orderBy('name')) : null, [firestore]);
   const { data: customers } = useCollection<Customer>(customersRef);
 
-  const vendorsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'vendors'), orderBy('name')) : null, [firestore]);
+  const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
   const { data: vendors } = useCollection<Vendor>(vendorsRef);
 
   const inventoryRef = useMemoFirebase(() => {
@@ -113,8 +113,8 @@ export default function Dashboard() {
     const totalPurchases = purchasesThisMonth.reduce((sum, po) => sum + po.totalAmount, 0);
     const totalPurchasesLastMonth = purchasesLastMonth.reduce((sum, po) => sum + po.totalAmount, 0);
     
-    const totalExpenses = expensesThisMonth.reduce((sum, expense) => sum + (expense.amount || 0), 0);
-    const totalExpensesLastMonth = expensesLastMonth.reduce((sum, expense) => sum + (expense.amount || 0), 0);
+    const totalExpenses = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
+    const totalExpensesLastMonth = expensesLastMonth.reduce((sum, expense) => sum + expense.amount, 0);
     
     const calcChange = (current: number, previous: number) => {
       if (previous === 0) return current > 0 ? 100 : 0;
