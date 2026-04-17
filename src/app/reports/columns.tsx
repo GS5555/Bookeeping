@@ -71,28 +71,9 @@ export const salesReportColumns: ColumnDef<any>[] = [
     )
   },
   {
-    accessorKey: "storeName",
-    header: "Store",
-  },
-   {
-    accessorKey: "categoryName",
-    header: "Category",
-  },
-  {
-    accessorKey: "subCategoryName",
-    header: "Sub-Category",
-  },
-  {
-    accessorKey: "saleType",
-    header: "Type",
-  },
-  {
-    accessorKey: "paymentMethod",
-    header: "Payment Mode",
-  },
-  {
-    header: "Items",
-    cell: ({ row }) => row.original.items.length
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => <Badge className="uppercase text-[9px]">{row.original.status}</Badge>
   },
   {
     accessorKey: "total",
@@ -101,21 +82,31 @@ export const salesReportColumns: ColumnDef<any>[] = [
   },
   {
     accessorKey: "amountPaid",
-    header: "Amount Paid",
+    header: "Paid",
     cell: ({ row }) => <FormattedNumberCell value={row.original.amountPaid || 0} />,
   },
   {
     accessorKey: "balanceAmount",
-    header: "Balance",
+    header: "Due",
     cell: ({ row }) => {
         const balance = row.original.balanceAmount || 0;
-        return <FormattedNumberCell value={balance} className={cn(balance > 0 && "text-destructive")} />
+        return <FormattedNumberCell value={balance} className={cn(balance > 0 && "text-destructive font-black")} />
     },
   },
   {
-    accessorKey: "warrantyExpiryDate",
-    header: "Warranty Expires",
-    cell: ({ row }) => row.original.warrantyExpiryDate ? <FormattedDateCell date={row.original.warrantyExpiryDate} /> : 'N/A',
+    id: "tracking",
+    header: "Payment Tracking",
+    cell: ({ row }) => {
+        const history = row.original.paymentHistory;
+        if (!history || history.length === 0) return <span className="text-muted-foreground italic">No payments</span>;
+        const last = history[history.length - 1];
+        return (
+            <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold">Last: {new Date(last.date).toLocaleDateString('en-IN')}</span>
+                <span className="text-[9px] text-muted-foreground uppercase tracking-tighter">Updated: {new Date(last.updatedAt).toLocaleDateString('en-IN')} via {last.method}</span>
+            </div>
+        )
+    }
   },
 ]
 

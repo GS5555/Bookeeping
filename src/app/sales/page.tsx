@@ -16,6 +16,7 @@ import React, { useState, useMemo } from 'react';
 import { Sale, SaleReturn, Customer, Product, User, Company, Store } from '@/lib/types';
 import { SaleDialog } from './sale-dialog';
 import { ReturnDialog } from './return-dialog';
+import { RecordPaymentDialog } from './record-payment-dialog';
 import { toast } from '@/hooks/use-toast';
 import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
 import { GenericChart } from '@/components/dashboard/generic-chart';
@@ -23,7 +24,7 @@ import type { ChartConfig } from '@/components/ui/chart';
 import { exportToExcel, generateShareText } from '@/lib/actions';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, query, orderBy, limit, deleteDoc, runTransaction } from 'firebase/firestore';
+import { collection, doc, query, orderBy, limit, deleteDoc, runTransaction, setDoc } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CustomerFinancials } from './customer-financials';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -63,6 +64,7 @@ export default function SalesPage() {
 
     const [isSaleDialogOpen, setIsSaleDialogOpen] = useState(false);
     const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
+    const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
     const [editingSale, setEditingSale] = useState<Sale | undefined>();
 
     const safeSales = sales || [];
@@ -79,6 +81,11 @@ export default function SalesPage() {
     const handleEditSale = (sale: Sale) => {
         setEditingSale(sale);
         setIsSaleDialogOpen(true);
+    };
+
+    const handleRecordPayment = (sale: Sale) => {
+        setEditingSale(sale);
+        setIsPaymentDialogOpen(true);
     };
 
     const handleAddReturn = () => {
@@ -129,6 +136,19 @@ export default function SalesPage() {
         } catch (error) {
             console.error(error);
             toast({ title: "Error", description: "Failed to save sale.", variant: "destructive" });
+        }
+    };
+
+    const handleUpdateSale = async (updatedSale: Sale) => {
+        if (!firestore) return;
+        try {
+            const saleDocRef = doc(firestore, 'stores', STORE_ID, 'sales', updatedSale.id);
+            await setDoc(saleDocRef, updatedSale, { merge: true });
+            setIsPaymentDialogOpen(false);
+            toast({ title: "Success!", description: "Invoice balance updated." });
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Error", description: "Failed to record payment.", variant: "destructive" });
         }
     };
 
@@ -225,6 +245,7 @@ export default function SalesPage() {
                                 <DataTable columns={salesColumns({ 
                                     onDelete: handleDeleteSale, 
                                     onEdit: handleEditSale, 
+                                    onRecordPayment: handleRecordPayment,
                                     products: safeProducts, 
                                     customers: safeCustomers, 
                                     users: users || [],
@@ -239,6 +260,7 @@ export default function SalesPage() {
                                 <DataTable columns={salesColumns({ 
                                     onDelete: handleDeleteSale, 
                                     onEdit: handleEditSale, 
+                                    onRecordPayment: handleRecordPayment,
                                     products: safeProducts, 
                                     customers: safeCustomers, 
                                     users: users || [],
@@ -261,6 +283,14 @@ export default function SalesPage() {
 
             <SaleDialog open={isSaleDialogOpen} onOpenChange={setIsSaleDialogOpen} sale={editingSale} onSuccess={handleSaleSuccess} />
             <ReturnDialog open={isReturnDialogOpen} onOpenChange={setIsReturnDialogOpen} onSuccess={handleReturnSuccess} />
+            {editingSale && (
+                <RecordPaymentDialog 
+                    open={isPaymentDialogOpen} 
+                    onOpenChange={setIsPaymentDialogOpen} 
+                    sale={editingSale} 
+                    onSuccess={handleUpdateSale} 
+                />
+            )}
         </div>
     );
 }

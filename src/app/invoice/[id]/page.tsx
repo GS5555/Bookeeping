@@ -12,6 +12,8 @@ import { doc } from 'firebase/firestore';
 import { downloadInvoice } from '@/lib/actions';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { cn } from '@/lib/utils';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { FormattedNumberCell } from '@/components/formatted-number-cell';
 
 const formatCurrency = (amount: number): string => {
     if (typeof amount !== 'number') return '₹0.00';
@@ -178,7 +180,7 @@ export default function InvoicePage() {
                     </table>
                 </div>
 
-                <div className="flex flex-col md:flex-row justify-between gap-16 border-t border-gray-100 pt-10">
+                <div className="flex flex-col md:flex-row justify-between gap-16 border-t border-gray-100 pt-10 mb-12">
                     <div className="flex-1 space-y-8">
                         <div>
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Amount in Words</p>
@@ -196,7 +198,7 @@ export default function InvoicePage() {
                         )}
                     </div>
                     
-                    <div className="w-full md:w-80 space-y-3 bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <div className="w-full md:w-80 space-y-3 bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm h-fit">
                         <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
                             <span>Subtotal</span>
                             <span className="text-gray-900">{formatCurrency(sale.subTotal)}</span>
@@ -230,7 +232,52 @@ export default function InvoicePage() {
                             <span className="text-sm font-black text-gray-900 uppercase tracking-widest">Grand Total</span>
                             <span className="text-3xl font-black text-gray-900 tracking-tighter">{formatCurrency(totalAmount)}</span>
                         </div>
+                        
+                        {sale.amountPaid && sale.amountPaid > 0 ? (
+                            <div className="pt-4 space-y-2 border-t border-dashed border-gray-300 mt-4">
+                                <div className="flex justify-between text-xs font-bold text-green-600 uppercase tracking-widest">
+                                    <span>Amount Paid</span>
+                                    <span>{formatCurrency(sale.amountPaid)}</span>
+                                </div>
+                                <div className="flex justify-between text-xs font-bold text-destructive uppercase tracking-widest">
+                                    <span>Balance Due</span>
+                                    <span>{formatCurrency(sale.balanceAmount || 0)}</span>
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
+                </div>
+
+                {sale.paymentHistory && sale.paymentHistory.length > 0 && (
+                    <div className="mt-12">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 mb-4">Chronological Payment History</h4>
+                        <div className="border rounded-lg overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-gray-50 border-b-2 border-black">
+                                        <TableHead className="font-black text-[10px] text-black uppercase py-3">Pymt Date</TableHead>
+                                        <TableHead className="font-black text-[10px] text-black uppercase py-3">Method</TableHead>
+                                        <TableHead className="font-black text-[10px] text-black uppercase py-3">Logged Date</TableHead>
+                                        <TableHead className="text-right font-black text-[10px] text-black uppercase py-3">Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {sale.paymentHistory.map((pymt) => (
+                                        <TableRow key={pymt.id} className="border-b border-gray-100">
+                                            <TableCell className="text-xs font-bold text-gray-700">{format(new Date(pymt.date), 'dd MMM yyyy')}</TableCell>
+                                            <TableCell className="text-xs font-medium text-gray-500 uppercase">{pymt.method}</TableCell>
+                                            <TableCell className="text-[10px] font-medium text-gray-400 italic">{format(new Date(pymt.updatedAt), 'dd/MM/yy HH:mm')}</TableCell>
+                                            <TableCell className="text-right text-xs font-black"><FormattedNumberCell value={pymt.amount} /></TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+                )}
+
+                <div className="mt-16 pt-8 border-t text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                    <p>Generated on {format(new Date(), 'PPP p')} • {companyDetails.name}</p>
                 </div>
             </div>
 

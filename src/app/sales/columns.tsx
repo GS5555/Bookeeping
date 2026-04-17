@@ -1,10 +1,9 @@
-
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
 import { Sale, Product, Customer, Company, User } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, Pencil, Trash2, FileDown, Mail, Barcode, Printer, Share, User as UserIcon } from "lucide-react"
+import { MoreHorizontal, Pencil, Trash2, FileDown, Mail, Printer, Share, User as UserIcon, Banknote } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -18,7 +17,6 @@ import { useState } from "react"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 import { generateInvoiceEmailBody } from "@/lib/actions"
 import { toast } from "@/hooks/use-toast"
-import BarcodeComponent from 'react-barcode';
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -42,6 +40,7 @@ interface ActionsCellProps {
     onDelete: (saleId: string) => void;
     onEdit: (sale: Sale) => void;
     onShare?: (sale: Sale) => void;
+    onRecordPayment?: (sale: Sale) => void;
 }
 
 const FormattedDateCell = ({ date }: { date: string | Date}) => {
@@ -52,7 +51,7 @@ const FormattedDateCell = ({ date }: { date: string | Date}) => {
   return <span>{new Date(date).toLocaleDateString('en-IN')}</span>;
 }
 
-const ActionsCell = ({ sale, products, customers, onDelete, onEdit, onShare }: ActionsCellProps) => {
+const ActionsCell = ({ sale, products, customers, onDelete, onEdit, onShare, onRecordPayment }: ActionsCellProps) => {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const firestore = useFirestore();
     const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
@@ -106,6 +105,10 @@ const ActionsCell = ({ sale, products, customers, onDelete, onEdit, onShare }: A
                          <Pencil className="mr-2 h-4 w-4" />
                         Edit Sale
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onRecordPayment?.(sale)} disabled={sale.status === 'paid'}>
+                        <Banknote className="mr-2 h-4 w-4" />
+                        Record Payment
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                      <DropdownMenuItem onClick={() => onShare?.(sale)} disabled={!onShare}>
                         <Share className="mr-2 h-4 w-4" />
@@ -134,7 +137,7 @@ const ActionsCell = ({ sale, products, customers, onDelete, onEdit, onShare }: A
     );
 }
 
-export const salesColumns = (options: {onDelete: (saleId: string) => void, onEdit: (sale: Sale) => void, products: Product[], customers: Customer[], users?: User[], onShare?: (sale: Sale) => void}): ColumnDef<Sale>[] => [
+export const salesColumns = (options: {onDelete: (saleId: string) => void, onEdit: (sale: Sale) => void, products: Product[], customers: Customer[], users?: User[], onShare?: (sale: Sale) => void, onRecordPayment?: (sale: Sale) => void}): ColumnDef<Sale>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -201,6 +204,6 @@ export const salesColumns = (options: {onDelete: (saleId: string) => void, onEdi
   {
     id: "actions",
     header: "Actions",
-    cell: ({ row }) => <ActionsCell sale={row.original} products={options.products} customers={options.customers} onDelete={options.onDelete} onEdit={options.onEdit} onShare={options.onShare} />,
+    cell: ({ row }) => <ActionsCell sale={row.original} products={options.products} customers={options.customers} onDelete={options.onDelete} onEdit={options.onEdit} onShare={options.onShare} onRecordPayment={options.onRecordPayment} />,
   },
 ]
