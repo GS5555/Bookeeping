@@ -1,62 +1,30 @@
-# Master ERP Transaction Prompt
+# Master Design & Logic Document
 
-Use this prompt to replicate the current system's transaction behavior:
-
----
-
-"Build a robust ERP transaction module (Sales/PO/Quotations) with the following technical requirements:
-
-1. **Search Architecture**: Implement searchable dropdowns using a portal-free pattern. Use a `relative` wrapper with an `absolute` results container (z-100) to prevent Dialog focus traps from blocking keyboard input. 
-2. **Dynamic Row Management**: In the item entry form, automatically append a new blank row whenever a product is selected in the last available row.
-3. **Smart Consolidation**: If a user selects a product that is already in the list, increment the quantity of the existing row instead of adding a duplicate.
-4. **Submission Integrity**: Update the save logic to automatically filter and ignore any empty or incomplete placeholder rows.
-5. **UI & Metadata**: Display SKU, Category, Sub-category, and GST% Rate as high-contrast badges within each line-item card. Show real-time Stock counts for each product during selection.
-6. **Rounding Logic**: Mathematically round the Grand Total to the nearest whole integer. Explicitly calculate and display the difference as a 'Round Off' figure in the summary.
-7. **Professional PDF Engine**: Use jspdf-autotable to generate documents. Ensure strict right-alignment for all numeric data (Qty, Rate, Total). Include a dedicated column for SKU and GST%. Ensure the 'Amount in Words' uses the Indian Numbering System based on the rounded total."
+This file contains the "Gold Standard" logic requirements for core system components.
 
 ---
 
-# Detailed Product & Bundle Prompt
+## Transaction & UI Gold Standards
 
-Use this prompt to replicate the detailed Product module:
+### 1. Search Architecture (Dialog-Safe)
+"Implement searchable dropdowns using a portal-free inline pattern. Use a `relative` wrapper with an `absolute` results container (z-100) to prevent Dialog focus traps from blocking keyboard input. Search logic must manually filter `Name + SKU` string combinations before mapping."
 
-"Build a comprehensive Product Catalog module with Advanced Pricing and Bundle capabilities:
+### 2. Smart Transaction Entry
+"In Sales/PO/Quotations forms:
+- Automatically append a new blank row when an item is selected in the last row.
+- If a user selects a product already in the list, increment the existing row's quantity and remove the new selection to prevent duplicates.
+- Save logic must filter out empty/incomplete placeholder rows before Firestore write."
 
-1. **Reactive Pricing Matrix**: Implement three-way reactive pricing. Landing Price = Purchase + Misc. Profit Amount = Landing * Profit%. Selling Price = Landing + Profit + GST. If a user enters a 'Final Price' (Manual Override), the system must back-calculate the Profit % and Profit Amount.
-2. **Bundle Architecture**: Support an 'isBundle' toggle. When enabled, disable manual price entry. Provide a searchable 'Add Component' picker. Sum the Purchase and Selling prices of all component products to determine the Bundle's total costs and price reactively.
-3. **Master Data Sync**: Automatically populate HSN Codes and GST Rates upon Category or Sub-category selection via a lookup table.
-4. **Media Handler**: Implement an image upload field using Firebase Storage. Include a visual progress bar during the upload process and an instant preview once the URL is returned.
-5. **SKU Generator**: Add a 'Generate SKU' function that constructs a unique identifier using prefixes from the Brand name, Category name, and a 4-digit timestamp suffix.
-6. **Price History Tracking**: Maintain an internal array of objects (`priceHistory`) tracking every time a price is modified, logging both old and new Purchase/Selling prices with ISO timestamps.
-7. **Cloning Logic**: Add a 'Clone' action that pre-fills the creation dialog with data from an existing product but resets the SKU, Serial Number, and ID fields for a new entry."
+### 3. Reactive Pricing Matrix
+"Implement 3-way reactivity:
+- Landed Cost = Purchase + Misc.
+- Selling Price = Landed + Profit Amount + GST.
+- Manual Override: If 'Final Price' is entered, back-calculate Profit % and Amount immediately."
+
+### 4. Financial Accuracy
+"Mathematically round Grand Totals to the nearest integer. Explicitly display the difference as a 'Round Off' figure. Invoices must include a 'Payment History' table showing multiple partial payment logs with timestamps."
 
 ---
 
-# Storage Analytics & Diagnostics Prompt
-
-Use this prompt to replicate the Storage Analytics functionality:
-
-"Build a robust Storage Analytics and Optimization Dashboard with the following technical requirements:
-
-1. **KPI & Metrics Engine**:
-   - Total Footprint: Calculate and display the total size of monitored files in GB.
-   - Capacity Gauge: Show a progress bar indicating current disk utilization (e.g., 84%).
-   - Index Snapshot: Display total file count and current monthly growth rate.
-
-2. **Visual Analytics**:
-   - Integrate a Pie Chart (Recharts) to show the breakdown of storage by file type (Logs, Backups, Media, Temp, Other).
-   - Use tooltips that format bytes into human-readable MB/GB.
-
-3. **Smart Optimization (AI Recommendations)**:
-   - Flag optimization tasks: Truncate Logs (>90 days), Compress Media (>500MB), Archive Backups (>30 days).
-   - Display impact (space saved) and confidence level for each.
-
-4. **Dual-View Explorer**:
-   - Registry View: Tabular list of top 50 largest files with absolute paths and deletion actions.
-   - Directory Tree View: Recursive folder component showing aggregated sizes and file counts.
-
-5. **Scan Workflow**:
-   - Include a 'Deep Scan' trigger that re-indexes the file system and updates charts asynchronously.
-
-6. **Role-Based Security**:
-   - Restrict the module strictly to 'admin' roles with a professional 'Access Denied' state for others."
+## 18-Module Detailed Specifications
+Refer to `src/docs/SYSTEM_SPECIFICATIONS.md` for the full 18-module prompt breakdown including every form field, relationship, and calculation detail.
