@@ -19,7 +19,7 @@ import { CustomerDialog } from '@/app/customers/customer-dialog';
 import { ExpenseDialog } from '@/app/expenses/expense-dialog';
 import { StockDialog, StockFormValues } from '@/app/inventory/stock-dialog';
 import { toast } from '@/hooks/use-toast';
-import type { Sale, PurchaseOrder, Product, Customer, Vendor, Expense, InventoryItem, Company } from '@/lib/types';
+import type { Sale, PurchaseOrder, Product, Customer, Vendor, Expense, InventoryItem, Quotation, Enquiry, Company } from '@/lib/types';
 import { GenericChart } from '@/components/dashboard/generic-chart';
 import type { ChartConfig } from '@/components/ui/chart';
 
@@ -40,6 +40,7 @@ import { useRouter } from 'next/navigation';
 import { useShareDialog } from '@/hooks/use-share-dialog';
 import { generateShareText } from '@/lib/actions';
 import { ShareDialog } from '@/components/share-dialog';
+import { FullPageLoader } from '@/components/full-page-loader';
 
 const STORE_ID = 'store_main';
 
@@ -54,7 +55,7 @@ export default function Dashboard() {
   const [isQuotationDialogOpen, setIsQuotationDialogOpen] = useState(false);
   
   const firestore = useFirestore();
-  const { currentUser } = useCurrentUser();
+  const { currentUser, isLoading: isUserLoading } = useCurrentUser();
   const router = useRouter();
   const { isShareDialogOpen, shareDialogData, openShareDialog, closeShareDialog } = useShareDialog();
 
@@ -227,6 +228,8 @@ export default function Dashboard() {
     }
     setIsStockDialogOpen(false);
   };
+
+  if (isUserLoading) return <FullPageLoader />;
 
   return (
     <>
