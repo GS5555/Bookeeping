@@ -1,3 +1,4 @@
+
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
@@ -6,11 +7,13 @@ import { GenericChart } from '@/components/dashboard/generic-chart';
 import type { ChartConfig } from '@/components/ui/chart';
 import { useMemo } from 'react';
 import { Sale, Expense } from '@/lib/types';
-import { Scale, TrendingUp, TrendingDown, CircleDollarSign, Banknote } from 'lucide-react';
+import { Scale, TrendingUp, TrendingDown, CircleDollarSign, Banknote, LineChart } from 'lucide-react';
 import { format, getMonth } from 'date-fns';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 const STORE_ID = 'store_main';
 
@@ -91,7 +94,14 @@ export default function AccountingPage() {
 
     return (
         <>
-            <PageHeader title="Accounting Overview" />
+            <PageHeader title="Accounting Overview">
+                <Button asChild className="font-black uppercase tracking-widest shadow-lg bg-primary hover:bg-primary/90">
+                    <Link href="/accounting/performance">
+                        <LineChart className="mr-2 h-4 w-4" />
+                        Business Performance / Reports
+                    </Link>
+                </Button>
+            </PageHeader>
             <div className="flex flex-col gap-8">
                 <PageSummary cards={summaryData} />
                  <GenericChart
