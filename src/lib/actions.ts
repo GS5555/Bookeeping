@@ -173,7 +173,7 @@ const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor
     }
 
     const head = [['Sr.', 'Description', 'SKU', 'HSN', 'GST %', 'Qty', 'Unit Cost', 'Total']];
-    const body = po.items.map((item, i) => [String(i+1), item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitCost), formatCurrency(item.totalCost)]);
+    const body = po.items.map((item, i) => [String(i+1), item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalCost)]);
 
     const footerStyles = { halign: 'right' as const };
     const totalFooterStyles = { ...footerStyles, fontStyle: 'bold' as const, fontSize: 11 };
