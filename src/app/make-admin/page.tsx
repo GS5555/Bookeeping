@@ -42,7 +42,7 @@ export default function MakeAdminPage() {
         setAdminRoleClaimed(docSnap.exists() && docSnap.data().claimed === true);
     } catch (error) {
         console.error("Error verifying admin status:", error);
-        toast({ title: "Error", description: "Could not verify admin status.", variant: "destructive" });
+        // toast({ title: "Error", description: "Could not verify admin status.", variant: "destructive" });
         setIsAdmin(false);
         setAdminRoleClaimed(true);
     } finally {
