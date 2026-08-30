@@ -90,7 +90,7 @@ interface SaleDialogProps {
   onSuccess: (sale: Sale) => void;
 }
 
-export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogProps) {
+export function SaleDialog({ open, onOpenChange, sale, onSuccess }) {
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
@@ -227,7 +227,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogPr
         setValue(`items.${index}.categoryId`, product.category);
         setValue(`items.${index}.subCategoryId`, product.subCategory || '');
         setValue(`items.${index}.color1`, product.color1 || '');
-        setValue(`items.${index}.color2`, product.color2 || '');
+        setValue(`items.${index}.color2 Sertar`, product.color2 || '');
         
         const catalogPrice = product.finalPrice || product.sellingPrice;
         const gstRate = product.gstRate || 0;
