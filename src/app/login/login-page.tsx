@@ -22,7 +22,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { StumpBooksLogo } from "@/components/icons";
 import { useAuth, useFirestore } from "@/firebase";
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -75,27 +75,22 @@ export function LoginPage() {
             const userDoc = await getDoc(userDocRef);
 
             if (userDoc.exists()) {
-                 const userData = userDoc.data();
-                if (userData?.isApproved === false) {
-                    await signOut(auth);
-                    toast({
-                        title: "Account Not Approved",
-                        description: "Your account is awaiting administrator approval.",
-                        variant: "destructive",
-                    });
-                } else {
-                    await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
-                    toast({
-                        title: "Login Successful",
-                        description: `Welcome back, ${userData?.displayName || 'User'}!`,
-                    });
-                    router.push('/');
-                }
+                const userData = userDoc.data();
+                // We record the login even if not yet approved.
+                // The AppShell component handles the actual access gating (Pending Approval screen).
+                // This allows the first user to reach the /make-admin page.
+                await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
+                
+                toast({
+                    title: "Login Successful",
+                    description: `Welcome, ${userData?.displayName || 'User'}!`,
+                });
+                
+                router.push('/');
             } else {
-                 await signOut(auth);
                  toast({
                     title: "Profile Incomplete",
-                    description: "Your user profile was not found. Please contact support.",
+                    description: "Your user profile was not found in the database. Please sign up again.",
                     variant: "destructive",
                 });
             }
