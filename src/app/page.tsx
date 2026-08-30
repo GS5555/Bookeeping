@@ -24,7 +24,6 @@ import { GenericChart } from '@/components/dashboard/generic-chart';
 import type { ChartConfig } from '@/components/ui/chart';
 
 import { CustomerFinancials } from '@/app/sales/customer-financials';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, query, where, getDocs, orderBy, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
@@ -40,6 +39,7 @@ import { generateShareText } from '@/lib/actions';
 import { ShareDialog } from '@/components/share-dialog';
 import { FullPageLoader } from '@/components/full-page-loader';
 import { EventReminders } from '@/components/dashboard/event-reminders';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const STORE_ID = 'store_main';
 

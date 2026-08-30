@@ -67,18 +67,16 @@ export function LoginPage() {
             const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
             const user = userCredential.user;
             
-            // ADMIN OVERRIDE: Check if it is the master admin email
             const isAdminEmail = values.email.toLowerCase() === 'admin@example.com';
-
             const userDocRef = doc(firestore, "users", user.uid);
             let userDoc = await getDoc(userDocRef);
 
-            // Self-healing: Create profile if missing but auth exists
+            // Self-healing: Create profile if missing
             if (!userDoc.exists()) {
                 await setDoc(userDocRef, {
                     id: user.uid,
                     email: user.email,
-                    displayName: user.displayName || 'Master Admin',
+                    displayName: user.displayName || (isAdminEmail ? 'Master Admin' : 'User'),
                     photoURL: user.photoURL,
                     role: isAdminEmail ? 'admin' : 'viewer',
                     isApproved: isAdminEmail ? true : false,
@@ -90,7 +88,7 @@ export function LoginPage() {
 
             const userData = userDoc.data();
             
-            // Force approval for admin@example.com if it somehow got set to false
+            // Force administrative status for the master email
             if (isAdminEmail && (!userData?.isApproved || userData?.role !== 'admin')) {
                 await updateDoc(userDocRef, { isApproved: true, role: 'admin' });
             }
@@ -99,11 +97,17 @@ export function LoginPage() {
                 await signOut(auth);
                 toast({
                     title: "Access Denied",
-                    description: "Your account is awaiting approval from a manager.",
+                    description: "Your account is awaiting approval.",
                     variant: "destructive",
                 });
             } else {
-                await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
+                // Update login timestamp
+                try {
+                    await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
+                } catch (e) {
+                    console.warn("Could not update lastLoginAt, continuing anyway.");
+                }
+                
                 toast({
                     title: "Login Successful",
                     description: `Welcome back, ${userData?.displayName || 'User'}!`,
@@ -115,7 +119,7 @@ export function LoginPage() {
             console.error("Login Error:", error);
             let description = "An unexpected error occurred. Please try again.";
             if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                description = "Invalid email or password. Please check your credentials.";
+                description = "Invalid email or password.";
             }
             toast({
                 title: "Login Failed",
@@ -133,8 +137,8 @@ export function LoginPage() {
         <CardHeader className="text-center">
             <StumpBooksLogo className="mx-auto h-10 w-10 mb-2" />
             <CardTitle className="text-2xl font-black uppercase tracking-tighter">System Access</CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
-                Login with your store credentials.
+            <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Enter your credentials to manage your store.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -147,7 +151,7 @@ export function LoginPage() {
                         <FormItem>
                         <FormLabel className="text-[10px] font-bold uppercase">Email Address</FormLabel>
                         <FormControl>
-                            <Input placeholder="name@example.com" {...field} />
+                            <Input placeholder="admin@example.com" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -166,7 +170,7 @@ export function LoginPage() {
                         </div>
                         <div className="relative">
                             <FormControl>
-                                <Input type={showPassword ? "text" : "password"} placeholder="password" {...field} />
+                                <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} />
                             </FormControl>
                              <Button
                                 type="button"
