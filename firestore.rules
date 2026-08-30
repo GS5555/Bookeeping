@@ -25,7 +25,6 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Direct check to avoid recursion issues
       return isSignedIn() && getUserData().role == 'admin';
     }
 
