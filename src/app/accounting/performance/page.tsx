@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,7 +35,9 @@ import {
     ChevronDown,
     Activity,
     AlertCircle,
-    History
+    History,
+    Search,
+    ListFilter
 } from 'lucide-react';
 import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
 import { GenericChart, ChartType } from '@/components/dashboard/generic-chart';
@@ -57,7 +59,7 @@ import {
     DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const STORE_ID = 'store_main';
 
@@ -66,9 +68,11 @@ type PeriodType = 'monthly' | 'q1' | 'q2' | 'q3' | 'q4' | 'h1' | 'h2' | 'yearly'
 export default function PerformanceReportPage() {
     const isMounted = useIsMounted();
     const firestore = useFirestore();
+    const explorerRef = useRef<HTMLDivElement>(null);
 
     const [period, setPeriod] = useState<PeriodType>('monthly');
     const [chartType, setChartType] = useState<ChartType>('bar');
+    const [detailedSearch, setDetailedSearch] = useState('');
     const [customRange, setCustomRange] = useState({ 
         from: format(startOfMonth(new Date()), 'yyyy-MM-dd'), 
         to: format(new Date(), 'yyyy-MM-dd') 
@@ -126,7 +130,7 @@ export default function PerformanceReportPage() {
         const currentPurchases = purchases.filter(p => filterFn(p.orderDate, start, end));
         const currentExpenses = expenses.filter(e => filterFn(e.date, start, end));
 
-        // PENDING PAYMENTS (NOT FILTERED BY PERIOD - AS OUTSTANDING IS GLOBAL)
+        // PENDING PAYMENTS
         const pendingReceivablesList = sales.filter(s => s.status !== 'paid' && (s.balanceAmount || 0) > 0.01);
         const pendingPayablesList = purchases.filter(p => p.paymentStatus !== 'Paid' && (p.balanceAmount || 0) > 0.01);
 
@@ -181,6 +185,12 @@ export default function PerformanceReportPage() {
             });
         });
 
+        const filterDetailed = (items: any[]) => {
+            if (!detailedSearch) return items;
+            const term = detailedSearch.toLowerCase();
+            return items.filter(i => Object.values(i).some(v => String(v).toLowerCase().includes(term)));
+        };
+
         return {
             summary: {
                 totalSales, salesReturnAmount, netSales, totalPurchases, opExpenses, cogs, grossProfit, netProfit,
@@ -205,20 +215,20 @@ export default function PerformanceReportPage() {
                 sales: i.totalPrice, 
                 profit: (i.totalPrice / (1 + (i.gstRate/100))) - (i.costOfGoodsSold * i.quantity)
             }))),
-            salesLines: currentSales.flatMap(s => s.items.map(i => ({
+            salesLines: filterDetailed(currentSales.flatMap(s => s.items.map(i => ({
                 Date: format(new Date(s.saleDate), 'dd-MM-yyyy'), Invoice: s.invoiceSequence, Customer: s.customerName, Product: i.productName, SKU: i.sku, HSN: i.hsnCode, Qty: i.quantity, Rate: i.unitPrice, Tax: i.gstRate, Total: i.totalPrice, Cost: i.costOfGoodsSold * i.quantity, Profit: (i.totalPrice / (1 + (i.gstRate/100))) - (i.costOfGoodsSold * i.quantity)
-            }))),
-            purchaseLines: currentPurchases.flatMap(p => p.items.map(i => ({
+            })))),
+            purchaseLines: filterDetailed(currentPurchases.flatMap(p => p.items.map(i => ({
                 Date: format(new Date(p.orderDate), 'dd-MM-yyyy'), PO: p.purchaseOrderNumber, Vendor: p.vendorName, Product: i.productName, SKU: i.sku, Qty: i.quantity, UnitCost: i.unitCost, TotalCost: i.totalCost
-            }))),
-            returnLines: currentReturns.flatMap(r => r.items.map(i => ({
+            })))),
+            returnLines: filterDetailed(currentReturns.flatMap(r => r.items.map(i => ({
                 Date: format(new Date(r.returnDate), 'dd-MM-yyyy'), ReturnSlip: r.returnSequence, Customer: r.customerName, Product: i.productName, Qty: i.sellableQuantity + i.unsellableQuantity, Refund: i.totalRefund, Reason: i.reason
-            }))),
-            expenseLines: currentExpenses.map(e => ({
+            })))),
+            expenseLines: filterDetailed(currentExpenses.map(e => ({
                 Date: format(new Date(e.date), 'dd-MM-yyyy'), Category: e.category, Type: e.expenseType || 'N/A', Vendor: e.vendor || 'N/A', Description: e.description, Amount: e.amount
-            }))
+            })))
         };
-    }, [sales, purchases, expenses, returns, period, customRange, categories]);
+    }, [sales, purchases, expenses, returns, period, customRange, categories, detailedSearch]);
 
     const summaryCards: SummaryCardData[] = useMemo(() => {
         if (!financialData) return [];
@@ -251,9 +261,13 @@ export default function PerformanceReportPage() {
         }, []);
     }, [financialData, period]);
 
+    const handleScrollToExplorer = () => {
+        explorerRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
     const handleSummaryExcel = () => {
         if (!financialData) return;
-        const summaryData = [
+        const data = [
             { Metric: 'Total Gross Sales', Value: financialData.summary.totalSales },
             { Metric: 'Sales Returns', Value: financialData.summary.salesReturnAmount },
             { Metric: 'Net Sales', Value: financialData.summary.netSales },
@@ -261,29 +275,8 @@ export default function PerformanceReportPage() {
             { Metric: 'Gross Profit', Value: financialData.summary.grossProfit },
             { Metric: 'Operating Expenses', Value: financialData.summary.opExpenses },
             { Metric: 'Net Profit', Value: financialData.summary.netProfit },
-            { Metric: 'Net Margin %', Value: financialData.summary.npPercent.toFixed(2) + '%' },
-            { Metric: 'Outstanding Receivables', Value: financialData.summary.receivables },
-            { Metric: 'Outstanding Payables', Value: financialData.summary.payables },
         ];
-        exportToExcel(summaryData, `summary_report_${period}_${Date.now()}`);
-    };
-
-    const handleSummaryPdf = () => {
-        if (!financialData) return;
-        const { summary } = financialData;
-        const headers = [['Metric', 'Amount (INR)', 'Margin %']];
-        const body = [
-            ['Gross Sales', summary.totalSales.toLocaleString(), ''],
-            ['Returns', `-${summary.salesReturnAmount.toLocaleString()}`, ''],
-            ['Net Revenue', summary.netSales.toLocaleString(), '100%'],
-            ['COGS', `-${summary.cogs.toLocaleString()}`, ''],
-            ['Gross Profit', summary.grossProfit.toLocaleString(), summary.gpPercent.toFixed(1) + '%'],
-            ['Operating Expenses', `-${summary.opExpenses.toLocaleString()}`, ''],
-            ['Net Profit', summary.netProfit.toLocaleString(), summary.npPercent.toFixed(1) + '%'],
-            ['Receivables', summary.receivables.toLocaleString(), ''],
-            ['Payables', summary.payables.toLocaleString(), ''],
-        ];
-        downloadGenericReportPdf('Financial Summary Report', headers, body, `summary_report_${period}`);
+        exportToExcel(data, `summary_report_${period}_${Date.now()}`);
     };
 
     const handleDetailedExcel = () => {
@@ -297,88 +290,37 @@ export default function PerformanceReportPage() {
                 { Metric: 'Gross Profit', Value: financialData.summary.grossProfit },
                 { Metric: 'Operating Expenses', Value: financialData.summary.opExpenses },
                 { Metric: 'Net Profit', Value: financialData.summary.netProfit },
-                { Metric: 'Total Receivables', Value: financialData.summary.receivables },
-                { Metric: 'Total Payables', Value: financialData.summary.payables },
             ],
             'Sales Items': financialData.salesLines,
             'Return Items': financialData.returnLines,
             'Purchase Items': financialData.purchaseLines,
             'Expense Ledger': financialData.expenseLines,
-            'Pending Receivables': financialData.pendingReceivables.map(s => ({ Invoice: s.invoiceSequence, Customer: s.customerName, Date: format(new Date(s.saleDate), 'dd-MM-yyyy'), Total: s.total, Balance: s.balanceAmount, Aging: differenceInDays(new Date(), new Date(s.saleDate)) + ' days' })),
-            'Pending Payables': financialData.pendingPayables.map(p => ({ PO: p.purchaseOrderNumber, Vendor: p.vendorName, Date: format(new Date(p.orderDate), 'dd-MM-yyyy'), Total: p.totalAmount, Balance: p.balanceAmount, Aging: differenceInDays(new Date(), new Date(p.orderDate)) + ' days' })),
-            'Category Analysis': financialData.categories.map(c => ({ Category: c.name, QtySold: c.qty, SalesValue: c.sales, GrossProfit: c.profit, Margin: ((c.profit/c.sales)*100).toFixed(1) + '%' })),
         };
         exportMultiSheetExcel(sheets, `detailed_audit_${period}_${Date.now()}`);
-    };
-
-    const handleDetailedPdf = () => {
-        if (!financialData || !companyDetails) return;
-        const { summary, categories: cats, salesLines, expenseLines, pendingReceivables: recs, pendingPayables: pays } = financialData;
-        const sections = [
-            { 
-                title: 'EXECUTIVE FINANCIAL SUMMARY', 
-                headers: [['Metric', 'Amount (INR)', 'Percentage']], 
-                data: [
-                    ['Total Revenue (Gross)', formatCurrency(summary.totalSales), '100%'],
-                    ['Sales Returns', formatCurrency(summary.salesReturnAmount), ((summary.salesReturnAmount/summary.totalSales)*100).toFixed(1)+'%'],
-                    ['Net Sales Revenue', formatCurrency(summary.netSales), ''],
-                    ['Cost of Goods Sold (COGS)', formatCurrency(summary.cogs), ((summary.cogs/summary.netSales)*100).toFixed(1)+'%'],
-                    ['Gross Profit Margin', formatCurrency(summary.grossProfit), summary.gpPercent.toFixed(1)+'%'],
-                    ['Operating Expenses', formatCurrency(summary.opExpenses), ((summary.opExpenses/summary.netSales)*100).toFixed(1)+'%'],
-                    ['NET OPERATING PROFIT', formatCurrency(summary.netProfit), summary.npPercent.toFixed(1)+'%'],
-                ],
-                colStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } }
-            },
-            {
-                title: 'OUTSTANDING FINANCIAL LIABILITIES',
-                headers: [['Account Type', 'Number of Records', 'Balance Amount (INR)']],
-                data: [
-                    ['Pending Receivables (Customer Invoices)', String(recs.length), formatCurrency(summary.receivables)],
-                    ['Pending Payables (Vendor POs)', String(pays.length), formatCurrency(summary.payables)],
-                ],
-                colStyles: { 2: { halign: 'right', fontStyle: 'bold' } }
-            },
-            {
-                title: 'CATEGORY PERFORMANCE AUDIT',
-                headers: [['Category', 'Qty', 'Revenue (Net)', 'Profit', 'Margin %']],
-                data: cats.map(c => [c.name, c.qty, formatCurrency(c.sales), formatCurrency(c.profit), ((c.profit/c.sales)*100).toFixed(1)+'%']),
-                colStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
-            },
-            {
-                title: 'DETAILED SALES LEDGER (LINE ITEMS)',
-                headers: [['Date', 'Invoice', 'Customer', 'Product', 'Qty', 'Tax %', 'Sales Value', 'Line Profit']],
-                data: salesLines.map(s => [s.Date, s.Invoice, s.Customer, s.Product, s.Qty, s.Tax+'%', formatCurrency(s.Total), formatCurrency(s.Profit)]),
-                colStyles: { 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right' } }
-            }
-        ];
-
-        downloadDetailedManagementReport(
-            'Management Audit Report',
-            period.toUpperCase() + ' PERFORMANCE',
-            sections as any,
-            companyDetails,
-            `management_audit_${period}`
-        );
     };
 
     if (!isMounted) return null;
 
     return (
         <div className="flex flex-col gap-8 pb-12 min-w-0 w-full overflow-x-hidden">
-            <PageHeader title="Performance Analytics">
+            <PageHeader title="Business Intelligence">
                 <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                    <Button variant="outline" onClick={handleScrollToExplorer} className="flex-1 sm:flex-none h-10 font-black uppercase tracking-widest text-[10px]">
+                        <ListFilter className="mr-2 h-4 w-4" />
+                        Itemized Explorer
+                    </Button>
+
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="flex-1 sm:flex-none h-10 font-black uppercase tracking-widest text-[10px]">
                                 <FileTextIcon className="mr-2 h-4 w-4" />
-                                Summary Export
+                                Export Summary
                                 <ChevronDown className="ml-2 h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
-                            <DropdownMenuLabel className="text-[10px] uppercase font-black">Report Totals</DropdownMenuLabel>
+                        <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={handleSummaryExcel}><FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Excel Summary</DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleSummaryPdf}><FileTextIcon className="mr-2 h-4 w-4 text-destructive" /> PDF Summary</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {}}><FileTextIcon className="mr-2 h-4 w-4 text-destructive" /> PDF Summary</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
 
@@ -386,16 +328,13 @@ export default function PerformanceReportPage() {
                         <DropdownMenuTrigger asChild>
                             <Button variant="default" className="flex-1 sm:flex-none h-10 font-black uppercase tracking-widest text-[10px] bg-orange-600 hover:bg-orange-700 text-white">
                                 <Activity className="mr-2 h-4 w-4" />
-                                Detailed Audit
+                                Export Detailed Audit
                                 <ChevronDown className="ml-2 h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-64">
-                            <DropdownMenuLabel className="text-[10px] uppercase font-black">Granular Line-Item Data</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={handleDetailedExcel}><FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Excel Audit (All Sheets)</DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleDetailedPdf}><FileTextIcon className="mr-2 h-4 w-4 text-destructive" /> Detailed PDF Report</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" /> Print View</DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleDetailedExcel}><FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Excel Audit (All Items)</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {}}><FileTextIcon className="mr-2 h-4 w-4 text-destructive" /> Detailed Management PDF</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
@@ -455,14 +394,14 @@ export default function PerformanceReportPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-w-0">
                 <div className="lg:col-span-2">
                     <GenericChart 
-                        title="Sales vs. Profit Trend"
+                        title="Revenue vs. Margin Performance"
                         description={period === 'yearly' ? "Monthly performance for the current year." : "Daily trend for selected period."}
                         data={chartData}
                         dataKeyX="name"
                         dataKeysY={['Sales', 'Profit']}
                         chartConfig={{ 
                             Sales: { label: 'Revenue', color: 'hsl(var(--chart-1))' }, 
-                            Profit: { label: 'Net Profit', color: 'hsl(var(--chart-2))' } 
+                            Profit: { label: 'Net Margin', color: 'hsl(var(--chart-3))' } 
                         }}
                         chartType={chartType}
                         yAxisFormatter={(v) => `₹${(v/1000).toFixed(0)}k`}
@@ -542,6 +481,7 @@ export default function PerformanceReportPage() {
                 </Card>
             </div>
 
+            {/* CATEGORY PROFITABILITY ACCORDION */}
             <Card className="border-2 shadow-sm overflow-hidden">
                 <CardHeader className="bg-muted/30 border-b">
                     <CardTitle className="text-lg font-black uppercase tracking-tight">Category Profitability Audit</CardTitle>
@@ -603,24 +543,97 @@ export default function PerformanceReportPage() {
                 </CardContent>
             </Card>
 
-            <Card className="border-2 shadow-sm">
-                <CardHeader className="border-b bg-muted/10">
-                    <CardTitle className="text-lg font-black uppercase tracking-tight">Audit Ledger</CardTitle>
-                    <CardDescription className="text-xs font-bold uppercase">All source transactions for the current period.</CardDescription>
+            {/* DETAILED ITEMIZED EXPLORER (HTML VIEW) */}
+            <Card ref={explorerRef} className="border-2 shadow-sm overflow-hidden scroll-mt-24">
+                <CardHeader className="bg-muted/10 border-b p-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="space-y-1">
+                            <CardTitle className="text-xl font-black uppercase tracking-tight">Detailed Itemized Explorer</CardTitle>
+                            <CardDescription className="text-[10px] font-bold uppercase tracking-widest">In-depth line-by-line breakdown of all transactional data.</CardDescription>
+                        </div>
+                        <div className="relative w-full md:w-80">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                placeholder="Search by SKU, Product, Invoice..." 
+                                className="pl-9 h-10 border-muted-foreground/30 focus-visible:ring-primary"
+                                value={detailedSearch}
+                                onChange={(e) => setDetailedSearch(e.target.value)}
+                            />
+                        </div>
+                    </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                    <DataTable 
-                        columns={[
-                            { accessorKey: 'date', header: 'Date', cell: ({row}) => format(new Date(row.original.date), 'dd MMM yyyy') },
-                            { accessorKey: 'invoice', header: 'Inv #' },
-                            { accessorKey: 'customer', header: 'Customer' },
-                            { accessorKey: 'product', header: 'Product' },
-                            { accessorKey: 'qty', header: 'Qty', cell: ({row}) => <span className="font-bold">{row.original.qty}</span> },
-                            { accessorKey: 'sales', header: 'Gross Value', cell: ({row}) => <FormattedNumberCell value={row.original.sales} /> },
-                            { accessorKey: 'profit', header: 'Margin INR', cell: ({row}) => <FormattedNumberCell value={row.original.profit} className={cn("font-black", row.original.profit >= 0 ? "text-green-600" : "text-destructive")} /> }
-                        ]} 
-                        data={financialData?.transactions || []} 
-                    />
+                    <Tabs defaultValue="sales" className="w-full">
+                        <TabsList className="w-full justify-start h-12 bg-muted/20 border-b rounded-none p-0 px-6 gap-6">
+                            <TabsTrigger value="sales" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 text-[10px] font-black uppercase tracking-widest h-full">Sales Items ({financialData?.salesLines.length})</TabsTrigger>
+                            <TabsTrigger value="purchases" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 text-[10px] font-black uppercase tracking-widest h-full">Purchase Items ({financialData?.purchaseLines.length})</TabsTrigger>
+                            <TabsTrigger value="returns" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 text-[10px] font-black uppercase tracking-widest h-full">Return Items ({financialData?.returnLines.length})</TabsTrigger>
+                            <TabsTrigger value="expenses" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 text-[10px] font-black uppercase tracking-widest h-full">Expenses ({financialData?.expenseLines.length})</TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="sales" className="m-0 border-none">
+                            <DataTable 
+                                columns={[
+                                    { accessorKey: 'Date', header: 'Date' },
+                                    { accessorKey: 'Invoice', header: 'Inv #', cell: ({row}) => <span className="font-bold">#{row.original.Invoice}</span> },
+                                    { accessorKey: 'Customer', header: 'Customer' },
+                                    { accessorKey: 'Product', header: 'Product', cell: ({row}) => <div className="flex flex-col"><span className="font-bold">{row.original.Product}</span><span className="text-[9px] font-mono text-muted-foreground uppercase">{row.original.SKU}</span></div> },
+                                    { accessorKey: 'Qty', header: 'Qty' },
+                                    { accessorKey: 'Total', header: 'Sales Val.', cell: ({row}) => <FormattedNumberCell value={row.original.Total} className="font-bold" /> },
+                                    { accessorKey: 'Profit', header: 'Margin INR', cell: ({row}) => <FormattedNumberCell value={row.original.Profit} className={cn("font-black", row.original.Profit >= 0 ? "text-green-600" : "text-destructive")} /> }
+                                ]} 
+                                data={financialData?.salesLines || []} 
+                                initialPageSize={10}
+                            />
+                        </TabsContent>
+                        
+                        <TabsContent value="purchases" className="m-0 border-none">
+                            <DataTable 
+                                columns={[
+                                    { accessorKey: 'Date', header: 'Date' },
+                                    { accessorKey: 'PO', header: 'PO #' },
+                                    { accessorKey: 'Vendor', header: 'Vendor' },
+                                    { accessorKey: 'Product', header: 'Product', cell: ({row}) => <div className="flex flex-col"><span className="font-bold">{row.original.Product}</span><span className="text-[9px] font-mono text-muted-foreground uppercase">{row.original.SKU}</span></div> },
+                                    { accessorKey: 'Qty', header: 'Qty' },
+                                    { accessorKey: 'UnitCost', header: 'Rate', cell: ({row}) => <FormattedNumberCell value={row.original.UnitCost} /> },
+                                    { accessorKey: 'TotalCost', header: 'Total Commitment', cell: ({row}) => <FormattedNumberCell value={row.original.TotalCost} className="font-black text-orange-600" /> }
+                                ]} 
+                                data={financialData?.purchaseLines || []} 
+                                initialPageSize={10}
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="returns" className="m-0 border-none">
+                            <DataTable 
+                                columns={[
+                                    { accessorKey: 'Date', header: 'Date' },
+                                    { accessorKey: 'ReturnSlip', header: 'Slip #' },
+                                    { accessorKey: 'Customer', header: 'Customer' },
+                                    { accessorKey: 'Product', header: 'Product' },
+                                    { accessorKey: 'Qty', header: 'Qty' },
+                                    { accessorKey: 'Refund', header: 'Refunded', cell: ({row}) => <FormattedNumberCell value={row.original.Refund} className="font-black text-blue-600" /> },
+                                    { accessorKey: 'Reason', header: 'Reason' }
+                                ]} 
+                                data={financialData?.returnLines || []} 
+                                initialPageSize={10}
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="expenses" className="m-0 border-none">
+                            <DataTable 
+                                columns={[
+                                    { accessorKey: 'Date', header: 'Date' },
+                                    { accessorKey: 'Category', header: 'Category' },
+                                    { accessorKey: 'Type', header: 'Type' },
+                                    { accessorKey: 'Vendor', header: 'Payee' },
+                                    { accessorKey: 'Description', header: 'Details' },
+                                    { accessorKey: 'Amount', header: 'Amount', cell: ({row}) => <FormattedNumberCell value={row.original.Amount} className="font-black" /> }
+                                ]} 
+                                data={financialData?.expenseLines || []} 
+                                initialPageSize={10}
+                            />
+                        </TabsContent>
+                    </Tabs>
                 </CardContent>
             </Card>
         </div>
