@@ -1,27 +1,21 @@
-
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
-import { Sale, SaleReturn, PurchaseOrder, Expense, Category, Product } from '@/lib/types';
+import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { Sale, SaleReturn, PurchaseOrder, Expense, Category, Company } from '@/lib/types';
 import { 
     format, 
     startOfMonth, 
     endOfMonth, 
-    startOfQuarter, 
-    endOfQuarter, 
     startOfYear, 
     endOfYear, 
     subMonths, 
-    subQuarters, 
     subYears,
-    isWithinInterval,
-    parseISO,
     startOfDay,
     endOfDay
 } from 'date-fns';
@@ -30,14 +24,14 @@ import {
     TrendingDown, 
     CircleDollarSign, 
     ArrowLeftRight, 
-    ShoppingCart, 
     Wallet, 
     Scale, 
     Download, 
     Printer, 
-    ChevronDown, 
-    ChevronUp,
-    BarChart3
+    BarChart3,
+    FileSpreadsheet,
+    FileText as FileTextIcon,
+    ChevronDown
 } from 'lucide-react';
 import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
 import { GenericChart, ChartType } from '@/components/dashboard/generic-chart';
@@ -45,9 +39,19 @@ import { DataTable } from '@/components/data-table';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { FormattedNumberCell } from '@/components/formatted-number-cell';
-import { exportToExcel, downloadGenericReportPdf } from '@/lib/actions';
+import { exportMultiSheetExcel, downloadDetailedManagementReport } from '@/lib/actions';
 import { toast } from '@/hooks/use-toast';
 import { useIsMounted } from '@/hooks/use-is-mounted';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { 
+    DropdownMenu, 
+    DropdownMenuContent, 
+    DropdownMenuItem, 
+    DropdownMenuLabel, 
+    DropdownMenuSeparator, 
+    DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 
 const STORE_ID = 'store_main';
 
@@ -76,6 +80,9 @@ export default function PerformanceReportPage() {
 
     const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
     const { data: categories } = useCollection<Category>(categoriesRef);
+
+    const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
+    const { data: companyDetails } = useDoc<Company>(companyDocRef);
 
     // Period Calculation Utility
     const getDateRange = (type: PeriodType, range?: { from: string, to: string }) => {
@@ -110,28 +117,21 @@ export default function PerformanceReportPage() {
         const currentPurchases = purchases.filter(p => filterFn(p.orderDate, start, end));
         const currentExpenses = expenses.filter(e => filterFn(e.date, start, end));
 
-        // Totals
         const totalSales = currentSales.reduce((acc, s) => acc + (s.total || 0), 0);
         const salesReturnAmount = currentReturns.reduce((acc, r) => acc + r.totalRefundAmount, 0);
         const netSales = totalSales - salesReturnAmount;
-        
         const totalPurchases = currentPurchases.reduce((acc, p) => acc + p.totalAmount, 0);
         const opExpenses = currentExpenses.reduce((acc, e) => acc + e.amount, 0);
-        
         const cogs = currentSales.reduce((acc, s) => acc + s.items.reduce((sum, i) => sum + (i.costOfGoodsSold * i.quantity), 0), 0);
-        
         const grossProfit = netSales - cogs;
         const netProfit = grossProfit - opExpenses;
 
-        // Previous Period for Comparison
         let prevStats = null;
         if (prevStart && prevEnd) {
             const prevSales = sales.filter(s => filterFn(s.saleDate, prevStart, prevEnd));
-            const prevTotal = prevSales.reduce((acc, s) => acc + (s.total || 0), 0);
-            prevStats = { totalSales: prevTotal };
+            prevStats = { totalSales: prevSales.reduce((acc, s) => acc + (s.total || 0), 0) };
         }
 
-        // Category Wise Aggregation
         const catMap = new Map();
         currentSales.forEach(sale => {
             sale.items.forEach(item => {
@@ -145,7 +145,6 @@ export default function PerformanceReportPage() {
                 cat.sales += item.totalPrice;
                 cat.profit += (item.totalPrice / (1 + (item.gstRate/100))) - (item.costOfGoodsSold * item.quantity);
 
-                // Product Deep Dive
                 if (!cat.products.has(item.productId)) {
                     cat.products.set(item.productId, { name: item.productName, sku: item.sku, qty: 0, sales: 0, cost: 0, profit: 0, returns: 0, returnQty: 0 });
                 }
@@ -157,10 +156,8 @@ export default function PerformanceReportPage() {
             });
         });
 
-        // Add Returns to products
         currentReturns.forEach(ret => {
             ret.items.forEach(item => {
-                // Find category/product and update (simplified for now)
                 catMap.forEach(cat => {
                     if (cat.products.has(item.productId)) {
                         const prod = cat.products.get(item.productId);
@@ -171,31 +168,28 @@ export default function PerformanceReportPage() {
             });
         });
 
-        const receivables = sales.filter(s => s.status === 'pending').reduce((acc, s) => acc + (s.balanceAmount || s.total), 0);
-        const payables = purchases.filter(p => p.paymentStatus !== 'Paid').reduce((acc, p) => acc + (p.balanceAmount || p.totalAmount), 0);
-
         return {
             summary: {
                 totalSales, salesReturnAmount, netSales, totalPurchases, opExpenses, cogs, grossProfit, netProfit,
                 gpPercent: netSales > 0 ? (grossProfit / netSales) * 100 : 0,
                 npPercent: netSales > 0 ? (netProfit / netSales) * 100 : 0,
-                receivables, payables,
                 salesCount: currentSales.length,
                 purchaseCount: currentPurchases.length,
                 prevTotalSales: prevStats?.totalSales || 0
             },
             categories: Array.from(catMap.values()),
-            transactions: currentSales.flatMap(s => s.items.map(i => ({
-                date: s.saleDate,
-                invoice: s.invoiceSequence,
-                customer: s.customerName,
-                product: i.productName,
-                category: categories?.find(c => c.id === i.categoryId)?.name || 'N/A',
-                qty: i.quantity,
-                sales: i.totalPrice,
-                cost: i.costOfGoodsSold * i.quantity,
-                profit: (i.totalPrice / (1 + (i.gstRate/100))) - (i.costOfGoodsSold * i.quantity)
-            })))
+            salesLines: currentSales.flatMap(s => s.items.map(i => ({
+                Date: format(new Date(s.saleDate), 'dd-MM-yyyy'), Invoice: s.invoiceSequence, Customer: s.customerName, Product: i.productName, SKU: i.sku, HSN: i.hsnCode, Qty: i.quantity, Rate: i.unitPrice, Tax: i.gstRate, Total: i.totalPrice, Cost: i.costOfGoodsSold * i.quantity, Profit: (i.totalPrice / (1 + (i.gstRate/100))) - (i.costOfGoodsSold * i.quantity)
+            }))),
+            purchaseLines: currentPurchases.flatMap(p => p.items.map(i => ({
+                Date: format(new Date(p.orderDate), 'dd-MM-yyyy'), PO: p.purchaseOrderNumber, Vendor: p.vendorName, Product: i.productName, SKU: i.sku, Qty: i.quantity, UnitCost: i.unitCost, TotalCost: i.totalCost
+            }))),
+            returnLines: currentReturns.flatMap(r => r.items.map(i => ({
+                Date: format(new Date(r.returnDate), 'dd-MM-yyyy'), ReturnSlip: r.returnSequence, Customer: r.customerName, Product: i.productName, Qty: i.sellableQuantity + i.unsellableQuantity, Refund: i.totalRefund, Reason: i.reason
+            }))),
+            expenseLines: currentExpenses.map(e => ({
+                Date: format(new Date(e.date), 'dd-MM-yyyy'), Category: e.category, Type: e.expenseType, Vendor: e.vendor, Description: e.description, Amount: e.amount
+            }))
         };
     }, [sales, purchases, expenses, returns, period, customRange, categories]);
 
@@ -203,7 +197,6 @@ export default function PerformanceReportPage() {
         if (!financialData) return [];
         const { summary } = financialData;
         const salesChange = summary.prevTotalSales > 0 ? ((summary.totalSales - summary.prevTotalSales) / summary.prevTotalSales) * 100 : 0;
-
         return [
             { title: "Net Sales", value: `₹${summary.netSales.toLocaleString()}`, icon: CircleDollarSign, description: `${salesChange >= 0 ? '+' : ''}${salesChange.toFixed(1)}% vs prev.` },
             { title: "Returns", value: `₹${summary.salesReturnAmount.toLocaleString()}`, icon: ArrowLeftRight, description: "Credit Notes Issued" },
@@ -213,20 +206,74 @@ export default function PerformanceReportPage() {
         ];
     }, [financialData]);
 
-    const handleExportExcel = () => {
+    const handleDetailedExcel = () => {
         if (!financialData) return;
-        const wb = {
+        const sheets = {
             Summary: [
-                { Metric: 'Total Sales', Value: financialData.summary.totalSales },
-                { Metric: 'Returns', Value: financialData.summary.salesReturnAmount },
+                { Metric: 'Total Gross Sales', Value: financialData.summary.totalSales },
+                { Metric: 'Sales Returns', Value: financialData.summary.salesReturnAmount },
+                { Metric: 'Net Sales', Value: financialData.summary.netSales },
                 { Metric: 'COGS', Value: financialData.summary.cogs },
                 { Metric: 'Gross Profit', Value: financialData.summary.grossProfit },
-                { Metric: 'Expenses', Value: financialData.summary.opExpenses },
+                { Metric: 'Operating Expenses', Value: financialData.summary.opExpenses },
                 { Metric: 'Net Profit', Value: financialData.summary.netProfit },
+                { Metric: 'Net Profit Margin %', Value: financialData.summary.npPercent.toFixed(2) + '%' },
             ],
-            Transactions: financialData.transactions
+            'Sales Items': financialData.salesLines,
+            'Return Items': financialData.returnLines,
+            'Purchase Items': financialData.purchaseLines,
+            'Expense Ledger': financialData.expenseLines,
+            'Category Analysis': financialData.categories.map(c => ({ Category: c.name, QtySold: c.qty, SalesValue: c.sales, GrossProfit: c.profit, Margin: ((c.profit/c.sales)*100).toFixed(1) + '%' })),
+            'Product Performance': financialData.categories.flatMap(c => Array.from(c.products.values()).map((p: any) => ({ ...p, category: c.name }))),
         };
-        exportToExcel(wb.Summary, `performance_report_${period}`);
+        exportMultiSheetExcel(sheets, `detailed_audit_${period}_${Date.now()}`);
+    };
+
+    const handleDetailedPdf = () => {
+        if (!financialData || !companyDetails) return;
+        const { summary, categories: cats, salesLines, expenseLines } = financialData;
+        const sections = [
+            { 
+                title: 'EXECUTIVE FINANCIAL SUMMARY', 
+                headers: [['Metric', 'Amount (INR)', 'Percentage']], 
+                data: [
+                    ['Total Revenue (Gross)', formatCurrency(summary.totalSales), '100%'],
+                    ['Sales Returns', formatCurrency(summary.salesReturnAmount), ((summary.salesReturnAmount/summary.totalSales)*100).toFixed(1)+'%'],
+                    ['Net Sales Revenue', formatCurrency(summary.netSales), ''],
+                    ['Cost of Goods Sold (COGS)', formatCurrency(summary.cogs), ((summary.cogs/summary.netSales)*100).toFixed(1)+'%'],
+                    ['Gross Profit Margin', formatCurrency(summary.grossProfit), summary.gpPercent.toFixed(1)+'%'],
+                    ['Operating Expenses', formatCurrency(summary.opExpenses), ((summary.opExpenses/summary.netSales)*100).toFixed(1)+'%'],
+                    ['NET OPERATING PROFIT', formatCurrency(summary.netProfit), summary.npPercent.toFixed(1)+'%'],
+                ],
+                colStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } }
+            },
+            {
+                title: 'CATEGORY PERFORMANCE AUDIT',
+                headers: [['Category', 'Qty', 'Revenue (Net)', 'Profit', 'Margin %']],
+                data: cats.map(c => [c.name, c.qty, formatCurrency(c.sales), formatCurrency(c.profit), ((c.profit/c.sales)*100).toFixed(1)+'%']),
+                colStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
+            },
+            {
+                title: 'DETAILED SALES LEDGER (LINE ITEMS)',
+                headers: [['Date', 'Invoice', 'Customer', 'Product', 'Qty', 'Tax %', 'Sales Value', 'Line Profit']],
+                data: salesLines.map(s => [s.Date, s.Invoice, s.Customer, s.Product, s.Qty, s.Tax+'%', formatCurrency(s.Total), formatCurrency(s.Profit)]),
+                colStyles: { 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right' } }
+            },
+            {
+                title: 'OPERATIONAL EXPENSE AUDIT',
+                headers: [['Date', 'Category', 'Description', 'Vendor', 'Amount']],
+                data: expenseLines.map(e => [e.Date, e.Category, e.Description, e.Vendor, formatCurrency(e.Amount)]),
+                colStyles: { 4: { halign: 'right' } }
+            }
+        ];
+
+        downloadDetailedManagementReport(
+            'Management Audit Report',
+            period.toUpperCase() + ' PERFORMANCE',
+            sections as any,
+            companyDetails,
+            `management_audit_${period}`
+        );
     };
 
     if (!isMounted) return null;
@@ -235,8 +282,31 @@ export default function PerformanceReportPage() {
         <div className="flex flex-col gap-8 pb-12">
             <PageHeader title="Business Performance & Profitability">
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handleExportExcel}><Download className="mr-2 h-4 w-4" /> Excel</Button>
-                    <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" /> Print</Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="default" className="font-black uppercase tracking-widest bg-orange-600 hover:bg-orange-700 shadow-lg">
+                                <Download className="mr-2 h-4 w-4" />
+                                Export Detailed Audit
+                                <ChevronDown className="ml-2 h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full Data Reconciliation</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={handleDetailedExcel} className="cursor-pointer">
+                                <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                                <span className="font-bold">Excel Workbook (8 Sheets)</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleDetailedPdf} className="cursor-pointer">
+                                <FileTextIcon className="mr-2 h-4 w-4 text-destructive" />
+                                <span className="font-bold">Management PDF Report</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => window.print()} className="cursor-pointer">
+                                <Printer className="mr-2 h-4 w-4" />
+                                <span className="font-medium">Print Analysis</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </PageHeader>
 
@@ -246,7 +316,7 @@ export default function PerformanceReportPage() {
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Report Period</Label>
                         <Select value={period} onValueChange={(v) => setPeriod(v as PeriodType)}>
-                            <SelectTrigger className="h-10 font-bold uppercase"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-10 font-bold uppercase border-muted-foreground/30"><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="monthly">Monthly (Current)</SelectItem>
                                 <SelectItem value="q1">Quarterly - Q1 (Jan-Mar)</SelectItem>
@@ -265,11 +335,11 @@ export default function PerformanceReportPage() {
                         <div className="md:col-span-2 grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">From</Label>
-                                <Input type="date" value={customRange.from} onChange={(e) => setCustomRange(p => ({ ...p, from: e.target.value }))} />
+                                <Input type="date" value={customRange.from} onChange={(e) => setCustomRange(p => ({ ...p, from: e.target.value }))} className="border-muted-foreground/30" />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">To</Label>
-                                <Input type="date" value={customRange.to} onChange={(e) => setCustomRange(p => ({ ...p, to: e.target.value }))} />
+                                <Input type="date" value={customRange.to} onChange={(e) => setCustomRange(p => ({ ...p, to: e.target.value }))} className="border-muted-foreground/30" />
                             </div>
                         </div>
                     )}
@@ -277,7 +347,7 @@ export default function PerformanceReportPage() {
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Visualization Type</Label>
                         <Select value={chartType} onValueChange={(v) => setChartType(v as ChartType)}>
-                            <SelectTrigger className="h-10"><BarChart3 className="mr-2 h-4 w-4" /><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-10 border-muted-foreground/30"><BarChart3 className="mr-2 h-4 w-4" /><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="bar">Bar Chart</SelectItem>
                                 <SelectItem value="line">Line Chart</SelectItem>
@@ -292,11 +362,10 @@ export default function PerformanceReportPage() {
             <PageSummary cards={summaryCards} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* GRAPHS */}
                 <div className="lg:col-span-2">
                     <GenericChart 
                         title="Sales vs. Profit Trend"
-                        description="Performance metrics for the selected period."
+                        description="Net revenue and profitability metrics for selected period."
                         data={financialData?.transactions.reduce((acc: any[], t) => {
                             const date = format(new Date(t.date), 'dd MMM');
                             const existing = acc.find(x => x.name === date);
@@ -306,74 +375,63 @@ export default function PerformanceReportPage() {
                         }, []) || []}
                         dataKeyX="name"
                         dataKeysY={['Sales', 'Profit']}
-                        chartConfig={{ Sales: { label: 'Sales', color: 'hsl(var(--chart-1))' }, Profit: { label: 'Profit', color: 'hsl(var(--chart-2))' } }}
+                        chartConfig={{ Sales: { label: 'Revenue', color: 'hsl(var(--chart-1))' }, Profit: { label: 'Net Profit', color: 'hsl(var(--chart-2))' } }}
                         chartType={chartType}
                         yAxisFormatter={(v) => `₹${v/1000}k`}
                     />
                 </div>
 
-                {/* OUTSTANDING CARDS */}
                 <div className="space-y-6">
-                    <Card className="border-l-4 border-l-destructive">
+                    <Card className="border-l-4 border-l-destructive bg-destructive/5 shadow-sm">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground">Accounts Receivable</CardTitle>
+                            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Current Accounts Receivable</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-3xl font-black text-destructive tracking-tighter">₹{financialData?.summary.receivables.toLocaleString()}</p>
-                            <p className="text-[10px] font-bold uppercase mt-1">Outstanding from customers</p>
+                            <p className="text-3xl font-black text-destructive tracking-tighter">₹{financialData?.summary.receivables?.toLocaleString() || '0'}</p>
+                            <p className="text-[9px] font-bold uppercase mt-1 opacity-70 italic">Uncollected Customer Payments</p>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-orange-500">
+                    <Card className="border-l-4 border-l-orange-500 bg-orange-50 shadow-sm">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground">Accounts Payable</CardTitle>
+                            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Current Accounts Payable</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-3xl font-black text-orange-600 tracking-tighter">₹{financialData?.summary.payables.toLocaleString()}</p>
-                            <p className="text-[10px] font-bold uppercase mt-1">Owed to vendors</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground">Transaction Volume</CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid grid-cols-2 gap-4">
-                            <div><p className="text-lg font-black">{financialData?.summary.salesCount}</p><p className="text-[9px] uppercase font-bold text-muted-foreground">Invoices</p></div>
-                            <div><p className="text-lg font-black">{financialData?.summary.purchaseCount}</p><p className="text-[9px] uppercase font-bold text-muted-foreground">PO Entries</p></div>
+                            <p className="text-3xl font-black text-orange-600 tracking-tighter">₹{financialData?.summary.payables?.toLocaleString() || '0'}</p>
+                            <p className="text-[9px] font-bold uppercase mt-1 opacity-70 italic">Outstanding Vendor Dues</p>
                         </CardContent>
                     </Card>
                 </div>
             </div>
 
-            {/* CATEGORY WISE PROFITABILITY */}
             <Card className="border-2 shadow-sm overflow-hidden">
                 <CardHeader className="bg-muted/30 border-b">
-                    <CardTitle className="text-lg font-black uppercase tracking-tight">Category-Wise Profitability</CardTitle>
-                    <CardDescription className="text-xs font-bold uppercase">Performance breakdown by product lines.</CardDescription>
+                    <CardTitle className="text-lg font-black uppercase tracking-tight">Product Category Drill-Down</CardTitle>
+                    <CardDescription className="text-xs font-bold uppercase">Aggregated performance by line of business.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Accordion type="single" collapsible className="w-full">
                         {financialData?.categories.map((cat, idx) => (
                             <AccordionItem key={idx} value={`cat-${idx}`} className="border-b last:border-none">
-                                <AccordionTrigger className="px-6 hover:bg-muted/20 py-4">
+                                <AccordionTrigger className="px-6 hover:bg-muted/20 py-4 transition-all group">
                                     <div className="flex-1 grid grid-cols-2 md:grid-cols-5 text-left items-center gap-4">
-                                        <div className="font-black text-base uppercase tracking-tight">{cat.name}</div>
-                                        <div className="hidden md:block"><p className="text-[9px] font-black text-muted-foreground uppercase">Qty Sold</p><p className="font-bold">{cat.qty}</p></div>
-                                        <div><p className="text-[9px] font-black text-muted-foreground uppercase">Sales Value</p><p className="font-black text-primary">₹{cat.sales.toLocaleString()}</p></div>
+                                        <div className="font-black text-base uppercase tracking-tight text-primary">{cat.name}</div>
+                                        <div className="hidden md:block"><p className="text-[9px] font-black text-muted-foreground uppercase">Units Sold</p><p className="font-bold">{cat.qty}</p></div>
+                                        <div><p className="text-[9px] font-black text-muted-foreground uppercase">Net Revenue</p><p className="font-black text-foreground">₹{cat.sales.toLocaleString()}</p></div>
                                         <div className="hidden md:block"><p className="text-[9px] font-black text-muted-foreground uppercase">Gross Profit</p><p className="font-black text-green-600">₹{cat.profit.toLocaleString()}</p></div>
-                                        <div><p className="text-[9px] font-black text-muted-foreground uppercase">Margin</p><Badge className="bg-green-100 text-green-700 border-none">{((cat.profit / cat.sales) * 100).toFixed(1)}%</Badge></div>
+                                        <div><p className="text-[9px] font-black text-muted-foreground uppercase">Margin</p><Badge className="bg-green-100 text-green-700 border-none font-black">{((cat.profit / cat.sales) * 100).toFixed(1)}%</Badge></div>
                                     </div>
                                 </AccordionTrigger>
-                                <AccordionContent className="bg-muted/5 p-6">
-                                    <div className="rounded-xl border bg-background overflow-hidden">
-                                        <table className="w-full text-xs">
+                                <AccordionContent className="bg-muted/5 p-6 border-t">
+                                    <div className="rounded-xl border bg-background overflow-hidden shadow-inner">
+                                        <table className="w-full text-[11px] font-medium">
                                             <thead className="bg-muted/50 border-b">
                                                 <tr className="text-[9px] font-black uppercase tracking-widest text-muted-foreground text-left">
-                                                    <th className="p-3">Product / SKU</th>
-                                                    <th className="p-3 text-right">Sold</th>
+                                                    <th className="p-3">Product Profile</th>
+                                                    <th className="p-3 text-right">Qty</th>
                                                     <th className="p-3 text-right">Returns</th>
-                                                    <th className="p-3 text-right">Sales (Net)</th>
-                                                    <th className="p-3 text-right">Cost</th>
-                                                    <th className="p-3 text-right">Profit</th>
+                                                    <th className="p-3 text-right">Net Sales</th>
+                                                    <th className="p-3 text-right">Landed Cost</th>
+                                                    <th className="p-3 text-right">Margin INR</th>
                                                     <th className="p-3 text-right">Margin %</th>
                                                 </tr>
                                             </thead>
@@ -381,18 +439,18 @@ export default function PerformanceReportPage() {
                                                 {Array.from(cat.products.values()).map((prod: any, pIdx) => (
                                                     <tr key={pIdx} className="hover:bg-muted/10 transition-colors">
                                                         <td className="p-3">
-                                                            <p className="font-bold">{prod.name}</p>
-                                                            <p className="text-[10px] font-mono text-muted-foreground">{prod.sku}</p>
+                                                            <p className="font-black text-xs uppercase">{prod.name}</p>
+                                                            <p className="text-[9px] font-mono text-muted-foreground">SKU: {prod.sku}</p>
                                                         </td>
                                                         <td className="p-3 text-right font-bold">{prod.qty}</td>
                                                         <td className="p-3 text-right">
-                                                            {prod.returnQty > 0 && <Badge variant="destructive" className="h-5 text-[9px]">{prod.returnQty}</Badge>}
+                                                            {prod.returnQty > 0 ? <Badge variant="destructive" className="h-5 text-[9px] font-black">{prod.returnQty}</Badge> : '-'}
                                                         </td>
                                                         <td className="p-3 text-right font-black">₹{prod.sales.toLocaleString()}</td>
                                                         <td className="p-3 text-right text-muted-foreground">₹{prod.cost.toLocaleString()}</td>
                                                         <td className="p-3 text-right font-black text-green-600">₹{prod.profit.toLocaleString()}</td>
                                                         <td className="p-3 text-right">
-                                                            <Badge variant="outline" className="border-green-200 text-green-700">{((prod.profit / prod.sales) * 100).toFixed(1)}%</Badge>
+                                                            <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50/50 font-black text-[10px]">{((prod.profit / prod.sales) * 100).toFixed(1)}%</Badge>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -406,11 +464,10 @@ export default function PerformanceReportPage() {
                 </CardContent>
             </Card>
 
-            {/* TRANSACTION LEDGER */}
             <Card className="border-2 shadow-sm">
-                <CardHeader className="border-b">
-                    <CardTitle className="text-lg font-black uppercase tracking-tight">Underlying Transactions</CardTitle>
-                    <CardDescription className="text-xs font-bold uppercase">All records used for the calculations above.</CardDescription>
+                <CardHeader className="border-b bg-muted/10">
+                    <CardTitle className="text-lg font-black uppercase tracking-tight">Audit Ledger</CardTitle>
+                    <CardDescription className="text-xs font-bold uppercase">Base transactions used for Period Calculations.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <DataTable 
@@ -420,9 +477,9 @@ export default function PerformanceReportPage() {
                             { accessorKey: 'customer', header: 'Customer' },
                             { accessorKey: 'product', header: 'Product' },
                             { accessorKey: 'category', header: 'Category' },
-                            { accessorKey: 'qty', header: 'Qty' },
-                            { accessorKey: 'sales', header: 'Sales', cell: ({row}) => <FormattedNumberCell value={row.original.sales} /> },
-                            { accessorKey: 'profit', header: 'Profit', cell: ({row}) => <FormattedNumberCell value={row.original.profit} className="text-green-600 font-bold" /> }
+                            { accessorKey: 'qty', header: 'Qty', cell: ({row}) => <span className="font-bold">{row.original.qty}</span> },
+                            { accessorKey: 'sales', header: 'Gross Value', cell: ({row}) => <FormattedNumberCell value={row.original.sales} /> },
+                            { accessorKey: 'profit', header: 'Margin INR', cell: ({row}) => <FormattedNumberCell value={row.original.profit} className={cn("font-black", row.original.profit >= 0 ? "text-green-600" : "text-destructive")} /> }
                         ]} 
                         data={financialData?.transactions || []} 
                     />
@@ -432,10 +489,6 @@ export default function PerformanceReportPage() {
     );
 }
 
-function Label({ className, children }: { className?: string, children: React.ReactNode }) {
-    return <label className={cn("text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70", className)}>{children}</label>;
-}
-
-function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-    return <input className={cn("flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50", className)} {...props} />;
+function formatCurrency(amount: number): string {
+    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

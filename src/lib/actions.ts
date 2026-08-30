@@ -173,7 +173,7 @@ const generatePurchaseOrderDoc = (doc: jsPDF, po: PurchaseOrder, vendors: Vendor
     }
 
     const head = [['Sr.', 'Description', 'SKU', 'HSN', 'GST %', 'Qty', 'Unit Cost', 'Total']];
-    const body = po.items.map((item, i) => [String(i+1), item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitPrice), formatCurrency(item.totalCost)]);
+    const body = po.items.map((item, i) => [String(i+1), item.productName, item.sku || 'N/A', item.hsnCode || '-', `${item.gstRate}%`, String(item.quantity), formatCurrency(item.unitCost), formatCurrency(item.totalCost)]);
 
     const footerStyles = { halign: 'right' as const };
     const totalFooterStyles = { ...footerStyles, fontStyle: 'bold' as const, fontSize: 11 };
@@ -358,6 +358,20 @@ export const exportToExcel = (data: any[], fileName: string) => {
     saveAs(blob, `${fileName}.xlsx`);
 };
 
+/**
+ * Exports a multi-sheet Excel workbook from a record of sheet names and data arrays.
+ */
+export const exportMultiSheetExcel = (sheets: Record<string, any[]>, fileName: string) => {
+    const workbook = XLSX.utils.book_new();
+    Object.entries(sheets).forEach(([name, data]) => {
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        XLSX.utils.book_append_sheet(workbook, worksheet, name.slice(0, 31)); // Excel limit
+    });
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+    saveAs(blob, `${fileName}.xlsx`);
+};
+
 export const downloadReturnSlip = (saleReturn: SaleReturn, customers: Customer[], stores: Store[], companyDetails: Company) => {
     const doc = new jsPDF();
     doc.text(`Return Slip ${saleReturn.returnSequence}`, 14, 20);
@@ -370,6 +384,48 @@ export const downloadGenericReportPdf = (title: string, headers: string[][], dat
   (doc as any).autoTable({ head: headers, body: data, startY: 20, theme: 'grid' });
   doc.save(`${fileName}.pdf`);
 };
+
+/**
+ * Generates a multi-page management audit report in PDF format.
+ */
+export const downloadDetailedManagementReport = (
+    title: string, 
+    period: string, 
+    sections: { title: string; headers: string[][]; data: any[][]; colStyles?: any }[], 
+    companyDetails: Company,
+    fileName: string
+) => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    
+    sections.forEach((section, index) => {
+        if (index > 0) doc.addPage();
+        
+        // Header
+        addCompanyHeader(doc, companyDetails);
+        const pageWidth = doc.internal.pageSize.getWidth();
+        
+        doc.setFontSize(14).setFont('helvetica', 'bold');
+        doc.text(title.toUpperCase(), pageWidth / 2, 45, { align: 'center' });
+        doc.setFontSize(10).setFont('helvetica', 'normal');
+        doc.text(`Report Period: ${period}`, pageWidth / 2, 52, { align: 'center' });
+        
+        doc.setFontSize(12).setFont('helvetica', 'bold');
+        doc.text(section.title, 14, 65);
+        
+        (doc as any).autoTable({
+            startY: 70,
+            head: section.headers,
+            body: section.data,
+            theme: 'grid',
+            headStyles: { fillColor: [60, 60, 60], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 8 },
+            columnStyles: section.colStyles || {},
+            margin: { horizontal: 14 }
+        });
+    });
+
+    doc.save(`${fileName}.pdf`);
+}
 
 export const generateShareText = (docType: string, number: string, name: string, companyName: string, link: string) => {
     return `Hi ${name},\n\nPlease find your ${docType} #${number} from ${companyName} here:\n${link}\n\nThank you!`;
