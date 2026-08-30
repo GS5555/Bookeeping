@@ -71,13 +71,12 @@ export function LoginPage() {
             const userDocRef = doc(firestore, "users", user.uid);
             let userDoc = await getDoc(userDocRef);
 
-            // Self-healing: Create profile if missing
+            // Self-healing: Rebuild profile if missing in Firestore but exists in Auth
             if (!userDoc.exists()) {
                 await setDoc(userDocRef, {
                     id: user.uid,
                     email: user.email,
-                    displayName: user.displayName || (isAdminEmail ? 'Master Admin' : 'User'),
-                    photoURL: user.photoURL,
+                    displayName: user.displayName || (isAdminEmail ? 'System Admin' : 'User'),
                     role: isAdminEmail ? 'admin' : 'viewer',
                     isApproved: isAdminEmail ? true : false,
                     createdAt: serverTimestamp(),
@@ -88,7 +87,7 @@ export function LoginPage() {
 
             const userData = userDoc.data();
             
-            // Force administrative status for the master email
+            // Force administrative status for the master email address to prevent lockouts
             if (isAdminEmail && (!userData?.isApproved || userData?.role !== 'admin')) {
                 await updateDoc(userDocRef, { isApproved: true, role: 'admin' });
             }
@@ -96,30 +95,23 @@ export function LoginPage() {
             if (userData?.isApproved === false && !isAdminEmail) {
                 await signOut(auth);
                 toast({
-                    title: "Access Denied",
-                    description: "Your account is awaiting approval.",
+                    title: "Approval Pending",
+                    description: "Your account is awaiting administrator review.",
                     variant: "destructive",
                 });
             } else {
-                // Update login timestamp
-                try {
-                    await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
-                } catch (e) {
-                    console.warn("Could not update lastLoginAt, continuing anyway.");
-                }
-                
                 toast({
                     title: "Login Successful",
-                    description: `Welcome back, ${userData?.displayName || 'User'}!`,
+                    description: `Welcome back, ${userData?.displayName || 'Admin'}!`,
                 });
                 router.push('/');
             }
 
         } catch (error: any) {
             console.error("Login Error:", error);
-            let description = "An unexpected error occurred. Please try again.";
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                description = "Invalid email or password.";
+            let description = "Invalid email or password. Please try again.";
+            if (error.code === 'permission-denied') {
+                description = "System error: Security rules blocked access. Please contact support.";
             }
             toast({
                 title: "Login Failed",
@@ -136,9 +128,9 @@ export function LoginPage() {
         <Card className="mx-auto max-w-sm w-full shadow-lg border-2">
         <CardHeader className="text-center">
             <StumpBooksLogo className="mx-auto h-10 w-10 mb-2" />
-            <CardTitle className="text-2xl font-black uppercase tracking-tighter">System Access</CardTitle>
+            <CardTitle className="text-2xl font-black uppercase tracking-tighter">BXR Portal</CardTitle>
             <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                Enter your credentials to manage your store.
+                Enter your credentials to manage the store.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -206,7 +198,7 @@ export function LoginPage() {
                         )}
                     />
                     <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest shadow-md" disabled={isLoading}>
-                        {isLoading ? 'Verifying...' : 'Log In'}
+                        {isLoading ? 'Processing...' : 'Log In'}
                     </Button>
                 </form>
             </Form>

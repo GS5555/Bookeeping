@@ -1,12 +1,8 @@
-/**
- * FIRESTORE SECURITY RULES
- * Optimized for 'users' and 'stores' hierarchy.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- GLOBAL HELPER FUNCTIONS ---
+    // --- HELPER FUNCTIONS ---
     function isSignedIn() {
       return request.auth != null;
     }
@@ -15,63 +11,38 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Hardcoded bypass for the master administrator email
+    // Master bypass for the primary administrator email
     function isMasterAdmin() {
       return isSignedIn() && request.auth.token.email == "admin@example.com";
     }
 
-    // Helper to get user data from the correct 'users' collection
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function hasRole(role) {
-      return isSignedIn() && (isMasterAdmin() || getUserData().role == role);
-    }
-
+    // Check for admin role in the 'users' collection
     function isAdmin() {
-      return isMasterAdmin() || (isSignedIn() && getUserData().role == 'admin');
-    }
-
-    function isStaff() {
-      return isAdmin() || hasRole('editor') || hasRole('data-entry');
+      return isMasterAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
     // --- COLLECTION RULES ---
 
+    // Users collection: Essential for login and role management
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
+      // Users can always manage their own profile to prevent onboarding deadlocks
+      allow get, write: if isOwner(userId) || isMasterAdmin();
       allow list: if isAdmin();
-      // Allow any signed-in user to create their initial profile
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin();
-      
-      match /notes/{noteId} {
-        allow read, write: if isOwner(userId);
-      }
-      
-      match /events/{eventId} {
-        allow read, write: if isOwner(userId);
-      }
     }
 
-    /**
-     * @path /stores/{storeId}/...
-     */
+    // Global settings: Master admin and approved admins can manage
+    match /settings/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Store data: Everything under /stores/ requires approval/admin status
     match /stores/{storeId}/{document=**} {
       allow read: if isSignedIn();
-      allow write: if isStaff() || isMasterAdmin();
+      allow write: if isAdmin();
     }
 
-    /**
-     * @path /settings/global/...
-     */
-    match /settings/global/{document=**} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || isMasterAdmin();
-    }
-
+    // Initialization locks
     match /_init/admin {
       allow read, write: if isSignedIn();
     }
