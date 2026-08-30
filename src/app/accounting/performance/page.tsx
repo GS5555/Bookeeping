@@ -17,7 +17,9 @@ import {
     subMonths, 
     subYears,
     startOfDay,
-    endOfDay
+    endOfDay,
+    startOfQuarter,
+    endOfQuarter
 } from 'date-fns';
 import { 
     TrendingUp, 
@@ -31,7 +33,8 @@ import {
     BarChart3,
     FileSpreadsheet,
     FileText as FileTextIcon,
-    ChevronDown
+    ChevronDown,
+    Activity
 } from 'lucide-react';
 import { PageSummary, SummaryCardData } from '@/components/dashboard/page-summary';
 import { GenericChart, ChartType } from '@/components/dashboard/generic-chart';
@@ -39,7 +42,7 @@ import { DataTable } from '@/components/data-table';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { FormattedNumberCell } from '@/components/formatted-number-cell';
-import { exportMultiSheetExcel, downloadDetailedManagementReport } from '@/lib/actions';
+import { exportMultiSheetExcel, downloadDetailedManagementReport, exportToExcel, downloadGenericReportPdf } from '@/lib/actions';
 import { toast } from '@/hooks/use-toast';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { Label } from '@/components/ui/label';
@@ -182,7 +185,14 @@ export default function PerformanceReportPage() {
             },
             categories: Array.from(catMap.values()),
             transactions: currentSales.flatMap(s => s.items.map(i => ({
-                date: s.saleDate, invoice: s.invoiceSequence, customer: s.customerName, product: i.productName, category: categories?.find(c => c.id === i.categoryId)?.name || 'N/A', qty: i.quantity, sales: i.totalPrice, profit: (i.totalPrice / (1 + (i.gstRate/100))) - (i.costOfGoodsSold * i.quantity)
+                date: s.saleDate, 
+                invoice: s.invoiceSequence, 
+                customer: s.customerName, 
+                product: i.productName, 
+                category: categories?.find(c => c.id === i.categoryId)?.name || 'N/A', 
+                qty: i.quantity, 
+                sales: i.totalPrice, 
+                profit: (i.totalPrice / (1 + (i.gstRate/100))) - (i.costOfGoodsSold * i.quantity)
             }))),
             salesLines: currentSales.flatMap(s => s.items.map(i => ({
                 Date: format(new Date(s.saleDate), 'dd-MM-yyyy'), Invoice: s.invoiceSequence, Customer: s.customerName, Product: i.productName, SKU: i.sku, HSN: i.hsnCode, Qty: i.quantity, Rate: i.unitPrice, Tax: i.gstRate, Total: i.totalPrice, Cost: i.costOfGoodsSold * i.quantity, Profit: (i.totalPrice / (1 + (i.gstRate/100))) - (i.costOfGoodsSold * i.quantity)
@@ -211,6 +221,58 @@ export default function PerformanceReportPage() {
             { title: "Net Profit", value: `₹${summary.netProfit.toLocaleString()}`, icon: Scale, description: `${summary.npPercent.toFixed(1)}% Margin` },
         ];
     }, [financialData]);
+
+    const chartData = useMemo(() => {
+        if (!financialData) return [];
+        // Grouping logic: Monthly view groups by Day, others group by Month
+        const useMonthlyGrouping = period !== 'monthly' && period !== 'custom';
+        
+        const sortedTransactions = [...financialData.transactions].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        return sortedTransactions.reduce((acc: any[], t: any) => {
+            const date = new Date(t.date);
+            const label = useMonthlyGrouping ? format(date, 'MMM yyyy') : format(date, 'dd MMM');
+            const existing = acc.find(x => x.name === label);
+            if (existing) { 
+                existing.Sales += t.sales; 
+                existing.Profit += t.profit; 
+            }
+            else acc.push({ name: label, Sales: t.sales, Profit: t.profit });
+            return acc;
+        }, []);
+    }, [financialData, period]);
+
+    const handleSummaryExcel = () => {
+        if (!financialData) return;
+        const summaryData = [
+            { Metric: 'Total Gross Sales', Value: financialData.summary.totalSales },
+            { Metric: 'Sales Returns', Value: financialData.summary.salesReturnAmount },
+            { Metric: 'Net Sales', Value: financialData.summary.netSales },
+            { Metric: 'COGS', Value: financialData.summary.cogs },
+            { Metric: 'Gross Profit', Value: financialData.summary.grossProfit },
+            { Metric: 'Gross Margin %', Value: financialData.summary.gpPercent.toFixed(2) + '%' },
+            { Metric: 'Operating Expenses', Value: financialData.summary.opExpenses },
+            { Metric: 'Net Profit', Value: financialData.summary.netProfit },
+            { Metric: 'Net Margin %', Value: financialData.summary.npPercent.toFixed(2) + '%' },
+        ];
+        exportToExcel(summaryData, `summary_report_${period}_${Date.now()}`);
+    };
+
+    const handleSummaryPdf = () => {
+        if (!financialData) return;
+        const { summary } = financialData;
+        const headers = [['Metric', 'Amount (INR)', 'Margin %']];
+        const body = [
+            ['Gross Sales', summary.totalSales.toLocaleString(), ''],
+            ['Returns', `-${summary.salesReturnAmount.toLocaleString()}`, ''],
+            ['Net Revenue', summary.netSales.toLocaleString(), '100%'],
+            ['COGS', `-${summary.cogs.toLocaleString()}`, ''],
+            ['Gross Profit', summary.grossProfit.toLocaleString(), summary.gpPercent.toFixed(1) + '%'],
+            ['Operating Expenses', `-${summary.opExpenses.toLocaleString()}`, ''],
+            ['Net Profit', summary.netProfit.toLocaleString(), summary.npPercent.toFixed(1) + '%'],
+        ];
+        downloadGenericReportPdf('Financial Summary Report', headers, body, `summary_report_${period}`);
+    };
 
     const handleDetailedExcel = () => {
         if (!financialData) return;
@@ -249,7 +311,7 @@ export default function PerformanceReportPage() {
                     ['Cost of Goods Sold (COGS)', formatCurrency(summary.cogs), ((summary.cogs/summary.netSales)*100).toFixed(1)+'%'],
                     ['Gross Profit Margin', formatCurrency(summary.grossProfit), summary.gpPercent.toFixed(1)+'%'],
                     ['Operating Expenses', formatCurrency(summary.opExpenses), ((summary.opExpenses/summary.netSales)*100).toFixed(1)+'%'],
-                    ['NET OPERATING PROFIT', formatCurrency(summary.netProfit), summary.npPercent.toFixed(1)+'%'],
+                    ['NET OPERATING PROFIT', formatCurrency(summary.netProfit), summary.npProfitPercent.toFixed(1)+'%'],
                 ],
                 colStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } }
             },
@@ -286,31 +348,37 @@ export default function PerformanceReportPage() {
 
     return (
         <div className="flex flex-col gap-8 pb-12">
-            <PageHeader title="Business Performance & Profitability">
-                <div className="flex items-center gap-2 w-full sm:w-auto">
+            <PageHeader title="Performance Analytics">
+                <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="default" className="w-full sm:w-auto h-auto py-3 px-6 font-black uppercase tracking-tight sm:tracking-widest bg-orange-600 hover:bg-orange-700 shadow-lg whitespace-normal leading-tight text-center">
-                                <Download className="mr-2 h-4 w-4 shrink-0" />
-                                Export Detailed Audit
-                                <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
+                            <Button variant="outline" className="flex-1 sm:flex-none h-10 font-black uppercase tracking-widest text-[10px]">
+                                <FileTextIcon className="mr-2 h-4 w-4" />
+                                Summary Export
+                                <ChevronDown className="ml-2 h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel className="text-[10px] uppercase font-black">Report Totals</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={handleSummaryExcel}><FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Excel Summary</DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleSummaryPdf}><FileTextIcon className="mr-2 h-4 w-4 text-destructive" /> PDF Summary</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="default" className="flex-1 sm:flex-none h-10 font-black uppercase tracking-widest text-[10px] bg-orange-600 hover:bg-orange-700 text-white">
+                                <Activity className="mr-2 h-4 w-4" />
+                                Detailed Audit
+                                <ChevronDown className="ml-2 h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-64">
-                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full Data Reconciliation</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={handleDetailedExcel} className="cursor-pointer">
-                                <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
-                                <span className="font-bold">Excel Workbook (8 Sheets)</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleDetailedPdf} className="cursor-pointer">
-                                <FileTextIcon className="mr-2 h-4 w-4 text-destructive" />
-                                <span className="font-bold">Management PDF Report</span>
-                            </DropdownMenuItem>
+                            <DropdownMenuLabel className="text-[10px] uppercase font-black">Granular Line-Item Data</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={handleDetailedExcel}><FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Excel Audit (8 Sheets)</DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleDetailedPdf}><FileTextIcon className="mr-2 h-4 w-4 text-destructive" /> Detailed PDF Report</DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => window.print()} className="cursor-pointer">
-                                <Printer className="mr-2 h-4 w-4" />
-                                <span className="font-medium">Print Analysis</span>
-                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" /> Print View</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
@@ -367,39 +435,36 @@ export default function PerformanceReportPage() {
 
             <PageSummary cards={summaryCards} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-w-0">
                 <div className="lg:col-span-2">
                     <GenericChart 
                         title="Sales vs. Profit Trend"
-                        description="Net revenue and profitability metrics for selected period."
-                        data={financialData?.transactions.reduce((acc: any[], t: any) => {
-                            const date = format(new Date(t.date), 'dd MMM');
-                            const existing = acc.find(x => x.name === date);
-                            if (existing) { existing.Sales += t.sales; existing.Profit += t.profit; }
-                            else acc.push({ name: date, Sales: t.sales, Profit: t.profit });
-                            return acc;
-                        }, []) || []}
+                        description={period === 'yearly' ? "Monthly performance for the current year." : "Daily trend for selected period."}
+                        data={chartData}
                         dataKeyX="name"
                         dataKeysY={['Sales', 'Profit']}
-                        chartConfig={{ Sales: { label: 'Revenue', color: 'hsl(var(--chart-1))' }, Profit: { label: 'Net Profit', color: 'hsl(var(--chart-2))' } }}
+                        chartConfig={{ 
+                            Sales: { label: 'Revenue', color: 'hsl(var(--chart-1))' }, 
+                            Profit: { label: 'Net Profit', color: 'hsl(var(--chart-2))' } 
+                        }}
                         chartType={chartType}
-                        yAxisFormatter={(v) => `₹${v/1000}k`}
+                        yAxisFormatter={(v) => `₹${(v/1000).toFixed(0)}k`}
                     />
                 </div>
 
                 <div className="space-y-6">
                     <Card className="border-l-4 border-l-destructive bg-destructive/5 shadow-sm">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Current Accounts Receivable</CardTitle>
+                            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Accounts Receivable</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="text-3xl font-black text-destructive tracking-tighter">₹{financialData?.summary.receivables?.toLocaleString() || '0'}</p>
-                            <p className="text-[9px] font-bold uppercase mt-1 opacity-70 italic">Uncollected Customer Payments</p>
+                            <p className="text-[9px] font-bold uppercase mt-1 opacity-70 italic">Uncollected Payments</p>
                         </CardContent>
                     </Card>
                     <Card className="border-l-4 border-l-orange-500 bg-orange-50 shadow-sm">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Current Accounts Payable</CardTitle>
+                            <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Accounts Payable</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="text-3xl font-black text-orange-600 tracking-tighter">₹{financialData?.summary.payables?.toLocaleString() || '0'}</p>
@@ -411,8 +476,8 @@ export default function PerformanceReportPage() {
 
             <Card className="border-2 shadow-sm overflow-hidden">
                 <CardHeader className="bg-muted/30 border-b">
-                    <CardTitle className="text-lg font-black uppercase tracking-tight">Product Category Drill-Down</CardTitle>
-                    <CardDescription className="text-xs font-bold uppercase">Aggregated performance by line of business.</CardDescription>
+                    <CardTitle className="text-lg font-black uppercase tracking-tight">Category Profitability Audit</CardTitle>
+                    <CardDescription className="text-xs font-bold uppercase">Drill down into product-level performance.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Accordion type="single" collapsible className="w-full">
@@ -428,13 +493,13 @@ export default function PerformanceReportPage() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="bg-muted/5 p-6 border-t">
-                                    <div className="rounded-xl border bg-background overflow-hidden shadow-inner">
-                                        <table className="w-full text-[11px] font-medium">
+                                    <div className="rounded-xl border bg-background overflow-hidden shadow-inner overflow-x-auto">
+                                        <table className="w-full text-[11px] font-medium min-w-[700px]">
                                             <thead className="bg-muted/50 border-b">
                                                 <tr className="text-[9px] font-black uppercase tracking-widest text-muted-foreground text-left">
-                                                    <th className="p-3">Product Profile</th>
-                                                    <th className="p-3 text-right">Qty</th>
-                                                    <th className="p-3 text-right">Returns</th>
+                                                    <th className="p-3">Product</th>
+                                                    <th className="p-3 text-right">Sold</th>
+                                                    <th className="p-3 text-right">Returned</th>
                                                     <th className="p-3 text-right">Net Sales</th>
                                                     <th className="p-3 text-right">Landed Cost</th>
                                                     <th className="p-3 text-right">Margin INR</th>
@@ -473,7 +538,7 @@ export default function PerformanceReportPage() {
             <Card className="border-2 shadow-sm">
                 <CardHeader className="border-b bg-muted/10">
                     <CardTitle className="text-lg font-black uppercase tracking-tight">Audit Ledger</CardTitle>
-                    <CardDescription className="text-xs font-bold uppercase">Base transactions used for Period Calculations.</CardDescription>
+                    <CardDescription className="text-xs font-bold uppercase">All source transactions for the current period.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     <DataTable 
@@ -482,10 +547,9 @@ export default function PerformanceReportPage() {
                             { accessorKey: 'invoice', header: 'Inv #' },
                             { accessorKey: 'customer', header: 'Customer' },
                             { accessorKey: 'product', header: 'Product' },
-                            { accessorKey: 'category', header: 'Category' },
                             { accessorKey: 'qty', header: 'Qty', cell: ({row}) => <span className="font-bold">{row.original.qty}</span> },
-                            { accessorKey: 'sales', header: 'Gross Value', cell: ({row}) => <FormattedNumberCell value={row.original.sales} /> },
-                            { accessorKey: 'profit', header: 'Margin INR', cell: ({row}) => <FormattedNumberCell value={row.original.profit} className={cn("font-black", row.original.profit >= 0 ? "text-green-600" : "text-destructive")} /> }
+                            { accessorKey: 'sales', header: 'Value', cell: ({row}) => <FormattedNumberCell value={row.original.sales} /> },
+                            { accessorKey: 'profit', header: 'Margin', cell: ({row}) => <FormattedNumberCell value={row.original.profit} className={cn("font-black", row.original.profit >= 0 ? "text-green-600" : "text-destructive")} /> }
                         ]} 
                         data={financialData?.transactions || []} 
                     />

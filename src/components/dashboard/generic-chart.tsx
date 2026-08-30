@@ -118,7 +118,7 @@ export function GenericChart({
           <BarChart data={data} margin={{ left: 12, right: 12, top: 12, bottom: data.length > 5 ? 30 : 12 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
             {commonXAxis}
-            <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={10} width={40} />
+            <YAxis tickFormatter={yAxisFormatter} tickLine={false} axisLine={false} fontSize={10} width={45} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
             {dataKeysY.map((key) => (
               <Bar key={key} dataKey={key} fill={`var(--color-${key})`} radius={4}>
@@ -132,20 +132,6 @@ export function GenericChart({
     }
   };
   
-  const content = (
-    <div className="w-full h-[350px] min-w-0">
-        <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
-            <ResponsiveContainer width="100%" height="100%">
-                {renderChart()}
-            </ResponsiveContainer>
-        </ChartContainer>
-    </div>
-  );
-
-  if(!title && !description) {
-      return content;
-  }
-
   return (
     <Card className="h-full flex flex-col min-w-0 w-full overflow-hidden border-2 shadow-sm">
       <CardHeader className="flex flex-col sm:flex-row items-start justify-between pb-2 border-b gap-2">
@@ -155,7 +141,13 @@ export function GenericChart({
         </div>
       </CardHeader>
       <CardContent className="flex-1 pt-6 px-2 sm:px-6 overflow-hidden">
-        {content}
+        <div className="w-full h-[350px] min-w-0">
+            <ChartContainer config={chartConfig} className="h-full w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    {renderChart()}
+                </ResponsiveContainer>
+            </ChartContainer>
+        </div>
       </CardContent>
     </Card>
   );
