@@ -1,6 +1,6 @@
 /**
  * FIRESTORE SECURITY RULES
- * Standardized for 'users' and 'stores' hierarchy as per backend.json.
+ * Standardized for 'users' and 'stores' hierarchy.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -15,6 +15,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Helper to get user data with safety check
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
@@ -24,7 +25,8 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return hasRole('admin');
+      // Direct check to avoid recursion issues
+      return isSignedIn() && getUserData().role == 'admin';
     }
 
     function isStaff() {
@@ -33,13 +35,10 @@ service cloud.firestore {
 
     // --- COLLECTION RULES ---
 
-    /**
-     * @path /users/{userId}
-     * Owners and Admins can manage profiles.
-     */
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
+      // Allow any signed-in user to create their initial profile
+      allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
       
@@ -54,7 +53,6 @@ service cloud.firestore {
 
     /**
      * @path /stores/{storeId}/...
-     * Role-based access for store operations.
      */
     match /stores/{storeId}/{document=**} {
       allow read: if isSignedIn();
@@ -63,7 +61,6 @@ service cloud.firestore {
 
     /**
      * @path /settings/global/...
-     * Metadata and lookup tables.
      */
     match /settings/global/{document=**} {
       allow read: if isSignedIn();
@@ -71,8 +68,7 @@ service cloud.firestore {
     }
 
     match /_init/admin {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
   }
 }

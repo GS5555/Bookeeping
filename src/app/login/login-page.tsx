@@ -198,8 +198,8 @@ export function LoginPage() {
                                 />
                             </FormControl>
                             <div className="space-y-1 leading-none">
-                                <FormLabel className="text-[10px] font-bold uppercase tracking-tight">
-                                Stay logged in for 7 days
+                                <FormLabel>
+                                Remember me
                                 </FormLabel>
                             </div>
                             </FormItem>
