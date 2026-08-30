@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { useFirestore, useAuth, useUser } from '@/firebase';
 import { doc, getDoc, runTransaction, serverTimestamp, deleteDoc } from 'firebase/firestore';
-import { ShieldCheck, ServerCrash, ShieldAlert, UserCheck, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, UserCheck, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,6 @@ import { toast } from '@/hooks/use-toast';
 import { signOut, getIdTokenResult } from "firebase/auth";
 import { FullPageLoader } from '@/components/full-page-loader';
 import { setAdminClaim } from '@/app/actions/admin';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function MakeAdminPage() {
   const { user: authUser, isUserLoading: isAuthLoading } = useUser();

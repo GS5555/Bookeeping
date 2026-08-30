@@ -113,6 +113,15 @@ export interface SaleItem {
   subCategoryId?: string;
 }
 
+export interface SalePaymentRecord {
+  id: string;
+  amount: number;
+  date: string;
+  method: string;
+  updatedAt: string;
+  notes?: string;
+}
+
 export interface Sale {
   id: string;
   storeId: string;
@@ -150,6 +159,7 @@ export interface Sale {
   numberOfBoxes?: number;
   createdBy?: string;
   createdByName?: string;
+  paymentHistory?: SalePaymentRecord[];
 }
 
 export interface Payment {

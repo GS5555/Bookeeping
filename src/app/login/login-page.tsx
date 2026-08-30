@@ -23,7 +23,7 @@ import { z } from "zod"
 import { StumpBooksLogo } from "@/components/icons";
 import { useAuth, useFirestore } from "@/firebase";
 import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
@@ -72,28 +72,36 @@ export function LoginPage() {
             const user = userCredential.user;
             
             const userDocRef = doc(firestore, "users", user.uid);
-            const userDoc = await getDoc(userDocRef);
+            let userDoc = await getDoc(userDocRef);
 
-            if (userDoc.exists()) {
-                const userData = userDoc.data();
-                // We record the login even if not yet approved.
-                // The AppShell component handles the actual access gating (Pending Approval screen).
-                // This allows the first user to reach the /make-admin page.
-                await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
-                
-                toast({
-                    title: "Login Successful",
-                    description: `Welcome, ${userData?.displayName || 'User'}!`,
+            if (!userDoc.exists()) {
+                // AUTO-REPAIR: Create missing profile if Auth exists but Firestore is missing
+                await setDoc(userDocRef, {
+                    id: user.uid,
+                    email: user.email,
+                    displayName: user.displayName || 'System User',
+                    photoURL: user.photoURL,
+                    role: 'viewer',
+                    isApproved: false,
+                    createdAt: serverTimestamp(),
+                    lastLoginAt: serverTimestamp(),
                 });
-                
-                router.push('/');
-            } else {
-                 toast({
-                    title: "Profile Incomplete",
-                    description: "Your user profile was not found in the database. Please sign up again.",
-                    variant: "destructive",
+                userDoc = await getDoc(userDocRef);
+                toast({
+                    title: "Profile Recovered",
+                    description: "Your database profile was missing and has been automatically restored.",
                 });
             }
+
+            const userData = userDoc.data();
+            await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
+            
+            toast({
+                title: "Login Successful",
+                description: `Welcome back, ${userData?.displayName || 'User'}!`,
+            });
+            
+            router.push('/');
 
         } catch (error: any) {
             console.error("Login Error:", error);
