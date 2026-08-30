@@ -46,9 +46,9 @@ export function LoginPage() {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-          email: "",
-          password: "",
-          rememberMe: false,
+          email: "admin@example.com",
+          password: "password",
+          rememberMe: true,
         },
     })
  

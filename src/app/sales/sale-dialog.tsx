@@ -90,7 +90,7 @@ interface SaleDialogProps {
   onSuccess: (sale: Sale) => void;
 }
 
-export function SaleDialog({ open, onOpenChange, sale, onSuccess }) {
+export function SaleDialog({ open, onOpenChange, sale, onSuccess }: SaleDialogProps) {
   const firestore = useFirestore();
   const { currentUser } = useCurrentUser();
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
@@ -227,7 +227,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }) {
         setValue(`items.${index}.categoryId`, product.category);
         setValue(`items.${index}.subCategoryId`, product.subCategory || '');
         setValue(`items.${index}.color1`, product.color1 || '');
-        setValue(`items.${index}.color2 Sertar`, product.color2 || '');
+        setValue(`items.${index}.color2`, product.color2 || '');
         
         const catalogPrice = product.finalPrice || product.sellingPrice;
         const gstRate = product.gstRate || 0;
@@ -304,17 +304,17 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0">
+      <DialogContent className="max-w-[95vw] sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle className="text-2xl font-black uppercase tracking-tight">New Sale</DialogTitle>
             <DialogDescription className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Process transaction and generate invoice.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form id="sale-form" onSubmit={form.handleSubmit(handleFormSubmit)} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 overflow-visible">
+                <div className="space-y-4 overflow-visible">
                     <FormField control={form.control} name="customerId" render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="overflow-visible">
                             <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer *</FormLabel>
                             <div className="flex items-center gap-2">
                                 <Combobox
@@ -352,7 +352,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }) {
                   const currentStock = stockItem?.stockBatches?.reduce((sum, b) => sum + b.quantity, 0) || 0;
                   
                   return (
-                      <Card key={field.id} className={cn("border-2 shadow-sm", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
+                      <Card key={field.id} className={cn("border-2 shadow-sm overflow-visible", selectedProdId ? "bg-primary/[0.03] border-primary/20" : "bg-card")}>
                           <CardHeader className="py-2 px-4 bg-muted/20 flex flex-row justify-between items-center border-b">
                              <div className="flex items-center gap-3">
                                 <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Item #{index + 1}</span>
@@ -368,10 +368,10 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }) {
                              </div>
                              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
                           </CardHeader>
-                          <CardContent className="p-4 grid grid-cols-12 gap-3 items-end">
-                              <div className="col-span-12 sm:col-span-6">
+                          <CardContent className="p-4 grid grid-cols-12 gap-3 items-end overflow-visible">
+                              <div className="col-span-12 sm:col-span-6 overflow-visible">
                                   <FormField control={form.control} name={`items.${index}.productId`} render={({ field: f }) => (
-                                      <FormItem>
+                                      <FormItem className="overflow-visible">
                                           <Combobox
                                               options={allProducts?.map(p => ({ 
                                                   value: p.id, 
@@ -419,7 +419,7 @@ export function SaleDialog({ open, onOpenChange, sale, onSuccess }) {
         <div className="p-4 border-t bg-muted/10 flex justify-end">
             <Button type="submit" form="sale-form" className="w-full sm:w-auto font-black uppercase tracking-widest px-12 h-12 shadow-lg">Save & Generate Invoice</Button>
         </div>
-        <CustomerDialog open={isCustomerDialogOpen} onOpenChange={isCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
+        <CustomerDialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen} onSuccess={(c) => { setValue('customerId', c.id); setIsCustomerDialogOpen(false); }} />
       </DialogContent>
     </Dialog>
   );

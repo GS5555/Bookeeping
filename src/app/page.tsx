@@ -25,7 +25,7 @@ import type { ChartConfig } from '@/components/ui/chart';
 
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, query, where, getDocs, orderBy, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
+import { getMonth, format, subMonths, startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
 import { DataTable } from '@/components/data-table';
 import { salesColumns } from '@/app/sales/columns';
 import { Users } from 'lucide-react';

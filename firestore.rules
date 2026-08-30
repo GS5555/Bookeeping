@@ -1,6 +1,6 @@
 /**
  * FIRESTORE SECURITY RULES
- * Standardized for 'users' and 'stores' hierarchy.
+ * Optimized for 'users' and 'stores' hierarchy.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -15,17 +15,22 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Helper to get user data with safety check
+    // Hardcoded bypass for the master administrator email
+    function isMasterAdmin() {
+      return isSignedIn() && request.auth.token.email == "admin@example.com";
+    }
+
+    // Helper to get user data from the correct 'users' collection
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function hasRole(role) {
-      return isSignedIn() && getUserData().role == role;
+      return isSignedIn() && (isMasterAdmin() || getUserData().role == role);
     }
 
     function isAdmin() {
-      return isSignedIn() && getUserData().role == 'admin';
+      return isMasterAdmin() || (isSignedIn() && getUserData().role == 'admin');
     }
 
     function isStaff() {
@@ -36,6 +41,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
       // Allow any signed-in user to create their initial profile
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isOwner(userId) || isAdmin();
@@ -55,7 +61,7 @@ service cloud.firestore {
      */
     match /stores/{storeId}/{document=**} {
       allow read: if isSignedIn();
-      allow write: if isStaff();
+      allow write: if isStaff() || isMasterAdmin();
     }
 
     /**
@@ -63,7 +69,7 @@ service cloud.firestore {
      */
     match /settings/global/{document=**} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isAdmin() || isMasterAdmin();
     }
 
     match /_init/admin {
