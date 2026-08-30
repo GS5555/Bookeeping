@@ -44,7 +44,7 @@ import {
 } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { SettingDialog } from './setting-dialog';
-import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useDoc, useAuth } from '@/firebase';
 import { collection, doc, deleteDoc, setDoc, query, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { exportFullBackup } from '@/lib/actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -65,6 +65,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 
 type Item = Category | SubCategory | Brand | Color | Courier | Company | ExpenseType | Warranty | HandPreference | EnquiryStatus | CustomerType | VendorType | EnquiryType | EnquirySource | FollowUpType;
 type ItemType = 'Category' | 'Sub-Category' | 'Brand' | 'Color' | 'Courier' | 'Company' | 'Expense Type' | 'Warranty' | 'Hand Preference' | 'Enquiry Status' | 'Customer Type' | 'Vendor Type' | 'Enquiry Type' | 'Enquiry Source' | 'Follow-up Type';
@@ -73,6 +75,8 @@ const STORE_ID = 'store_main';
 
 export default function SettingsPage() {
   const firestore = useFirestore();
+  const auth = useAuth();
+  const router = useRouter();
   const { currentUser } = useCurrentUser();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -159,6 +163,29 @@ export default function SettingsPage() {
         setIsScanning(false);
     }
   };
+
+  const handleWipeUsers = async () => {
+    if (!firestore || !auth) return;
+    setIsScanning(true);
+    try {
+        const usersRef = collection(firestore, 'users');
+        const snapshot = await getDocs(usersRef);
+        const batch = writeBatch(firestore);
+        let count = 0;
+        snapshot.forEach((userDoc) => {
+            batch.delete(userDoc.ref);
+            count++;
+        });
+        await batch.commit();
+        toast({ title: "System Reset", description: `All ${count} user profiles have been deleted.` });
+        await signOut(auth);
+        router.push('/signup');
+    } catch (e) {
+        toast({ title: "Wipe Failed", variant: "destructive" });
+    } finally {
+        setIsScanning(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6 pb-8 min-w-0 w-full overflow-x-hidden">
@@ -336,17 +363,35 @@ export default function SettingsPage() {
                             </AlertDialog>
                         </div>
 
-                        <div className="p-4 rounded-xl bg-muted/30 border border-muted-foreground/10 space-y-4 opacity-50">
+                        <div className="p-4 rounded-xl bg-muted/30 border border-muted-foreground/10 space-y-4">
                              <div className="space-y-1">
-                                <p className="text-xs font-bold uppercase">Factory Reset</p>
+                                <p className="text-xs font-bold uppercase">Wipe All Users</p>
                                 <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                    Deletes all data including Master Data and Settings. System will be restored to its initial state.
+                                    Deletes all user profiles from the database. You will be logged out and must sign up again.
                                 </p>
                             </div>
-                            <Button variant="outline" size="sm" disabled className="w-full font-black uppercase tracking-widest text-[10px] h-8">
-                                <ShieldAlert className="mr-2 h-3 w-3" />
-                                Full Factory Reset
-                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm" className="w-full text-destructive hover:bg-destructive/5 font-black uppercase tracking-widest text-[10px] h-8" disabled={isScanning}>
+                                        <ShieldAlert className="mr-2 h-3 w-3" />
+                                        Delete All Users
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Wipe All User Profiles?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will delete every user profile from the database. You will be redirected to the signup page to reclaim the system.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleWipeUsers} className="bg-destructive text-white">
+                                            Confirm Wipe
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
                     </div>
                 </Card>

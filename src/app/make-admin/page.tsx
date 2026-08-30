@@ -3,7 +3,7 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { useFirestore, useAuth, useUser } from '@/firebase';
-import { doc, getDoc, runTransaction, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, runTransaction, serverTimestamp, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { ShieldCheck, UserCheck, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
@@ -42,7 +42,6 @@ export default function MakeAdminPage() {
         setAdminRoleClaimed(docSnap.exists() && docSnap.data().claimed === true);
     } catch (error) {
         console.error("Error verifying admin status:", error);
-        // toast({ title: "Error", description: "Could not verify admin status.", variant: "destructive" });
         setIsAdmin(false);
         setAdminRoleClaimed(true);
     } finally {
@@ -94,13 +93,24 @@ export default function MakeAdminPage() {
   };
 
   const handleEmergencyReset = async () => {
-      if (!firestore) return;
+      if (!firestore || !auth) return;
       try {
           setIsProcessing(true);
+          const batch = writeBatch(firestore);
+          
+          // Clear _init lock
           const adminInitDocRef = doc(firestore, '_init', 'admin');
-          await deleteDoc(adminInitDocRef);
-          setAdminRoleClaimed(false);
-          toast({ title: "Emergency Reset Success", description: "Initial claim lock removed." });
+          batch.delete(adminInitDocRef);
+          
+          // Wipe all users as requested
+          const usersRef = collection(firestore, 'users');
+          const snapshot = await getDocs(usersRef);
+          snapshot.forEach(d => batch.delete(d.ref));
+          
+          await batch.commit();
+          toast({ title: "Emergency Reset Success", description: "Database cleared. Please sign up again." });
+          await signOut(auth);
+          router.push('/signup');
       } catch (e) {
           toast({ title: "Reset Failed", variant: "destructive" });
       } finally {
@@ -135,12 +145,12 @@ export default function MakeAdminPage() {
                         <p className="text-sm text-muted-foreground leading-relaxed">An administrator has already been designated for this store system.</p>
                         
                         <div className="w-full pt-6 border-t mt-4">
-                            <p className="text-[9px] font-black uppercase text-muted-foreground mb-4">Account Recovery Tools</p>
+                            <p className="text-[9px] font-black uppercase text-muted-foreground mb-4">Database Recovery Tools</p>
                             <Button variant="outline" onClick={handleEmergencyReset} disabled={isProcessing} className="w-full text-destructive hover:bg-destructive/5 border-destructive/20 font-black uppercase text-[10px] tracking-widest">
                                 <AlertTriangle className="mr-2 h-3 w-3" />
-                                Emergency Reset
+                                Wipe Users & Clear System
                             </Button>
-                            <p className="text-[8px] text-muted-foreground mt-2 italic">Use this if you forgot your original admin email.</p>
+                            <p className="text-[8px] text-muted-foreground mt-2 italic">Use this to delete all user profiles and start over.</p>
                         </div>
                     </div>
                 ) : (
