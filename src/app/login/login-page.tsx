@@ -22,7 +22,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { StumpBooksLogo } from "@/components/icons";
 import { useAuth, useFirestore } from "@/firebase";
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, signOut } from "firebase/auth";
 import { doc, getDoc, updateDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -55,11 +55,7 @@ export function LoginPage() {
     async function onSubmit(values: z.infer<typeof formSchema>) {
         setIsLoading(true);
         if (!auth || !firestore) {
-            toast({
-                title: "Error",
-                description: "Firebase is not initialized.",
-                variant: "destructive",
-            });
+            toast({ title: "Error", description: "Firebase is not initialized.", variant: "destructive" });
             setIsLoading(false);
             return;
         }
@@ -71,37 +67,49 @@ export function LoginPage() {
             const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
             const user = userCredential.user;
             
+            // ADMIN OVERRIDE: Check if it is the master admin email
+            const isAdminEmail = values.email.toLowerCase() === 'admin@example.com';
+
             const userDocRef = doc(firestore, "users", user.uid);
             let userDoc = await getDoc(userDocRef);
 
+            // Self-healing: Create profile if missing but auth exists
             if (!userDoc.exists()) {
-                // AUTO-REPAIR: Create missing profile if Auth exists but Firestore is missing
                 await setDoc(userDocRef, {
                     id: user.uid,
                     email: user.email,
-                    displayName: user.displayName || 'System User',
+                    displayName: user.displayName || 'Master Admin',
                     photoURL: user.photoURL,
-                    role: 'viewer',
-                    isApproved: false,
+                    role: isAdminEmail ? 'admin' : 'viewer',
+                    isApproved: isAdminEmail ? true : false,
                     createdAt: serverTimestamp(),
                     lastLoginAt: serverTimestamp(),
                 });
                 userDoc = await getDoc(userDocRef);
-                toast({
-                    title: "Profile Recovered",
-                    description: "Your database profile was missing and has been automatically restored.",
-                });
             }
 
             const userData = userDoc.data();
-            await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
             
-            toast({
-                title: "Login Successful",
-                description: `Welcome back, ${userData?.displayName || 'User'}!`,
-            });
-            
-            router.push('/');
+            // Force approval for admin@example.com if it somehow got set to false
+            if (isAdminEmail && (!userData?.isApproved || userData?.role !== 'admin')) {
+                await updateDoc(userDocRef, { isApproved: true, role: 'admin' });
+            }
+
+            if (userData?.isApproved === false && !isAdminEmail) {
+                await signOut(auth);
+                toast({
+                    title: "Access Denied",
+                    description: "Your account is awaiting approval from a manager.",
+                    variant: "destructive",
+                });
+            } else {
+                await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
+                toast({
+                    title: "Login Successful",
+                    description: `Welcome back, ${userData?.displayName || 'User'}!`,
+                });
+                router.push('/');
+            }
 
         } catch (error: any) {
             console.error("Login Error:", error);
@@ -121,12 +129,12 @@ export function LoginPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-muted/40 w-full px-4">
-        <Card className="mx-auto max-w-sm w-full shadow-lg">
+        <Card className="mx-auto max-w-sm w-full shadow-lg border-2">
         <CardHeader className="text-center">
-            <StumpBooksLogo className="mx-auto h-8 w-8 mb-2" />
-            <CardTitle className="text-2xl">Login</CardTitle>
-            <CardDescription>
-            Enter your email below to login to your account
+            <StumpBooksLogo className="mx-auto h-10 w-10 mb-2" />
+            <CardTitle className="text-2xl font-black uppercase tracking-tighter">System Access</CardTitle>
+            <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
+                Login with your store credentials.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -137,7 +145,7 @@ export function LoginPage() {
                     name="email"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel className="text-[10px] font-bold uppercase">Email Address</FormLabel>
                         <FormControl>
                             <Input placeholder="name@example.com" {...field} />
                         </FormControl>
@@ -151,9 +159,9 @@ export function LoginPage() {
                     render={({ field }) => (
                         <FormItem>
                         <div className="flex items-center">
-                            <FormLabel>Password</FormLabel>
-                            <Link href="/forgot-password" className="ml-auto inline-block text-sm underline">
-                                Forgot your password?
+                            <FormLabel className="text-[10px] font-bold uppercase">Password</FormLabel>
+                            <Link href="/forgot-password" disableTabFocus className="ml-auto text-[10px] font-bold underline uppercase tracking-tight text-muted-foreground hover:text-primary">
+                                Forgot?
                             </Link>
                         </div>
                         <div className="relative">
@@ -186,23 +194,23 @@ export function LoginPage() {
                                 />
                             </FormControl>
                             <div className="space-y-1 leading-none">
-                                <FormLabel>
-                                Remember me
+                                <FormLabel className="text-[10px] font-bold uppercase tracking-tight">
+                                Stay logged in for 7 days
                                 </FormLabel>
                             </div>
                             </FormItem>
                         )}
                     />
-                    <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? 'Logging in...' : 'Login'}
+                    <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest shadow-md" disabled={isLoading}>
+                        {isLoading ? 'Verifying...' : 'Log In'}
                     </Button>
                 </form>
             </Form>
-            <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" className="underline">
-                Sign up
-            </Link>
+            <div className="mt-8 text-center text-xs font-bold uppercase tracking-tight">
+                Don&apos;t have an account?{" "}
+                <Link href="/signup" className="underline text-primary">
+                    Create Profile
+                </Link>
             </div>
         </CardContent>
         </Card>

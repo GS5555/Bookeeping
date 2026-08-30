@@ -27,7 +27,7 @@ import { CustomerFinancials } from '@/app/sales/customer-financials';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, query, where, getDocs, orderBy, setDoc, updateDoc, runTransaction } from 'firebase/firestore';
-import { getMonth, format, subMonths, startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
+import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
 import { DataTable } from '@/components/data-table';
 import { salesColumns } from '@/app/sales/columns';
 import { Users } from 'lucide-react';
@@ -75,12 +75,6 @@ export default function Dashboard() {
 
   const vendorsRef = useMemoFirebase(() => firestore ? collection(firestore, 'stores', STORE_ID, 'vendors') : null, [firestore]);
   const { data: vendors } = useCollection<Vendor>(vendorsRef);
-
-  const inventoryRef = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'stores', STORE_ID, 'inventoryItems');
-  }, [firestore]);
-  const { data: inventory } = useCollection<InventoryItem>(inventoryRef);
 
   const companyDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'global', 'companies', 'main_company') : null, [firestore]);
   const { data: companyDetails } = useDoc<Company>(companyDocRef);

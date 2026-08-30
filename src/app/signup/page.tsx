@@ -23,7 +23,7 @@ import { z } from "zod"
 import { StumpBooksLogo } from "@/components/icons";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { setDoc, doc, serverTimestamp, getDocs, collection, query, limit } from "firebase/firestore";
+import { setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, RefreshCw } from "lucide-react";
@@ -90,7 +90,6 @@ export default function SignupPage() {
         }
 
         try {
-            // Step 1: Create user in Auth
             const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
             const user = userCredential.user;
 
@@ -98,23 +97,27 @@ export default function SignupPage() {
                 displayName: `${values.firstName} ${values.lastName}`
             });
 
-            // Step 2: Create user document in Firestore with default 'viewer' role and awaiting approval.
+            // ADMINISTRATIVE OVERRIDE: admin@example.com is always approved and admin
+            const isAdminEmail = values.email.toLowerCase() === 'admin@example.com';
+
             const userDocRef = doc(firestore, "users", user.uid);
             await setDoc(userDocRef, {
                 id: user.uid,
                 email: user.email,
-                displayName: user.displayName,
+                displayName: `${values.firstName} ${values.lastName}`,
                 photoURL: user.photoURL,
-                role: 'viewer', // All users start as viewers
-                isApproved: false, // All new users must be approved by an admin
+                role: isAdminEmail ? 'admin' : 'viewer',
+                isApproved: isAdminEmail ? true : false,
                 createdAt: serverTimestamp(),
                 lastLoginAt: null,
             });
             
             setIsSubmitted(true);
             toast({
-                title: "Registration Submitted!",
-                description: "Your account has been created and is awaiting admin approval.",
+                title: isAdminEmail ? "Admin Account Ready!" : "Registration Submitted!",
+                description: isAdminEmail 
+                    ? "Your master administrator account is ready. Please log in." 
+                    : "Your account has been created and is awaiting admin approval.",
             });
 
         } catch (error: any) {
@@ -137,9 +140,9 @@ export default function SignupPage() {
             <Card className="mx-auto max-w-sm w-full">
                 <CardHeader className="text-center">
                     <StumpBooksLogo className="mx-auto h-8 w-8 mb-2" />
-                    <CardTitle className="text-2xl">Registration Submitted</CardTitle>
+                    <CardTitle className="text-2xl">Registration Complete</CardTitle>
                     <CardDescription>
-                       Your account is awaiting approval from an administrator. You will be able to log in once it has been approved.
+                       You can now log in to the system.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center">
@@ -158,12 +161,12 @@ export default function SignupPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-muted/40 py-12">
-        <Card className="mx-auto max-w-sm w-full">
+        <Card className="mx-auto max-w-sm w-full shadow-lg">
         <CardHeader className="text-center">
             <StumpBooksLogo className="mx-auto h-8 w-8 mb-2" />
-            <CardTitle className="text-2xl">Create Your Account</CardTitle>
-            <CardDescription>
-                Your account will be created and will require admin approval.
+            <CardTitle className="text-2xl font-black uppercase">Join the Team</CardTitle>
+            <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
+                Account creation requires approval unless you are the system owner.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -175,7 +178,7 @@ export default function SignupPage() {
                             name="firstName"
                             render={({ field }) => (
                                 <FormItem>
-                                <FormLabel>First name</FormLabel>
+                                <FormLabel className="text-[10px] font-bold uppercase">First name</FormLabel>
                                 <FormControl>
                                     <Input placeholder="Max" {...field} />
                                 </FormControl>
@@ -188,7 +191,7 @@ export default function SignupPage() {
                             name="lastName"
                             render={({ field }) => (
                                 <FormItem>
-                                <FormLabel>Last name</FormLabel>
+                                <FormLabel className="text-[10px] font-bold uppercase">Last name</FormLabel>
                                 <FormControl>
                                     <Input placeholder="Robinson" {...field} />
                                 </FormControl>
@@ -202,7 +205,7 @@ export default function SignupPage() {
                         name="email"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Email</FormLabel>
+                            <FormLabel className="text-[10px] font-bold uppercase">Email</FormLabel>
                             <FormControl>
                                 <Input placeholder="manager@example.com" {...field} />
                             </FormControl>
@@ -215,7 +218,7 @@ export default function SignupPage() {
                         name="password"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Password</FormLabel>
+                            <FormLabel className="text-[10px] font-bold uppercase">Password</FormLabel>
                              <div className="relative">
                                 <FormControl>
                                     <Input type={showPassword ? "text" : "password"} {...field} />
@@ -239,9 +242,9 @@ export default function SignupPage() {
                         name="captcha"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>CAPTCHA</FormLabel>
+                                <FormLabel className="text-[10px] font-bold uppercase">Verification</FormLabel>
                                 <div className="flex items-center gap-2">
-                                    <div className="px-4 py-2 rounded-md bg-muted font-mono tracking-widest select-none w-full text-center text-xl" style={{ textDecoration: 'line-through', fontStyle: 'italic' }}>
+                                    <div className="px-4 py-2 rounded-md bg-muted font-mono tracking-widest select-none w-full text-center text-xl border border-dashed" style={{ textDecoration: 'line-through', fontStyle: 'italic' }}>
                                         {captcha}
                                     </div>
                                     <Button type="button" variant="ghost" size="icon" onClick={generateCaptcha}>
@@ -249,21 +252,21 @@ export default function SignupPage() {
                                     </Button>
                                 </div>
                                 <FormControl>
-                                    <Input placeholder="Enter the text above" {...field} />
+                                    <Input placeholder="Enter the code" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
-                    <Button type="submit" className="w-full" disabled={isLoading}>
-                         {isLoading ? 'Creating Account...' : 'Create an account'}
+                    <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest" disabled={isLoading}>
+                         {isLoading ? 'Processing...' : 'Create My Account'}
                     </Button>
                 </form>
              </Form>
-            <div className="mt-4 text-center text-sm">
+            <div className="mt-6 text-center text-xs font-bold uppercase tracking-tight">
                 Already have an account?{" "}
-                <Link href="/login" className="underline">
-                    Sign in
+                <Link href="/login" className="underline text-primary">
+                    Log in here
                 </Link>
             </div>
         </CardContent>
