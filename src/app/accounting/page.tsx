@@ -1,4 +1,3 @@
-
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
@@ -95,9 +94,9 @@ export default function AccountingPage() {
     return (
         <>
             <PageHeader title="Accounting Overview">
-                <Button asChild className="font-black uppercase tracking-widest shadow-lg bg-primary hover:bg-primary/90">
+                <Button asChild className="w-full sm:w-auto h-auto py-3 px-6 font-black uppercase tracking-tight sm:tracking-widest shadow-lg bg-primary hover:bg-primary/90 whitespace-normal text-center leading-tight">
                     <Link href="/accounting/performance">
-                        <LineChart className="mr-2 h-4 w-4" />
+                        <LineChart className="mr-2 h-4 w-4 shrink-0" />
                         Business Performance / Reports
                     </Link>
                 </Button>

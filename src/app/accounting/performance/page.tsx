@@ -175,9 +175,14 @@ export default function PerformanceReportPage() {
                 npPercent: netSales > 0 ? (netProfit / netSales) * 100 : 0,
                 salesCount: currentSales.length,
                 purchaseCount: currentPurchases.length,
-                prevTotalSales: prevStats?.totalSales || 0
+                prevTotalSales: prevStats?.totalSales || 0,
+                receivables: currentSales.reduce((acc, s) => acc + (s.balanceAmount || 0), 0),
+                payables: currentPurchases.reduce((acc, p) => acc + (p.balanceAmount || 0), 0)
             },
             categories: Array.from(catMap.values()),
+            transactions: currentSales.flatMap(s => s.items.map(i => ({
+                date: s.saleDate, invoice: s.invoiceSequence, customer: s.customerName, product: i.productName, category: categories?.find(c => c.id === i.categoryId)?.name || 'N/A', qty: i.quantity, sales: i.totalPrice, profit: (i.totalPrice / (1 + (i.gstRate/100))) - (i.costOfGoodsSold * i.quantity)
+            }))),
             salesLines: currentSales.flatMap(s => s.items.map(i => ({
                 Date: format(new Date(s.saleDate), 'dd-MM-yyyy'), Invoice: s.invoiceSequence, Customer: s.customerName, Product: i.productName, SKU: i.sku, HSN: i.hsnCode, Qty: i.quantity, Rate: i.unitPrice, Tax: i.gstRate, Total: i.totalPrice, Cost: i.costOfGoodsSold * i.quantity, Profit: (i.totalPrice / (1 + (i.gstRate/100))) - (i.costOfGoodsSold * i.quantity)
             }))),
@@ -281,16 +286,16 @@ export default function PerformanceReportPage() {
     return (
         <div className="flex flex-col gap-8 pb-12">
             <PageHeader title="Business Performance & Profitability">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="default" className="font-black uppercase tracking-widest bg-orange-600 hover:bg-orange-700 shadow-lg">
-                                <Download className="mr-2 h-4 w-4" />
+                            <Button variant="default" className="w-full sm:w-auto h-auto py-3 px-6 font-black uppercase tracking-tight sm:tracking-widest bg-orange-600 hover:bg-orange-700 shadow-lg whitespace-normal leading-tight text-center">
+                                <Download className="mr-2 h-4 w-4 shrink-0" />
                                 Export Detailed Audit
-                                <ChevronDown className="ml-2 h-4 w-4" />
+                                <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuContent align="end" className="w-64">
                             <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full Data Reconciliation</DropdownMenuLabel>
                             <DropdownMenuItem onClick={handleDetailedExcel} className="cursor-pointer">
                                 <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
@@ -366,7 +371,7 @@ export default function PerformanceReportPage() {
                     <GenericChart 
                         title="Sales vs. Profit Trend"
                         description="Net revenue and profitability metrics for selected period."
-                        data={financialData?.transactions.reduce((acc: any[], t) => {
+                        data={financialData?.transactions.reduce((acc: any[], t: any) => {
                             const date = format(new Date(t.date), 'dd MMM');
                             const existing = acc.find(x => x.name === date);
                             if (existing) { existing.Sales += t.sales; existing.Profit += t.profit; }
@@ -410,7 +415,7 @@ export default function PerformanceReportPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                     <Accordion type="single" collapsible className="w-full">
-                        {financialData?.categories.map((cat, idx) => (
+                        {financialData?.categories.map((cat: any, idx: number) => (
                             <AccordionItem key={idx} value={`cat-${idx}`} className="border-b last:border-none">
                                 <AccordionTrigger className="px-6 hover:bg-muted/20 py-4 transition-all group">
                                     <div className="flex-1 grid grid-cols-2 md:grid-cols-5 text-left items-center gap-4">
