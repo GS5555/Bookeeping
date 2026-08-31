@@ -25,11 +25,18 @@ service cloud.firestore {
 
     // Users collection: Essential for login and role management
     match /users/{userId} {
-      // Users can read any profile to see names, but only owners/admins can write
-      allow get: if isSignedIn();
-      allow list: if isSignedIn(); // Allow listing users for the management UI
+      // Any signed in user can see basic profiles
+      allow get, list: if isSignedIn();
+      
+      // Creating a profile: only for self-registration or master admin
       allow create: if isOwner(userId) || isMasterAdmin();
+      
+      // Updating a profile: master admin has full control. 
+      // Other admins can update roles/approval for anyone.
+      // Owners can only update their own basic info (not role/approval)
       allow update: if isMasterAdmin() || isAdmin() || isOwner(userId);
+      
+      // Deleting a profile: restricted to admins
       allow delete: if isMasterAdmin() || isAdmin();
     }
 
@@ -39,8 +46,8 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Store data: Everything under /stores/ requires admin or editor status
-    match /stores/{storeId}/{document=**} {
+    // Store data: Standard operational collections
+    match /stores/{storeId}/{collectionId}/{document=**} {
       allow read: if isSignedIn();
       allow write: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor');
     }

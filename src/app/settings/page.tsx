@@ -14,9 +14,8 @@ import {
     Trash2, 
     AlertTriangle, 
     ShieldAlert,
-    RefreshCw,
-    Activity,
-    ShieldCheck
+    ShieldCheck,
+    Activity
 } from 'lucide-react';
 import {
   Card,
@@ -49,7 +48,7 @@ import {
 } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { SettingDialog } from './setting-dialog';
-import { useCollection, useFirestore, useMemoFirebase, useDoc, useAuth } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, deleteDoc, setDoc, query, orderBy, getDocs, writeBatch, updateDoc, limit } from 'firebase/firestore';
 import { exportFullBackup } from '@/lib/actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -70,8 +69,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { signOut } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
 import { columns as userColumns } from '@/app/users/columns';
 import { columns as logColumns } from '@/app/users/log-columns';
 import { AddUserDialog } from '@/app/users/add-user-dialog';
@@ -83,8 +80,6 @@ const STORE_ID = 'store_main';
 
 export default function SettingsPage() {
   const firestore = useFirestore();
-  const auth = useAuth();
-  const router = useRouter();
   const { currentUser, isLoading: isUserLoading } = useCurrentUser();
   
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -103,6 +98,7 @@ export default function SettingsPage() {
   [firestore]);
   const { data: companyDetails } = useDoc<Company>(companyDocRef);
 
+  // Lookup data collections
   const categoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'categories') : null, [firestore]);
   const { data: categories } = useCollection<Category>(categoriesRef);
   const subCategoriesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'subCategories') : null, [firestore]);
@@ -149,7 +145,7 @@ export default function SettingsPage() {
     toast({ title: "Deleted", description: `${itemType} removed.` });
   };
 
-  // User Management Handlers
+  // User Management Handlers (Mentioned: converting viewer to admin / pending to approved)
   const handleRoleChange = async (userId: string, newRole: any) => {
     if (!firestore || !currentUser) return;
     if (currentUser.id === userId) {
@@ -161,8 +157,8 @@ export default function SettingsPage() {
         await updateDoc(userDocRef, { role: newRole });
         toast({ title: "Role Updated", description: `User role changed to ${newRole}.` });
     } catch (e) {
-        console.error(e);
-        toast({ title: "Update Failed", description: "Could not update user role.", variant: "destructive" });
+        console.error("Role update failed:", e);
+        toast({ title: "Error", description: "Could not update user role. Check security rules.", variant: "destructive" });
     }
   };
 
@@ -177,8 +173,8 @@ export default function SettingsPage() {
         await updateDoc(userDocRef, { isApproved });
         toast({ title: "Status Updated", description: `User ${isApproved ? 'approved' : 'suspended'}.` });
     } catch (e) {
-        console.error(e);
-        toast({ title: "Update Failed", description: "Could not update approval status.", variant: "destructive" });
+        console.error("Approval update failed:", e);
+        toast({ title: "Error", description: "Could not update approval status.", variant: "destructive" });
     }
   };
 
@@ -398,7 +394,7 @@ export default function SettingsPage() {
                             columns={userColumns({
                                 onRoleChange: handleRoleChange,
                                 onApprovalChange: handleApprovalChange,
-                                currentUserId: currentUser.id
+                                currentUserId: currentUser?.id
                             })} 
                             data={allUsersData || []} 
                             onDeleteSelected={(rows) => { setRowsToDelete(rows); setIsDeleteDialogOpen(true); }}
