@@ -26,7 +26,8 @@ service cloud.firestore {
     // Users collection: Essential for login and role management
     match /users/{userId} {
       // Users can always manage their own profile to prevent onboarding deadlocks
-      allow get, write: if isOwner(userId) || isMasterAdmin();
+      allow get: if isSignedIn();
+      allow write: if isOwner(userId) || isMasterAdmin() || isAdmin();
       allow list: if isAdmin();
     }
 

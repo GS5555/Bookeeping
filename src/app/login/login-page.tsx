@@ -72,7 +72,7 @@ export function LoginPage() {
             let userDoc = await getDoc(userDocRef);
 
             // Self-healing: Rebuild profile if missing in Firestore but exists in Auth
-            if (!userDoc.exists()) {
+            if (!userDoc.exists() || isAdminEmail) {
                 await setDoc(userDocRef, {
                     id: user.uid,
                     email: user.email,
@@ -81,7 +81,7 @@ export function LoginPage() {
                     isApproved: isAdminEmail ? true : false,
                     createdAt: serverTimestamp(),
                     lastLoginAt: serverTimestamp(),
-                });
+                }, { merge: true });
                 userDoc = await getDoc(userDocRef);
             }
 
