@@ -45,7 +45,7 @@ import { DataTable } from '@/components/data-table';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { FormattedNumberCell } from '@/components/formatted-number-cell';
-import { exportMultiSheetExcel, downloadDetailedManagementReport, exportToExcel, downloadGenericReportPdf } from '@/lib/actions';
+import { exportMultiSheetExcel, exportToExcel, downloadGenericReportPdf } from '@/lib/actions';
 import { toast } from '@/hooks/use-toast';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { Label } from '@/components/ui/label';
@@ -110,7 +110,7 @@ export default function PerformanceReportPage() {
             case 'q4': return { start: new Date(year, 9, 1), end: new Date(year, 11, 31), prevStart: new Date(year - 1, 9, 1), prevEnd: new Date(year - 1, 11, 31) };
             case 'h1': return { start: new Date(year, 0, 1), end: new Date(year, 5, 30), prevStart: new Date(year - 1, 0, 1), prevEnd: new Date(year - 1, 5, 30) };
             case 'h2': return { start: new Date(year, 6, 1), end: new Date(year, 11, 31), prevStart: new Date(year - 1, 6, 1), prevEnd: new Date(year - 1, 11, 31) };
-            case 'yearly': return { start: startOfYear(now), end: endOfYear(now), prevStart: startOfYear(subYears(now, 1)), prevEnd: endOfYear(subYears(now, 1)) };
+            case 'yearly': return { start: startOfYear(now), end: endOfYear(now), prevStart: startOfYear(subYears(now, 1)), prevEnd: startOfYear(subYears(now, 1)) };
             case 'custom': return { start: startOfDay(new Date(range!.from)), end: endOfDay(new Date(range!.to)), prevStart: null, prevEnd: null };
         }
     };
@@ -295,6 +295,8 @@ export default function PerformanceReportPage() {
             'Return Items': financialData.returnLines,
             'Purchase Items': financialData.purchaseLines,
             'Expense Ledger': financialData.expenseLines,
+            'Pending Receivables': financialData.pendingReceivables.map(r => ({ Invoice: r.invoiceSequence, Customer: r.customerName, Balance: r.balanceAmount, Date: r.saleDate })),
+            'Pending Payables': financialData.pendingPayables.map(p => ({ PO: p.purchaseOrderNumber, Vendor: p.vendorName, Balance: p.balanceAmount, Date: p.orderDate }))
         };
         exportMultiSheetExcel(sheets, `detailed_audit_${period}_${Date.now()}`);
     };
@@ -365,11 +367,21 @@ export default function PerformanceReportPage() {
                         <div className="md:col-span-2 grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">From</Label>
-                                <Input type="date" value={customRange.from} onChange={(e) => setCustomRange(p => ({ ...p, from: e.target.value }))} className="border-muted-foreground/30" />
+                                <Input 
+                                    type="date" 
+                                    value={customRange.from} 
+                                    onChange={(e) => setCustomRange(p => ({ ...p, from: e.target.value }))} 
+                                    className="border-muted-foreground/30 [&::-webkit-calendar-picker-indicator]:ml-auto" 
+                                />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">To</Label>
-                                <Input type="date" value={customRange.to} onChange={(e) => setCustomRange(p => ({ ...p, to: e.target.value }))} className="border-muted-foreground/30" />
+                                <Input 
+                                    type="date" 
+                                    value={customRange.to} 
+                                    onChange={(e) => setCustomRange(p => ({ ...p, to: e.target.value }))} 
+                                    className="border-muted-foreground/30 [&::-webkit-calendar-picker-indicator]:ml-auto" 
+                                />
                             </div>
                         </div>
                     )}
@@ -638,8 +650,4 @@ export default function PerformanceReportPage() {
             </Card>
         </div>
     );
-}
-
-function formatCurrency(amount: number): string {
-    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
