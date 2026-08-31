@@ -2,7 +2,7 @@
 
 import { PageHeader } from '@/components/layout/page-header';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch, deleteDoc, setDoc, query, orderBy } from 'firebase/firestore';
+import { collection, doc, writeBatch, deleteDoc, setDoc, query, orderBy, limit } from 'firebase/firestore';
 import { DataTable } from '@/components/data-table';
 import { columns } from './columns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +27,6 @@ import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { columns as logColumns } from './log-columns';
 import { ActivityLog } from '@/lib/types';
-import { mockActivityLogs } from '@/lib/mock-data';
 
 interface AppUser {
     id: string;
@@ -36,6 +35,8 @@ interface AppUser {
     role: 'admin' | 'editor' | 'viewer' | 'data-entry';
     isApproved: boolean;
 }
+
+const STORE_ID = 'store_main';
 
 const AccessDenied = () => (
     <>
@@ -58,8 +59,13 @@ function AdminUserList({ currentUser }: { currentUser: AppUser }) {
         if (!firestore) return null;
         return collection(firestore, 'users');
     }, [firestore]);
-
     const { data: allUsersData, isLoading: areAllUsersLoading } = useCollection<AppUser>(allUsersCollectionRef);
+
+    const logsRef = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'stores', STORE_ID, 'activityLogs'), orderBy('timestamp', 'desc'), limit(100));
+    }, [firestore]);
+    const { data: activityLogs, isLoading: areLogsLoading } = useCollection<ActivityLog>(logsRef);
 
      const handleRoleChange = async (userId: string, newRole: 'admin' | 'editor' | 'viewer' | 'data-entry') => {
         if (!firestore || currentUser.id === userId) {
@@ -86,7 +92,7 @@ function AdminUserList({ currentUser }: { currentUser: AppUser }) {
           await setDoc(userDocRef, { role: newRole }, { merge: true });
           toast({
               title: "Success",
-              description: `User role has been updated to ${newRole}. The user may need to re-login for the change to take full effect.`
+              description: `User role updated to ${newRole}.`
           });
         } catch (error) {
           console.error("Error updating role:", error);
@@ -149,13 +155,13 @@ function AdminUserList({ currentUser }: { currentUser: AppUser }) {
             if (deletedCount > 0) {
                  toast({
                     title: "Users Deleted",
-                    description: `${deletedCount} user(s) have been deleted. It may take some time for authentication records to be cleared.`,
+                    description: `${deletedCount} user(s) removed from the database.`,
                 });
             }
         } catch (error) {
              toast({
                 title: "Error",
-                description: "Could not delete users. Please try again.",
+                description: "Could not delete users.",
                 variant: "destructive",
             });
         } finally {
@@ -163,8 +169,6 @@ function AdminUserList({ currentUser }: { currentUser: AppUser }) {
             setRowsToDelete([]);
         }
     }
-    
-    const activityLogs: ActivityLog[] = mockActivityLogs;
 
     if (areAllUsersLoading) {
         return <FullPageLoader />;
@@ -236,10 +240,10 @@ function AdminUserList({ currentUser }: { currentUser: AppUser }) {
                     <Card className="mt-4">
                          <CardHeader>
                             <CardTitle>Activity Logs</CardTitle>
-                            <CardDescription>A record of all actions performed by users in the system.</CardDescription>
+                            <CardDescription>A real-time record of all actions performed by users in the system.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <DataTable columns={logColumns} data={activityLogs} />
+                            <DataTable columns={logColumns} data={activityLogs || []} />
                         </CardContent>
                     </Card>
                 </TabsContent>

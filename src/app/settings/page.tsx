@@ -13,7 +13,8 @@ import {
     Users2, 
     Trash2, 
     AlertTriangle, 
-    ShieldAlert 
+    ShieldAlert,
+    RefreshCw
 } from 'lucide-react';
 import {
   Card,
@@ -133,7 +134,7 @@ export default function SettingsPage() {
   const handleClearTransactions = async () => {
     if (!firestore) return;
     const collectionsToClear = [
-        'sales', 'purchaseOrders', 'expenses', 'salesReturns', 'quotations', 'enquiries', 'repairs'
+        'sales', 'purchaseOrders', 'expenses', 'salesReturns', 'quotations', 'enquiries', 'repairs', 'activityLogs'
     ];
     
     setIsScanning(true);
@@ -152,13 +153,45 @@ export default function SettingsPage() {
 
         if (totalDeleted > 0) {
             await batch.commit();
-            toast({ title: "Data Cleared", description: `${totalDeleted} records have been removed.` });
+            toast({ title: "Data Cleared", description: `${totalDeleted} transaction records removed.` });
         } else {
-            toast({ title: "No Data", description: "No transaction records found to delete." });
+            toast({ title: "No Data", description: "No records found to delete." });
         }
     } catch (error) {
         console.error("Error clearing data:", error);
-        toast({ title: "Error", description: "Failed to clear transaction data.", variant: "destructive" });
+        toast({ title: "Error", description: "Failed to clear data.", variant: "destructive" });
+    } finally {
+        setIsScanning(false);
+    }
+  };
+
+  const handleClearMasterData = async () => {
+    if (!firestore) return;
+    const collectionsToClear = ['products', 'customers', 'vendors', 'inventoryItems'];
+    
+    setIsScanning(true);
+    try {
+        const batch = writeBatch(firestore);
+        let totalDeleted = 0;
+
+        for (const colName of collectionsToClear) {
+            const colRef = collection(firestore, 'stores', STORE_ID, colName);
+            const snapshot = await getDocs(colRef);
+            snapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+                totalDeleted++;
+            });
+        }
+
+        if (totalDeleted > 0) {
+            await batch.commit();
+            toast({ title: "Master Data Cleared", description: `${totalDeleted} core records removed.` });
+        } else {
+            toast({ title: "No Data", description: "No master records found." });
+        }
+    } catch (error) {
+        console.error("Error clearing master data:", error);
+        toast({ title: "Error", description: "Failed to clear master data.", variant: "destructive" });
     } finally {
         setIsScanning(false);
     }
@@ -177,7 +210,7 @@ export default function SettingsPage() {
             count++;
         });
         await batch.commit();
-        toast({ title: "System Reset", description: `All ${count} user profiles have been deleted.` });
+        toast({ title: "System Reset", description: `All ${count} user profiles deleted.` });
         await signOut(auth);
         router.push('/signup');
     } catch (e) {
@@ -326,75 +359,87 @@ export default function SettingsPage() {
                                 <AlertTriangle className="h-5 w-5 text-destructive" />
                                 System Maintenance
                             </h3>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Database cleanup and reset tools.</p>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Database purge tools for test data.</p>
                         </div>
                     </div>
 
-                    <div className="space-y-6 flex-1">
-                        <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 space-y-4">
-                            <div className="space-y-1">
-                                <p className="text-xs font-bold uppercase">Clear Transactional Data</p>
-                                <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                    This will delete all Sales, Purchases, Expenses, Returns, Quotations, and Enquiries. 
-                                    Master data (Products, Customers, Vendors) will be preserved.
-                                </p>
-                            </div>
+                    <div className="space-y-4 flex-1">
+                        <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 space-y-3">
+                            <p className="text-xs font-bold uppercase">Purge Transactional Data</p>
+                            <p className="text-[9px] text-muted-foreground leading-tight">Removes all Sales, POs, Expenses, and Leads. Master data remains safe.</p>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm" className="w-full font-black uppercase tracking-widest text-[10px] h-8" disabled={isScanning}>
+                                    <Button variant="destructive" size="sm" className="w-full font-black uppercase tracking-widest text-[9px] h-8" disabled={isScanning}>
                                         <Trash2 className="mr-2 h-3 w-3" />
-                                        Delete Transaction Data
+                                        Clear Transactions
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This action will permanently delete all transaction records (Sales, POs, etc.) for this store. This cannot be undone.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleClearTransactions} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                            Confirm Deletion
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
+                                    <AlertDialogHeader><AlertDialogTitle>Clear All Transactions?</AlertDialogTitle><AlertDialogDescription>This will delete all sales and records. You cannot undo this.</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleClearTransactions} className="bg-destructive text-white">Confirm Purge</AlertDialogAction></AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
                         </div>
 
-                        <div className="p-4 rounded-xl bg-muted/30 border border-muted-foreground/10 space-y-4">
-                             <div className="space-y-1">
-                                <p className="text-xs font-bold uppercase">Wipe All Users</p>
-                                <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                    Deletes all user profiles from the database. You will be logged out and must sign up again.
-                                </p>
-                            </div>
+                        <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 space-y-3">
+                            <p className="text-xs font-bold uppercase">Purge Master Data</p>
+                            <p className="text-[9px] text-muted-foreground leading-tight">Removes all Products, Customers, and Vendors. Use for a total reset.</p>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="outline" size="sm" className="w-full text-destructive hover:bg-destructive/5 font-black uppercase tracking-widest text-[10px] h-8" disabled={isScanning}>
-                                        <ShieldAlert className="mr-2 h-3 w-3" />
-                                        Delete All Users
+                                    <Button variant="destructive" size="sm" className="w-full font-black uppercase tracking-widest text-[9px] h-8" disabled={isScanning}>
+                                        <Database className="mr-2 h-3 w-3" />
+                                        Clear Master Records
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Wipe All User Profiles?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This will delete every user profile from the database. You will be redirected to the signup page to reclaim the system.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleWipeUsers} className="bg-destructive text-white">
-                                            Confirm Wipe
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
+                                    <AlertDialogHeader><AlertDialogTitle>Clear Master Data?</AlertDialogTitle><AlertDialogDescription>This will delete every product, customer, and vendor. Only settings will remain.</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleClearMasterData} className="bg-destructive text-white">Confirm Purge</AlertDialogAction></AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-muted/30 border border-muted-foreground/10 space-y-3">
+                             <p className="text-xs font-bold uppercase">Wipe All Users</p>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm" className="w-full text-destructive hover:bg-destructive/5 font-black uppercase tracking-widest text-[9px] h-8" disabled={isScanning}>
+                                        <ShieldAlert className="mr-2 h-3 w-3" />
+                                        Wipe Team Access
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Wipe Users?</AlertDialogTitle><AlertDialogDescription>Deletes all staff accounts. You will be logged out.</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleWipeUsers} className="bg-destructive text-white">Confirm Wipe</AlertDialogAction></AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
                         </div>
                     </div>
                 </Card>
+            </div>
+
+            {/* QUICK MASTER DATA GRID */}
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                {[
+                    { title: 'Expense Types', type: 'Expense Type', data: expenseTypes },
+                    { title: 'Categories', type: 'Category', data: categories },
+                    { title: 'Brands', type: 'Brand', data: brands },
+                ].map((sec) => (
+                    <Card key={sec.title} className="border-none bg-card shadow-md overflow-hidden">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 bg-muted/10 border-b">
+                            <CardTitle className="text-xs font-black uppercase tracking-widest">{sec.title}</CardTitle>
+                            <Button size="sm" onClick={() => handleOpenDialog(sec.type as ItemType)} className="h-7 px-3 bg-orange-500 hover:bg-orange-600 text-[9px] font-black uppercase tracking-widest">
+                                <PlusCircle className="mr-1 h-3 w-3" /> Add
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <DataTable 
+                                columns={basicColumns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleDelete(sec.type as ItemType, id) })} 
+                                data={(sec.data || []).slice(0, 5)} 
+                                initialPageSize={5}
+                            />
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
         </TabsContent>
 
