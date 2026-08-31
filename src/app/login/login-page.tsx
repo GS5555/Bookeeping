@@ -71,7 +71,7 @@ export function LoginPage() {
             const userDocRef = doc(firestore, "users", user.uid);
             let userDoc = await getDoc(userDocRef);
 
-            // Self-healing: Rebuild profile if missing in Firestore but exists in Auth
+            // Self-healing: Rebuild profile if missing in Firestore or if it's the master admin
             if (!userDoc.exists() || isAdminEmail) {
                 await setDoc(userDocRef, {
                     id: user.uid,
@@ -79,7 +79,6 @@ export function LoginPage() {
                     displayName: user.displayName || (isAdminEmail ? 'System Admin' : 'User'),
                     role: isAdminEmail ? 'admin' : 'viewer',
                     isApproved: isAdminEmail ? true : false,
-                    createdAt: serverTimestamp(),
                     lastLoginAt: serverTimestamp(),
                 }, { merge: true });
                 userDoc = await getDoc(userDocRef);
@@ -87,19 +86,20 @@ export function LoginPage() {
 
             const userData = userDoc.data();
             
-            // Force administrative status for the master email address to prevent lockouts
-            if (isAdminEmail && (!userData?.isApproved || userData?.role !== 'admin')) {
+            // Critical safeguard: Master email is always approved
+            if (isAdminEmail && userData?.isApproved === false) {
                 await updateDoc(userDocRef, { isApproved: true, role: 'admin' });
             }
 
             if (userData?.isApproved === false && !isAdminEmail) {
                 await signOut(auth);
                 toast({
-                    title: "Approval Pending",
+                    title: "Account Pending Approval",
                     description: "Your account is awaiting administrator review.",
                     variant: "destructive",
                 });
             } else {
+                await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
                 toast({
                     title: "Login Successful",
                     description: `Welcome back, ${userData?.displayName || 'Admin'}!`,
@@ -111,7 +111,7 @@ export function LoginPage() {
             console.error("Login Error:", error);
             let description = "Invalid email or password. Please try again.";
             if (error.code === 'permission-denied') {
-                description = "System error: Security rules blocked access. Please contact support.";
+                description = "Database error: Security rules blocked access. Please contact the master administrator.";
             }
             toast({
                 title: "Login Failed",

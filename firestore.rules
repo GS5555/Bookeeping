@@ -25,10 +25,12 @@ service cloud.firestore {
 
     // Users collection: Essential for login and role management
     match /users/{userId} {
-      // Users can always manage their own profile to prevent onboarding deadlocks
+      // Users can read any profile to see names, but only owners/admins can write
       allow get: if isSignedIn();
-      allow write: if isOwner(userId) || isMasterAdmin() || isAdmin();
       allow list: if isAdmin();
+      allow create: if isOwner(userId) || isMasterAdmin();
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     // Global settings: Master admin and approved admins can manage
@@ -37,10 +39,10 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Store data: Everything under /stores/ requires approval/admin status
+    // Store data: Everything under /stores/ requires admin or editor status
     match /stores/{storeId}/{document=**} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor');
     }
 
     // Initialization locks

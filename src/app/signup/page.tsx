@@ -97,7 +97,7 @@ export default function SignupPage() {
                 displayName: `${values.firstName} ${values.lastName}`
             });
 
-            // ADMINISTRATIVE OVERRIDE: admin@example.com is always approved and admin
+            // Master Email is automatically an approved admin
             const isAdminEmail = values.email.toLowerCase() === 'admin@example.com';
 
             const userDocRef = doc(firestore, "users", user.uid);
@@ -116,8 +116,8 @@ export default function SignupPage() {
             toast({
                 title: isAdminEmail ? "Admin Account Ready!" : "Registration Submitted!",
                 description: isAdminEmail 
-                    ? "Your master administrator account is ready. Please log in." 
-                    : "Your account has been created and is awaiting admin approval.",
+                    ? "You have been registered as the master administrator. Please log in." 
+                    : "Your account is created and awaiting admin approval.",
             });
 
         } catch (error: any) {
@@ -142,14 +142,14 @@ export default function SignupPage() {
                     <StumpBooksLogo className="mx-auto h-8 w-8 mb-2" />
                     <CardTitle className="text-2xl">Registration Complete</CardTitle>
                     <CardDescription>
-                       You can now log in to the system.
+                       Your profile is ready. You can now log in to the portal.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center">
                      <div className="mt-4 text-center text-sm">
                         <Button asChild>
                             <Link href="/login">
-                                Back to Login
+                                Go to Login
                             </Link>
                         </Button>
                     </div>
@@ -161,12 +161,12 @@ export default function SignupPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-muted/40 py-12">
-        <Card className="mx-auto max-w-sm w-full shadow-lg">
+        <Card className="mx-auto max-w-sm w-full shadow-lg border-2">
         <CardHeader className="text-center">
             <StumpBooksLogo className="mx-auto h-8 w-8 mb-2" />
             <CardTitle className="text-2xl font-black uppercase">Join the Team</CardTitle>
             <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
-                Account creation requires approval unless you are the system owner.
+                Create your profile to begin managing store operations.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -259,7 +259,7 @@ export default function SignupPage() {
                         )}
                     />
                     <Button type="submit" className="w-full h-12 font-black uppercase tracking-widest" disabled={isLoading}>
-                         {isLoading ? 'Processing...' : 'Create My Account'}
+                         {isLoading ? 'Processing...' : 'Create Account'}
                     </Button>
                 </form>
              </Form>
