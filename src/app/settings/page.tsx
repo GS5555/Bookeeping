@@ -14,7 +14,9 @@ import {
     Trash2, 
     AlertTriangle, 
     ShieldAlert,
-    RefreshCw
+    RefreshCw,
+    Activity,
+    ShieldCheck
 } from 'lucide-react';
 import {
   Card,
@@ -24,7 +26,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { DataTable } from '@/components/data-table';
-import { columns, subCategoryColumns, courierColumns, basicColumns } from './columns';
+import { columns as masterColumns, subCategoryColumns, courierColumns, basicColumns } from './columns';
 import { useState, useMemo } from 'react';
 import { 
     Category, 
@@ -41,12 +43,14 @@ import {
     VendorType, 
     EnquiryType, 
     EnquirySource, 
-    FollowUpType 
+    FollowUpType,
+    ActivityLog,
+    User
 } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { SettingDialog } from './setting-dialog';
 import { useCollection, useFirestore, useMemoFirebase, useDoc, useAuth } from '@/firebase';
-import { collection, doc, deleteDoc, setDoc, query, orderBy, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, doc, deleteDoc, setDoc, query, orderBy, getDocs, writeBatch, updateDoc, limit } from 'firebase/firestore';
 import { exportFullBackup } from '@/lib/actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CompanySettingsForm } from './company-settings-form';
@@ -68,8 +72,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import { columns as userColumns } from '@/app/users/columns';
+import { columns as logColumns } from '@/app/users/log-columns';
+import { AddUserDialog } from '@/app/users/add-user-dialog';
+import { FullPageLoader } from '@/components/full-page-loader';
 
-type Item = Category | SubCategory | Brand | Color | Courier | Company | ExpenseType | Warranty | HandPreference | EnquiryStatus | CustomerType | VendorType | EnquiryType | EnquirySource | FollowUpType;
 type ItemType = 'Category' | 'Sub-Category' | 'Brand' | 'Color' | 'Courier' | 'Company' | 'Expense Type' | 'Warranty' | 'Hand Preference' | 'Enquiry Status' | 'Customer Type' | 'Vendor Type' | 'Enquiry Type' | 'Enquiry Source' | 'Follow-up Type';
 
 const STORE_ID = 'store_main';
@@ -78,11 +85,15 @@ export default function SettingsPage() {
   const firestore = useFirestore();
   const auth = useAuth();
   const router = useRouter();
-  const { currentUser } = useCurrentUser();
+  const { currentUser, isLoading: isUserLoading } = useCurrentUser();
+  
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [rowsToDelete, setRowsToDelete] = useState<User[]>([]);
   
-  const collections: Record<ItemType, string> = {
+  const collections: Record<string, string> = {
     'Category': 'categories', 'Sub-Category': 'subCategories', 'Brand': 'brands', 'Color': 'colors', 'Courier': 'couriers', 'Company': 'companies', 'Expense Type': 'expenseTypes', 'Warranty': 'warranties', 'Hand Preference': 'handPreferences', 'Enquiry Status': 'enquiryStatuses',
     'Customer Type': 'customerTypes', 'Vendor Type': 'vendorTypes', 'Enquiry Type': 'enquiryTypes', 'Enquiry Source': 'enquirySources', 'Follow-up Type': 'followUpTypes'
   };
@@ -111,12 +122,19 @@ export default function SettingsPage() {
   const enquiryStatusesRef = useMemoFirebase(() => firestore ? collection(firestore, 'settings', 'global', 'enquiryStatuses') : null, [firestore]);
   const { data: enquiryStatuses } = useCollection<EnquiryStatus>(enquiryStatusesRef);
 
-  const [dialogState, setDialogState] = useState<{ open: boolean; itemType: ItemType | null; item?: Item; }>({ open: false, itemType: null, item: undefined });
+  // User Management Hooks
+  const allUsersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const { data: allUsersData, isLoading: areAllUsersLoading } = useCollection<User>(allUsersRef);
 
-  const handleOpenDialog = (itemType: ItemType, item?: Item) => setDialogState({ open: true, itemType, item });
+  const logsRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'stores', STORE_ID, 'activityLogs'), orderBy('timestamp', 'desc'), limit(100)) : null, [firestore]);
+  const { data: activityLogs } = useCollection<ActivityLog>(logsRef);
+
+  const [dialogState, setDialogState] = useState<{ open: boolean; itemType: ItemType | null; item?: any; }>({ open: false, itemType: null, item: undefined });
+
+  const handleOpenDialog = (itemType: ItemType, item?: any) => setDialogState({ open: true, itemType, item });
   const handleCloseDialog = () => setDialogState({ open: false, itemType: null, item: undefined });
 
-  const handleSuccess = async (itemType: ItemType, item: Item) => {
+  const handleSuccess = async (itemType: ItemType, item: any) => {
     if (!firestore) return;
     const collectionName = collections[itemType];
     const docId = item.id || doc(collection(firestore, 'settings', 'global', collectionName)).id;
@@ -125,100 +143,63 @@ export default function SettingsPage() {
     handleCloseDialog();
   };
 
-  const handleDelete = async (itemType: ItemType, itemId: string) => {
+  const handleMasterDelete = async (itemType: ItemType, itemId: string) => {
     if (!firestore) return;
     await deleteDoc(doc(firestore, 'settings', 'global', collections[itemType], itemId));
     toast({ title: "Deleted", description: `${itemType} removed.` });
   };
 
-  const handleClearTransactions = async () => {
-    if (!firestore) return;
-    const collectionsToClear = [
-        'sales', 'purchaseOrders', 'expenses', 'salesReturns', 'quotations', 'enquiries', 'repairs', 'activityLogs'
-    ];
-    
-    setIsScanning(true);
-    try {
-        const batch = writeBatch(firestore);
-        let totalDeleted = 0;
-
-        for (const colName of collectionsToClear) {
-            const colRef = collection(firestore, 'stores', STORE_ID, colName);
-            const snapshot = await getDocs(colRef);
-            snapshot.forEach((doc) => {
-                batch.delete(doc.ref);
-                totalDeleted++;
-            });
-        }
-
-        if (totalDeleted > 0) {
-            await batch.commit();
-            toast({ title: "Data Cleared", description: `${totalDeleted} transaction records removed.` });
-        } else {
-            toast({ title: "No Data", description: "No records found to delete." });
-        }
-    } catch (error) {
-        console.error("Error clearing data:", error);
-        toast({ title: "Error", description: "Failed to clear data.", variant: "destructive" });
-    } finally {
-        setIsScanning(false);
+  // User Management Handlers
+  const handleRoleChange = async (userId: string, newRole: any) => {
+    if (!firestore || !currentUser) return;
+    if (currentUser.id === userId) {
+        toast({ title: "Action Denied", description: "You cannot change your own role.", variant: "destructive" });
+        return;
     }
-  };
-
-  const handleClearMasterData = async () => {
-    if (!firestore) return;
-    const collectionsToClear = ['products', 'customers', 'vendors', 'inventoryItems'];
-    
-    setIsScanning(true);
     try {
-        const batch = writeBatch(firestore);
-        let totalDeleted = 0;
-
-        for (const colName of collectionsToClear) {
-            const colRef = collection(firestore, 'stores', STORE_ID, colName);
-            const snapshot = await getDocs(colRef);
-            snapshot.forEach((doc) => {
-                batch.delete(doc.ref);
-                totalDeleted++;
-            });
-        }
-
-        if (totalDeleted > 0) {
-            await batch.commit();
-            toast({ title: "Master Data Cleared", description: `${totalDeleted} core records removed.` });
-        } else {
-            toast({ title: "No Data", description: "No master records found." });
-        }
-    } catch (error) {
-        console.error("Error clearing master data:", error);
-        toast({ title: "Error", description: "Failed to clear master data.", variant: "destructive" });
-    } finally {
-        setIsScanning(false);
-    }
-  };
-
-  const handleWipeUsers = async () => {
-    if (!firestore || !auth) return;
-    setIsScanning(true);
-    try {
-        const usersRef = collection(firestore, 'users');
-        const snapshot = await getDocs(usersRef);
-        const batch = writeBatch(firestore);
-        let count = 0;
-        snapshot.forEach((userDoc) => {
-            batch.delete(userDoc.ref);
-            count++;
-        });
-        await batch.commit();
-        toast({ title: "System Reset", description: `All ${count} user profiles deleted.` });
-        await signOut(auth);
-        router.push('/signup');
+        const userDocRef = doc(firestore, 'users', userId);
+        await updateDoc(userDocRef, { role: newRole });
+        toast({ title: "Role Updated", description: `User role changed to ${newRole}.` });
     } catch (e) {
-        toast({ title: "Wipe Failed", variant: "destructive" });
-    } finally {
-        setIsScanning(false);
+        console.error(e);
+        toast({ title: "Update Failed", description: "Could not update user role.", variant: "destructive" });
     }
-  }
+  };
+
+  const handleApprovalChange = async (userId: string, isApproved: boolean) => {
+    if (!firestore || !currentUser) return;
+    if (currentUser.id === userId) {
+        toast({ title: "Action Denied", description: "You cannot toggle your own status.", variant: "destructive" });
+        return;
+    }
+    try {
+        const userDocRef = doc(firestore, 'users', userId);
+        await updateDoc(userDocRef, { isApproved });
+        toast({ title: "Status Updated", description: `User ${isApproved ? 'approved' : 'suspended'}.` });
+    } catch (e) {
+        console.error(e);
+        toast({ title: "Update Failed", description: "Could not update approval status.", variant: "destructive" });
+    }
+  };
+
+  const confirmDeleteUsers = async () => {
+    if (!firestore || rowsToDelete.length === 0) return;
+    const batch = writeBatch(firestore);
+    rowsToDelete.forEach(u => {
+        if (u.id !== currentUser?.id) batch.delete(doc(firestore, 'users', u.id));
+    });
+    try {
+        await batch.commit();
+        toast({ title: "Users Deleted", description: "Profiles removed from database." });
+        setIsDeleteDialogOpen(false);
+        setRowsToDelete([]);
+    } catch (e) {
+        toast({ title: "Delete Failed", variant: "destructive" });
+    }
+  };
+
+  if (isUserLoading) return <FullPageLoader />;
+  if (currentUser?.role !== 'admin') return <div className="flex items-center justify-center h-96"><ShieldAlert className="mr-2" /> Access Denied</div>;
 
   return (
     <div className="flex flex-col gap-6 pb-8 min-w-0 w-full overflow-x-hidden">
@@ -232,7 +213,7 @@ export default function SettingsPage() {
         <TabsList className="flex-wrap h-auto justify-start bg-transparent gap-4 p-0 mb-8 border-b rounded-none w-full">
             <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 pb-2 text-sm font-semibold">Overview</TabsTrigger>
             <TabsTrigger value="master" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 pb-2 text-sm font-semibold">Master Data</TabsTrigger>
-            <TabsTrigger value="users" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 pb-2 text-sm font-semibold">Users & Access</TabsTrigger>
+            <TabsTrigger value="users" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 pb-2 text-sm font-semibold">Team Management</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-8 m-0">
@@ -294,12 +275,6 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="pt-6 border-t">
-                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2">Billing Address</p>
-                                <p className="text-xs font-medium text-muted-foreground leading-relaxed">
-                                    {companyDetails?.address || 'Set your business address in settings.'}
-                                </p>
-                            </div>
                         </div>
                     )}
                 </Card>
@@ -337,109 +312,8 @@ export default function SettingsPage() {
                             </div>
                             <Progress value={20} className="h-2 bg-muted" />
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 rounded-xl bg-muted/30 border border-muted-foreground/10">
-                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Restore Points</p>
-                                <p className="text-lg font-black">0.32 MB</p>
-                            </div>
-                            <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 flex flex-col justify-center items-center text-center">
-                                <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-1">Health Status</p>
-                                <p className="text-lg font-black text-green-600 tracking-tighter">OPTIMIZED</p>
-                            </div>
-                        </div>
                     </div>
                 </Card>
-
-                {/* SYSTEM MAINTENANCE CARD */}
-                <Card className="border-none bg-card shadow-lg p-6 flex flex-col">
-                    <div className="flex justify-between items-start mb-8">
-                        <div className="space-y-1">
-                            <h3 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight">
-                                <AlertTriangle className="h-5 w-5 text-destructive" />
-                                System Maintenance
-                            </h3>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Database purge tools for test data.</p>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4 flex-1">
-                        <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 space-y-3">
-                            <p className="text-xs font-bold uppercase">Purge Transactional Data</p>
-                            <p className="text-[9px] text-muted-foreground leading-tight">Removes all Sales, POs, Expenses, and Leads. Master data remains safe.</p>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm" className="w-full font-black uppercase tracking-widest text-[9px] h-8" disabled={isScanning}>
-                                        <Trash2 className="mr-2 h-3 w-3" />
-                                        Clear Transactions
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Clear All Transactions?</AlertDialogTitle><AlertDialogDescription>This will delete all sales and records. You cannot undo this.</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleClearTransactions} className="bg-destructive text-white">Confirm Purge</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </div>
-
-                        <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 space-y-3">
-                            <p className="text-xs font-bold uppercase">Purge Master Data</p>
-                            <p className="text-[9px] text-muted-foreground leading-tight">Removes all Products, Customers, and Vendors. Use for a total reset.</p>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm" className="w-full font-black uppercase tracking-widest text-[9px] h-8" disabled={isScanning}>
-                                        <Database className="mr-2 h-3 w-3" />
-                                        Clear Master Records
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Clear Master Data?</AlertDialogTitle><AlertDialogDescription>This will delete every product, customer, and vendor. Only settings will remain.</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleClearMasterData} className="bg-destructive text-white">Confirm Purge</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </div>
-
-                        <div className="p-4 rounded-xl bg-muted/30 border border-muted-foreground/10 space-y-3">
-                             <p className="text-xs font-bold uppercase">Wipe All Users</p>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="outline" size="sm" className="w-full text-destructive hover:bg-destructive/5 font-black uppercase tracking-widest text-[9px] h-8" disabled={isScanning}>
-                                        <ShieldAlert className="mr-2 h-3 w-3" />
-                                        Wipe Team Access
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Wipe Users?</AlertDialogTitle><AlertDialogDescription>Deletes all staff accounts. You will be logged out.</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleWipeUsers} className="bg-destructive text-white">Confirm Wipe</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            {/* QUICK MASTER DATA GRID */}
-            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-                {[
-                    { title: 'Expense Types', type: 'Expense Type', data: expenseTypes },
-                    { title: 'Categories', type: 'Category', data: categories },
-                    { title: 'Brands', type: 'Brand', data: brands },
-                ].map((sec) => (
-                    <Card key={sec.title} className="border-none bg-card shadow-md overflow-hidden">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 bg-muted/10 border-b">
-                            <CardTitle className="text-xs font-black uppercase tracking-widest">{sec.title}</CardTitle>
-                            <Button size="sm" onClick={() => handleOpenDialog(sec.type as ItemType)} className="h-7 px-3 bg-orange-500 hover:bg-orange-600 text-[9px] font-black uppercase tracking-widest">
-                                <PlusCircle className="mr-1 h-3 w-3" /> Add
-                            </Button>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <DataTable 
-                                columns={basicColumns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleDelete(sec.type as ItemType, id) })} 
-                                data={(sec.data || []).slice(0, 5)} 
-                                initialPageSize={5}
-                            />
-                        </CardContent>
-                    </Card>
-                ))}
             </div>
         </TabsContent>
 
@@ -466,10 +340,10 @@ export default function SettingsPage() {
                     <CardContent className="p-0">
                     <DataTable 
                         columns={
-                            sec.type === 'Sub-Category' ? subCategoryColumns(categories || [])({ onEdit: (i) => handleOpenDialog('Sub-Category', i), onDelete: (id) => handleDelete('Sub-Category', id) }) : 
-                            sec.type === 'Courier' ? courierColumns({ onEdit: (i) => handleOpenDialog('Courier', i as Courier), onDelete: (id) => handleDelete('Courier', id) }) : 
-                            sec.type === 'Category' ? columns({ onEdit: (i) => handleOpenDialog('Category', i), onDelete: (id) => handleDelete('Category', id) }) :
-                            basicColumns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleDelete(sec.type as ItemType, id) })
+                            sec.type === 'Sub-Category' ? subCategoryColumns(categories || [])({ onEdit: (i) => handleOpenDialog('Sub-Category', i), onDelete: (id) => handleMasterDelete('Sub-Category', id) }) : 
+                            sec.type === 'Courier' ? courierColumns({ onEdit: (i) => handleOpenDialog('Courier', i as Courier), onDelete: (id) => handleMasterDelete('Courier', id) }) : 
+                            sec.type === 'Category' ? masterColumns({ onEdit: (i) => handleOpenDialog('Category', i), onDelete: (id) => handleMasterDelete('Category', id) }) :
+                            basicColumns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleMasterDelete(sec.type as ItemType, id) })
                         } 
                         data={sec.data || []} 
                     />
@@ -479,29 +353,62 @@ export default function SettingsPage() {
             </div>
         </TabsContent>
 
-        <TabsContent value="users" className="m-0">
-            <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                    <div className="space-y-1">
-                        <h3 className="text-xl font-black uppercase tracking-tight">Team Management</h3>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Manage staff access and account permissions.</p>
-                    </div>
+        <TabsContent value="users" className="m-0 space-y-8">
+            <AddUserDialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen} />
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>Permanently delete {rowsToDelete.length} user profile(s). Access will be revoked immediately.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeleteUsers} className="bg-destructive text-white">Delete Profiles</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                    <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+                        <Users2 className="h-5 w-5 text-primary" />
+                        Team & Access Control
+                    </h3>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Approve accounts and assign roles.</p>
                 </div>
-                <Card className="border-none shadow-lg">
-                    <CardHeader className="bg-muted/10">
-                        <CardTitle className="text-sm font-black uppercase tracking-widest">Active System Users</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="p-8 text-center bg-muted/20">
-                            <Users2 className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                            <p className="font-bold uppercase text-xs tracking-widest mb-4">User management is now accessible via Settings.</p>
-                            <Button asChild variant="outline" className="font-black uppercase tracking-widest text-xs h-10">
-                                <Link href="/users">Open Dedicated User Dashboard</Link>
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase tracking-widest text-[9px] flex-1 sm:flex-none">
+                        <Link href="/make-admin"><ShieldCheck className="mr-2 h-4 w-4" /> Reset Admin</Link>
+                    </Button>
+                    <Button onClick={() => setIsAddUserDialogOpen(true)} className="h-9 font-black uppercase tracking-widest text-[9px] flex-1 sm:flex-none">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add User
+                    </Button>
+                </div>
             </div>
+
+            <Tabs defaultValue="list" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 sm:w-[300px] mb-4">
+                    <TabsTrigger value="list" className="text-[10px] font-black uppercase tracking-widest">Active Users</TabsTrigger>
+                    <TabsTrigger value="logs" className="text-[10px] font-black uppercase tracking-widest">System Logs</TabsTrigger>
+                </TabsList>
+                
+                <Card className="border-none shadow-lg overflow-hidden">
+                    <TabsContent value="list" className="m-0">
+                        <DataTable 
+                            columns={userColumns({
+                                onRoleChange: handleRoleChange,
+                                onApprovalChange: handleApprovalChange,
+                                currentUserId: currentUser.id
+                            })} 
+                            data={allUsersData || []} 
+                            onDeleteSelected={(rows) => { setRowsToDelete(rows); setIsDeleteDialogOpen(true); }}
+                        />
+                    </TabsContent>
+                    <TabsContent value="logs" className="m-0">
+                        <DataTable columns={logColumns} data={activityLogs || []} />
+                    </TabsContent>
+                </Card>
+            </Tabs>
         </TabsContent>
       </Tabs>
     </div>

@@ -27,10 +27,10 @@ service cloud.firestore {
     match /users/{userId} {
       // Users can read any profile to see names, but only owners/admins can write
       allow get: if isSignedIn();
-      allow list: if isAdmin();
+      allow list: if isSignedIn(); // Allow listing users for the management UI
       allow create: if isOwner(userId) || isMasterAdmin();
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isMasterAdmin() || isAdmin() || isOwner(userId);
+      allow delete: if isMasterAdmin() || isAdmin();
     }
 
     // Global settings: Master admin and approved admins can manage
