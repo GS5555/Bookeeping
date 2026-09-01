@@ -40,7 +40,7 @@ export const columns = (options: ColumnsOptions): ColumnDef<AppUser>[] => [
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Select row"
-        disabled={row.original.id === options.currentUserId}
+        disabled={row.original.id === options.currentUserId || row.original.email === 'admin@example.com' || row.original.email === 'ghanshyam.saini@gmail.com'}
       />
     ),
     enableSorting: false,

@@ -35,11 +35,11 @@ service cloud.firestore {
       allow create: if isOwner(userId) || isMasterAdmin();
       
       // Updating a profile: master admin has full control. 
-      // Other admins can update roles/approval for anyone.
+      // Admins can update roles/approval for anyone.
       // Owners can only update their own basic info (not role/approval)
       allow update: if isMasterAdmin() || isAdmin() || isOwner(userId);
       
-      // Deleting a profile: restricted to admins
+      // Deleting a profile: restricted to master admin or admins
       allow delete: if isMasterAdmin() || isAdmin();
     }
 
