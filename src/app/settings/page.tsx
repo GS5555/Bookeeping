@@ -67,7 +67,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { columns as userColumns } from '@/app/users/columns';
 import { columns as logColumns } from '@/app/users/log-columns';
@@ -407,6 +406,31 @@ export default function SettingsPage() {
                         </div>
                     </div>
                 </Card>
+            </div>
+
+            {/* QUICK MASTER DATA GRID */}
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                {[
+                    { title: 'Expense Types', type: 'Expense Type', data: expenseTypes },
+                    { title: 'Categories', type: 'Category', data: categories },
+                    { title: 'Brands', type: 'Brand', data: brands },
+                ].map((sec) => (
+                    <Card key={sec.title} className="border-2 shadow-sm overflow-hidden">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 bg-muted/20 border-b">
+                            <CardTitle className="text-xs font-black uppercase tracking-widest">{sec.title}</CardTitle>
+                            <Button size="sm" onClick={() => handleOpenDialog(sec.type as ItemType)} className="h-7 px-3 bg-primary hover:bg-primary/90 text-[9px] font-black uppercase tracking-widest">
+                                <PlusCircle className="mr-1 h-3 w-3" /> Add
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <DataTable 
+                                columns={basicColumns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleMasterDelete(sec.type as ItemType, id) })} 
+                                data={(sec.data || []).slice(0, 5)} 
+                                initialPageSize={5}
+                            />
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
         </TabsContent>
 

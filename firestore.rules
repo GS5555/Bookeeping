@@ -12,8 +12,8 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Master bypass for primary administrator emails
-    // This is the "God Mode" that ensures you never get "Permission Denied"
+    // MASTER BYPASS: Provide absolute override for these emails
+    // This ensures that database rules never block administrative actions for the owner.
     function isMasterAdmin() {
       return isSignedIn() && (
         request.auth.token.email == "admin@example.com" || 
@@ -36,27 +36,28 @@ service cloud.firestore {
       allow create: if isOwner(userId) || isMasterAdmin();
       
       // Updating a profile: Master admins or assigned Admins can modify anyone.
-      // Users can only update their own basic details (not role/approval).
-      allow update: if isMasterAdmin() || isAdmin() || (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isApproved']));
+      allow update: if isMasterAdmin() || isAdmin();
       
       // Deleting a profile: restricted to master admin or admins
       allow delete: if isMasterAdmin() || isAdmin();
     }
 
-    // Global settings and master data: Categories, Brands, etc.
+    // Master bypass for all other collections
+    match /{document=**} {
+      allow read, write: if isMasterAdmin();
+    }
+
+    // Default rules for standard authenticated users
     match /settings/{document=**} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Store data: Sales, POs, Inventory, etc.
     match /stores/{storeId}/{collectionId}/{document=**} {
       allow read: if isSignedIn();
-      // Allow writes if user is an admin or editor
       allow write: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor');
     }
 
-    // System initialization locks
     match /_init/{document=**} {
       allow read, write: if isSignedIn();
     }
