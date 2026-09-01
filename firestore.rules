@@ -13,6 +13,7 @@ service cloud.firestore {
     }
 
     // Master bypass for primary administrator emails
+    // This is the "God Mode" that ensures you never get "Permission Denied"
     function isMasterAdmin() {
       return isSignedIn() && (
         request.auth.token.email == "admin@example.com" || 
