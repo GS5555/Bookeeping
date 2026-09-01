@@ -158,7 +158,7 @@ export default function SettingsPage() {
         toast({ title: "Role Updated", description: `User role changed to ${newRole}.` });
     } catch (e) {
         console.error("Role update failed:", e);
-        toast({ title: "Error", description: "Could not update user role. Check security rules.", variant: "destructive" });
+        toast({ title: "Error", description: "Could not update user role.", variant: "destructive" });
     }
   };
 

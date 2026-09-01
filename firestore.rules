@@ -21,7 +21,6 @@ service cloud.firestore {
     }
 
     // Check for admin role in the 'users' collection
-    // Note: get() is used sparingly to maintain authorization independence where possible
     function isAdmin() {
       return isMasterAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
@@ -51,7 +50,6 @@ service cloud.firestore {
     }
 
     // Store data: Standard operational collections
-    // Paths follow /stores/{storeId}/{collectionId}/{docId}
     match /stores/{storeId}/{collectionId}/{document=**} {
       allow read: if isSignedIn();
       // Allow writes if user is an admin or editor

@@ -58,8 +58,8 @@ export const columns = (options: ColumnsOptions): ColumnDef<AppUser>[] => [
                     <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col">
-                    <span className="font-medium">{user.displayName}</span>
-                    <span className="text-xs text-muted-foreground">{user.email}</span>
+                    <span className="font-medium text-xs sm:text-sm">{user.displayName}</span>
+                    <span className="text-[10px] text-muted-foreground">{user.email}</span>
                 </div>
             </div>
         )
@@ -74,7 +74,7 @@ export const columns = (options: ColumnsOptions): ColumnDef<AppUser>[] => [
         const isMaster = user.email === 'admin@example.com' || user.email === 'ghanshyam.saini@gmail.com';
         
         if (isCurrentUser || isMaster) {
-            return <Badge variant="destructive" className="capitalize">{user.role}</Badge>
+            return <Badge variant="destructive" className="capitalize text-[10px] h-6 px-2">{user.role}</Badge>
         }
 
         return (
@@ -82,8 +82,8 @@ export const columns = (options: ColumnsOptions): ColumnDef<AppUser>[] => [
                 defaultValue={user.role} 
                 onValueChange={(value) => options.onRoleChange(user.id, value as AppUser['role'])}
             >
-                <SelectTrigger className="w-[120px] h-8 text-[10px] font-black uppercase tracking-widest">
-                    <SelectValue placeholder="Select role" />
+                <SelectTrigger className="w-[110px] h-8 text-[10px] font-black uppercase tracking-widest bg-background border-muted-foreground/30">
+                    <SelectValue placeholder="Role" />
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
@@ -97,7 +97,7 @@ export const columns = (options: ColumnsOptions): ColumnDef<AppUser>[] => [
   },
   {
     accessorKey: "isApproved",
-    header: "Account Status",
+    header: "Status",
     cell: ({ row }) => {
         const user = row.original;
         const isCurrentUser = user.id === options.currentUserId;
