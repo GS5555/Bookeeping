@@ -130,7 +130,7 @@ export default function SettingsPage() {
   const handleOpenDialog = (itemType: ItemType, item?: any) => setDialogState({ open: true, itemType, item });
   const handleCloseDialog = () => setDialogState({ open: false, itemType: null, item: undefined });
 
-  const handleSuccess = async (itemType: ItemType, item: any) => {
+  const handleMasterSuccess = async (itemType: ItemType, item: any) => {
     if (!firestore) return;
     const collectionName = collections[itemType];
     const docId = item.id || doc(collection(firestore, 'settings', 'global', collectionName)).id;
@@ -261,7 +261,7 @@ export default function SettingsPage() {
   };
 
   if (isUserLoading) return <FullPageLoader />;
-  if (currentUser?.role !== 'admin') return <div className="flex items-center justify-center h-96"><ShieldAlert className="mr-2" /> Access Denied</div>;
+  if (currentUser?.role !== 'admin') return <div className="flex items-center justify-center h-96 font-black uppercase tracking-widest text-destructive"><ShieldAlert className="mr-2" /> Access Denied</div>;
 
   return (
     <div className="flex flex-col gap-6 pb-8 min-w-0 w-full overflow-x-hidden">
@@ -445,7 +445,7 @@ export default function SettingsPage() {
 
         <TabsContent value="master" className="m-0">
             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-                <SettingDialog open={dialogState.open} onOpenChange={handleCloseDialog} item={dialogState.item} itemType={dialogState.itemType} categories={categories || []} onSuccess={handleSuccess} />
+                <SettingDialog open={dialogState.open} onOpenChange={handleCloseDialog} item={dialogState.item} itemType={dialogState.itemType} categories={categories || []} onSuccess={handleMasterSuccess} />
                 
                 {[
                 { title: 'Expense Types', type: 'Expense Type', data: expenseTypes },

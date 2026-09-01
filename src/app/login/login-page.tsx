@@ -67,11 +67,11 @@ export function LoginPage() {
             const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
             const user = userCredential.user;
             
-            const isAdminEmail = values.email.toLowerCase() === 'admin@example.com';
+            const isAdminEmail = values.email.toLowerCase() === 'admin@example.com' || values.email.toLowerCase() === 'ghanshyam.saini@gmail.com';
             const userDocRef = doc(firestore, "users", user.uid);
             let userDoc = await getDoc(userDocRef);
 
-            // Self-healing: Rebuild profile if missing in Firestore or if it's the master admin
+            // Self-healing: Rebuild profile if missing in Firestore or if it's a master admin
             if (!userDoc.exists() || isAdminEmail) {
                 await setDoc(userDocRef, {
                     id: user.uid,
