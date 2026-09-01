@@ -145,7 +145,7 @@ export default function SettingsPage() {
     toast({ title: "Deleted", description: `${itemType} removed.` });
   };
 
-  // User Management Handlers (Mentioned: converting viewer to admin / pending to approved)
+  // User Management Handlers
   const handleRoleChange = async (userId: string, newRole: any) => {
     if (!firestore || !currentUser) return;
     if (currentUser.id === userId) {
@@ -191,6 +191,72 @@ export default function SettingsPage() {
         setRowsToDelete([]);
     } catch (e) {
         toast({ title: "Delete Failed", variant: "destructive" });
+    }
+  };
+
+  const handleClearTransactions = async () => {
+    if (!firestore) return;
+    const collectionsToClear = [
+        'sales', 'purchaseOrders', 'expenses', 'salesReturns', 'quotations', 'enquiries', 'repairs'
+    ];
+    
+    setIsScanning(true);
+    try {
+        const batch = writeBatch(firestore);
+        let totalDeleted = 0;
+
+        for (const colName of collectionsToClear) {
+            const colRef = collection(firestore, 'stores', STORE_ID, colName);
+            const snapshot = await getDocs(colRef);
+            snapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+                totalDeleted++;
+            });
+        }
+
+        if (totalDeleted > 0) {
+            await batch.commit();
+            toast({ title: "Data Cleared", description: `${totalDeleted} records have been removed.` });
+        } else {
+            toast({ title: "No Data", description: "No transaction records found to delete." });
+        }
+    } catch (error) {
+        console.error("Error clearing data:", error);
+        toast({ title: "Error", description: "Failed to clear transaction data.", variant: "destructive" });
+    } finally {
+        setIsScanning(false);
+    }
+  };
+
+  const handleClearMasterRegistry = async () => {
+    if (!firestore) return;
+    const collectionsToClear = ['products', 'customers', 'vendors', 'inventoryItems'];
+    
+    setIsScanning(true);
+    try {
+        const batch = writeBatch(firestore);
+        let totalDeleted = 0;
+
+        for (const colName of collectionsToClear) {
+            const colRef = collection(firestore, 'stores', STORE_ID, colName);
+            const snapshot = await getDocs(colRef);
+            snapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+                totalDeleted++;
+            });
+        }
+
+        if (totalDeleted > 0) {
+            await batch.commit();
+            toast({ title: "Registry Cleared", description: `${totalDeleted} master records removed.` });
+        } else {
+            toast({ title: "No Data", description: "No master records found to delete." });
+        }
+    } catch (error) {
+        console.error("Error clearing registry:", error);
+        toast({ title: "Error", description: "Failed to clear master data.", variant: "destructive" });
+    } finally {
+        setIsScanning(false);
     }
   };
 
@@ -275,41 +341,105 @@ export default function SettingsPage() {
                     )}
                 </Card>
 
-                {/* STORAGE DIAGNOSTICS CARD */}
+                {/* SYSTEM MAINTENANCE CARD */}
                 <Card className="border-none bg-card shadow-lg p-6 flex flex-col">
                     <div className="flex justify-between items-start mb-8">
                         <div className="space-y-1">
                             <h3 className="flex items-center gap-2 text-lg font-black uppercase tracking-tight">
-                                <HardDrive className="h-5 w-5 text-orange-500" />
-                                Storage Diagnostics
+                                <AlertTriangle className="h-5 w-5 text-destructive" />
+                                System Maintenance
                             </h3>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Local Cache and Cloud Analysis.</p>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Database cleanup and purge tools.</p>
                         </div>
-                        <Button variant="outline" size="sm" asChild className="h-9 font-black uppercase tracking-widest text-[9px]">
-                            <Link href="/settings/storage-analytics">
-                                <LineChart className="mr-2 h-3 w-3" />
-                                Analytics
-                            </Link>
-                        </Button>
                     </div>
 
-                    <div className="space-y-10 flex-1">
-                        <div className="flex justify-between items-end">
+                    <div className="space-y-6 flex-1">
+                        <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/20 space-y-4">
                             <div className="space-y-1">
-                                <p className="text-3xl font-black tracking-tighter">0.40 MB</p>
-                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Total Footprint</p>
+                                <p className="text-xs font-bold uppercase">Purge Financial Records</p>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                    Delete all Sales, Purchases, Expenses, Returns, Quotations, and Enquiries. 
+                                    Staff and Registry items will be kept.
+                                </p>
                             </div>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="sm" className="w-full font-black uppercase tracking-widest text-[10px] h-8" disabled={isScanning}>
+                                        <Trash2 className="mr-2 h-3 w-3" />
+                                        Wipe Transactions
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Permanently delete all transaction history. This cannot be undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleClearTransactions} className="bg-destructive text-white">Purge Now</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
 
-                        <div className="space-y-3">
-                            <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest">
-                                <div className="flex items-center gap-2"><Database className="h-3 w-3" /> Database Cache</div>
-                                <span className="text-muted-foreground">0.08 MB</span>
+                        <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 space-y-4">
+                            <div className="space-y-1">
+                                <p className="text-xs font-bold uppercase">Clear Master Registry</p>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                    Wipe all Products, Customers, Vendors, and Inventory records. 
+                                    Use this to start with your own catalog.
+                                </p>
                             </div>
-                            <Progress value={20} className="h-2 bg-muted" />
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm" className="w-full border-orange-500 text-orange-700 font-black uppercase tracking-widest text-[10px] h-8" disabled={isScanning}>
+                                        <Database className="mr-2 h-3 w-3" />
+                                        Empty Registry
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will delete all products, customers, and vendors. You will have to re-enter your own data.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleClearMasterRegistry} className="bg-orange-600 text-white">Wipe Registry</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
                     </div>
                 </Card>
+            </div>
+
+            {/* QUICK MASTER DATA GRID */}
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                {[
+                    { title: 'Expense Types', type: 'Expense Type', data: expenseTypes },
+                    { title: 'Categories', type: 'Category', data: categories },
+                    { title: 'Brands', type: 'Brand', data: brands },
+                ].map((sec) => (
+                    <Card key={sec.title} className="border-none bg-card shadow-md overflow-hidden">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 bg-muted/10 border-b">
+                            <CardTitle className="text-xs font-black uppercase tracking-widest">{sec.title}</CardTitle>
+                            <Button size="sm" onClick={() => handleOpenDialog(sec.type as ItemType)} className="h-7 px-3 bg-orange-500 hover:bg-orange-600 text-[9px] font-black uppercase tracking-widest">
+                                <PlusCircle className="mr-1 h-3 w-3" /> Add
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <DataTable 
+                                columns={basicColumns({ onEdit: (i) => handleOpenDialog(sec.type as ItemType, i), onDelete: (id) => handleMasterDelete(sec.type as ItemType, id) })} 
+                                data={(sec.data || []).slice(0, 5)} 
+                                initialPageSize={5}
+                            />
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
         </TabsContent>
 
@@ -354,8 +484,8 @@ export default function SettingsPage() {
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>Permanently delete {rowsToDelete.length} user profile(s). Access will be revoked immediately.</AlertDialogDescription>
+                        <AlertDialogTitle>Delete User Access?</AlertDialogTitle>
+                        <AlertDialogDescription>Permanently remove {rowsToDelete.length} user profile(s). Access will be revoked immediately.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>

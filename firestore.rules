@@ -11,9 +11,12 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Master bypass for the primary administrator email
+    // Master bypass for the primary administrator emails
     function isMasterAdmin() {
-      return isSignedIn() && request.auth.token.email == "admin@example.com";
+      return isSignedIn() && (
+        request.auth.token.email == "admin@example.com" || 
+        request.auth.token.email == "ghanshyam.saini@gmail.com"
+      );
     }
 
     // Check for admin role in the 'users' collection
@@ -25,7 +28,6 @@ service cloud.firestore {
 
     // Users collection: Essential for login and role management
     match /users/{userId} {
-      // Any signed in user can see basic profiles
       allow get, list: if isSignedIn();
       
       // Creating a profile: only for self-registration or master admin

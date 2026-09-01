@@ -1,4 +1,3 @@
-
 'use client';
 
 import { ColumnDef } from "@tanstack/react-table"
@@ -7,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 
 interface AppUser {
     id: string;
@@ -67,15 +67,14 @@ export const columns = (options: ColumnsOptions): ColumnDef<AppUser>[] => [
   },
   {
     accessorKey: "role",
-    header: "Role",
+    header: "Access Rights",
     cell: ({ row, table }) => {
         const user = row.original;
         const isCurrentUser = user.id === options.currentUserId;
-        const adminCount = table.options.data.filter((u: any) => u.role === 'admin').length;
-        const isLastAdmin = user.role === 'admin' && adminCount === 1;
+        const isMaster = user.email === 'admin@example.com' || user.email === 'ghanshyam.saini@gmail.com';
         
-        if (isCurrentUser || isLastAdmin) {
-            return <Badge variant={isLastAdmin ? "destructive" : "default"}>{user.role}</Badge>
+        if (isCurrentUser || isMaster) {
+            return <Badge variant="destructive" className="capitalize">{user.role}</Badge>
         }
 
         return (
@@ -83,7 +82,7 @@ export const columns = (options: ColumnsOptions): ColumnDef<AppUser>[] => [
                 defaultValue={user.role} 
                 onValueChange={(value) => options.onRoleChange(user.id, value as AppUser['role'])}
             >
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger className="w-[120px] h-8 text-[10px] font-black uppercase tracking-widest">
                     <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -98,20 +97,23 @@ export const columns = (options: ColumnsOptions): ColumnDef<AppUser>[] => [
   },
   {
     accessorKey: "isApproved",
-    header: "Status",
+    header: "Account Status",
     cell: ({ row }) => {
         const user = row.original;
         const isCurrentUser = user.id === options.currentUserId;
+        const isMaster = user.email === 'admin@example.com' || user.email === 'ghanshyam.saini@gmail.com';
 
         return (
             <div className="flex items-center gap-2">
                 <Switch
                     checked={user.isApproved}
                     onCheckedChange={(isApproved) => options.onApprovalChange(user.id, isApproved)}
-                    disabled={isCurrentUser}
+                    disabled={isCurrentUser || isMaster}
                     aria-label="Approve user"
                 />
-                <span className="text-sm text-muted-foreground">{user.isApproved ? "Approved" : "Pending"}</span>
+                <span className={cn("text-[10px] font-black uppercase tracking-widest", user.isApproved ? "text-green-600" : "text-destructive")}>
+                    {user.isApproved ? "Approved" : "Pending"}
+                </span>
             </div>
         )
     }
