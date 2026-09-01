@@ -8,16 +8,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // MASTER BYPASS: Provide absolute override for these emails
+    // MASTER BYPASS: Provide absolute override for master admin emails.
     // This ensures that database rules never block administrative actions for the owner.
     function isMasterAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == "admin@example.com" || 
-        request.auth.token.email == "ghanshyam.saini@gmail.com"
+        request.auth.token.email.lower() == "admin@example.com" || 
+        request.auth.token.email.lower() == "ghanshyam.saini@gmail.com"
       );
     }
 
@@ -39,10 +35,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
       
       // Creating a profile: self-reg or master admin
-      allow create: if isOwner(userId) || isMasterAdmin();
+      allow create: if isMasterAdmin() || request.auth.uid == userId;
       
       // Updating a profile: Master admins or assigned Admins can modify anyone.
-      allow update: if isMasterAdmin() || isAdmin();
+      // Standard users can update their own lastLoginAt.
+      allow update: if isMasterAdmin() || isAdmin() || request.auth.uid == userId;
       
       // Deleting a profile: restricted to master admin or admins
       allow delete: if isMasterAdmin() || isAdmin();
