@@ -86,7 +86,6 @@ export function LoginPage() {
 
             const userData = userDoc.data();
             
-            // Critical safeguard: Master email is always approved
             if (isAdminEmail && userData?.isApproved === false) {
                 await updateDoc(userDocRef, { isApproved: true, role: 'admin' });
             }

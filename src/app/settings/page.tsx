@@ -67,6 +67,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { columns as userColumns } from '@/app/users/columns';
 import { columns as logColumns } from '@/app/users/log-columns';

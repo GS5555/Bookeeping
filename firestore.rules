@@ -30,12 +30,13 @@ service cloud.firestore {
 
     // Users collection: Central staff registry
     match /users/{userId} {
-      allow get, list: if isSignedIn();
+      allow read: if isSignedIn();
       
       // Creating a profile: self-reg or master admin
       allow create: if isOwner(userId) || isMasterAdmin();
       
       // Updating a profile: Master admins or assigned Admins can modify anyone.
+      // We explicitly allow updates if the requester is a master admin or has the admin role.
       allow update: if isMasterAdmin() || isAdmin();
       
       // Deleting a profile: restricted to master admin or admins
