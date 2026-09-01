@@ -1,63 +1,37 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // --- GLOBAL HELPER FUNCTIONS ---
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // MASTER BYPASS: Provide absolute override for master admin emails.
-    // This ensures that database rules never block administrative actions for the owner.
-    function isMasterAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email.lower() == "admin@example.com" || 
-        request.auth.token.email.lower() == "ghanshyam.saini@gmail.com"
+    
+    // Helper function to check if the current user is an admin or master account
+    function isMasterOrAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == 'ghanshyam.saini@gmail.com' ||
+        request.auth.token.email == 'admin@example.com' ||
+        request.auth.token.email.lower() == 'ghanshyam.saini@gmail.com' ||
+        request.auth.token.email.lower() == 'admin@example.com'
       );
     }
 
-    // Check for admin role in the 'users' collection
-    function isAdmin() {
-      return isMasterAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-    }
-
-    // --- GLOBAL BYPASS ---
-    // If user is a master admin, allow all operations on all documents.
-    match /{document=**} {
-      allow read, write: if isMasterAdmin();
-    }
-
-    // --- COLLECTION RULES ---
-
-    // Users collection: Central staff registry
+    // Rules for the users collection
     match /users/{userId} {
-      allow read: if isSignedIn();
+      // Allow any logged-in user to read profiles
+      allow read: if request.auth != null;
       
-      // Creating a profile: self-reg or master admin
-      allow create: if isMasterAdmin() || request.auth.uid == userId;
+      // Allow users to create their own profile during signup
+      allow create: if request.auth != null;
       
-      // Updating a profile: Master admins or assigned Admins can modify anyone.
-      // Standard users can update their own lastLoginAt.
-      allow update: if isMasterAdmin() || isAdmin() || request.auth.uid == userId;
-      
-      // Deleting a profile: restricted to master admin or admins
-      allow delete: if isMasterAdmin() || isAdmin();
+      // Allow admins/master email to update roles, approvals, and delete users
+      allow update, delete: if isMasterOrAdmin() || request.auth.uid == userId;
     }
 
-    // Default rules for standard authenticated users
-    match /settings/{document=**} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    // Default rule for all store data
+    match /stores/{allPaths=**} {
+      allow read, write: if request.auth != null;
     }
-
-    match /stores/{storeId}/{collectionId}/{document=**} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor');
-    }
-
-    match /_init/{document=**} {
-      allow read, write: if isSignedIn();
+    
+    // Default rule for settings data
+    match /settings/{allPaths=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
