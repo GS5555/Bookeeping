@@ -86,6 +86,7 @@ export function LoginPage() {
 
             const userData = userDoc.data();
             
+            // Proactively approve master admin accounts in case of db corruption
             if (isAdminEmail && userData?.isApproved === false) {
                 await updateDoc(userDocRef, { isApproved: true, role: 'admin' });
             }

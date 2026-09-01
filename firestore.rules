@@ -26,6 +26,12 @@ service cloud.firestore {
       return isMasterAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
+    // --- GLOBAL BYPASS ---
+    // If user is a master admin, allow all operations on all documents.
+    match /{document=**} {
+      allow read, write: if isMasterAdmin();
+    }
+
     // --- COLLECTION RULES ---
 
     // Users collection: Central staff registry
@@ -36,16 +42,10 @@ service cloud.firestore {
       allow create: if isOwner(userId) || isMasterAdmin();
       
       // Updating a profile: Master admins or assigned Admins can modify anyone.
-      // We explicitly allow updates if the requester is a master admin or has the admin role.
       allow update: if isMasterAdmin() || isAdmin();
       
       // Deleting a profile: restricted to master admin or admins
       allow delete: if isMasterAdmin() || isAdmin();
-    }
-
-    // Master bypass for all other collections
-    match /{document=**} {
-      allow read, write: if isMasterAdmin();
     }
 
     // Default rules for standard authenticated users
