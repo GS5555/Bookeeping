@@ -98,7 +98,7 @@ export default function SignupPage() {
             });
 
             // Master Email is automatically an approved admin
-            const isAdminEmail = values.email.toLowerCase() === 'admin@example.com';
+            const isAdminEmail = values.email.toLowerCase() === 'admin@example.com' || values.email.toLowerCase() === 'ghanshyam.saini@gmail.com';
 
             const userDocRef = doc(firestore, "users", user.uid);
             await setDoc(userDocRef, {

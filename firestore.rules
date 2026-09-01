@@ -12,7 +12,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Master bypass for the primary administrator emails
+    // Master bypass for primary administrator emails
     function isMasterAdmin() {
       return isSignedIn() && (
         request.auth.token.email == "admin@example.com" || 
@@ -21,6 +21,7 @@ service cloud.firestore {
     }
 
     // Check for admin role in the 'users' collection
+    // Note: get() is used sparingly to maintain authorization independence where possible
     function isAdmin() {
       return isMasterAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
@@ -50,13 +51,15 @@ service cloud.firestore {
     }
 
     // Store data: Standard operational collections
+    // Paths follow /stores/{storeId}/{collectionId}/{docId}
     match /stores/{storeId}/{collectionId}/{document=**} {
       allow read: if isSignedIn();
+      // Allow writes if user is an admin or editor
       allow write: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor');
     }
 
-    // Initialization locks
-    match /_init/admin {
+    // Initialization locks and system state
+    match /_init/{document=**} {
       allow read, write: if isSignedIn();
     }
   }
